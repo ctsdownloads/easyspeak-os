@@ -34,9 +34,9 @@ ones) and daily at 10:05 UTC from the latest Bluefin, and publishes it to
 no image is published and the last good one stays. Signing runs after the push,
 so a failed signing step leaves an unsigned image that a signed rebase rejects.
 
-`build_files/build.sh` installs the packages, downloads the EasySpeak RPMs and
-checks them against pinned sha256 sums, and ships the signing key and policy
-for this image.
+`build_files/build.sh` installs the packages, downloads the newest EasySpeak
+RPMs and checks each against the sha256 digest GitHub publishes for it, and
+ships the signing key and policy for this image.
 
 ## EasySpeak
 
@@ -49,13 +49,14 @@ for this image.
   `/opt/easyspeak` back at boot.
 - Two one-time steps per user: log out and back in so GNOME loads the shell
   extension, and run `sudo usermod -aG input "$USER"` for hold-to-dictate.
-- To update it, change the three versions and sha256 sums in
-  `build_files/build.sh` and push.
+- Updates are automatic: the daily build installs the newest EasySpeak
+  release. If a build fails, the last good image stays.
 - If `easyspeak` fails with a bad interpreter error, remove an old
   `~/.local/bin/easyspeak` left over from a source install.
 
 ## Caveats
 
 - Unofficial.
-- EasySpeak is early development software. Its RPMs are checked by pinned
-  sha256 only, not by signature.
+- EasySpeak is early development software. Its RPMs are checked by the sha256
+  digest GitHub publishes, not by signature, and a new release is installed
+  automatically.
