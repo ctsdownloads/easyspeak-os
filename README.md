@@ -6,8 +6,8 @@ accessibility. It is stock `ghcr.io/ublue-os/bluefin:stable` plus two additions.
 ## What's in it
 
 - **Packages:** firefox, qutebrowser, v4l-utils, wtype, ydotool.
-- **[EasySpeak](https://easyspeak.dev/latest/)** 0.12.0 with its speech packs:
-  Parakeet 1.0.0 and English 1.1.0.
+- **[EasySpeak](https://easyspeak.dev/latest/)** with its Parakeet and English
+  speech packs. The newest release is installed when the image is built.
 
 ## Switching to it
 
