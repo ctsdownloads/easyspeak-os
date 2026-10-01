@@ -7,16 +7,25 @@ dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool
 
 rm -f /opt
 mkdir /opt
-base=https://github.com/ctsdownloads/easyspeak/releases/download
-cd /tmp
-curl -fsSL -o app.rpm  $base/0.12.0/easyspeak-0.12.0-1.x86_64.rpm
-curl -fsSL -o stt.rpm  $base/stt-parakeet-1.0.0/easyspeak-stt-parakeet-1.0.0-1.noarch.rpm
-curl -fsSL -o lang.rpm $base/lang-en-1.1.0/easyspeak-lang-en-1.1.0-1.noarch.rpm
-echo "9c534c6e251408eed7d62bb1c41b8496f37591cc9c2fa747306a3d45e9b2829c  app.rpm"  | sha256sum -c -
-echo "2b901090fc5028ba58df81ca4335ecd4ed21a0cc9fff5239ae74a5cee0866105  stt.rpm"  | sha256sum -c -
-echo "3e1b3af43183ecfbe9acf4f7ca0ce086c112faccf3733654ea2e05b91acb8176  lang.rpm" | sha256sum -c -
-dnf5 -y install ./app.rpm ./stt.rpm ./lang.rpm
-rm -f app.rpm stt.rpm lang.rpm
+curl -fsSL --retry 3 --retry-all-errors 'https://api.github.com/repos/ctsdownloads/easyspeak/releases?per_page=100' -o /tmp/releases.json
+pick() {
+  jq -r --arg re "$1" '
+    [ .[] | select(.draft == false and .prerelease == false)
+      | .assets[]
+      | (.name | capture($re)) as $m
+      | { v: ($m.v | split(".") | map(tonumber)), u: .browser_download_url, d: .digest } ]
+    | sort_by(.v) | last | "\(.u) \(.d)"' /tmp/releases.json
+}
+for re in '^easyspeak-(?<v>[0-9]+\.[0-9]+\.[0-9]+)-[0-9]+\.x86_64\.rpm$' \
+          '^easyspeak-stt-parakeet-(?<v>[0-9]+\.[0-9]+\.[0-9]+)-[0-9]+\.noarch\.rpm$' \
+          '^easyspeak-lang-en-(?<v>[0-9]+\.[0-9]+\.[0-9]+)-[0-9]+\.noarch\.rpm$'; do
+  read -r url digest <<< "$(pick "$re")"
+  [[ "$url" == https://github.com/ctsdownloads/easyspeak/releases/download/* && "$digest" == sha256:* ]] || { echo "no valid release for $re"; exit 1; }
+  curl -fsSL -o "/tmp/$(basename "$url")" "$url"
+  echo "${digest#sha256:}  /tmp/$(basename "$url")" | sha256sum -c -
+done
+dnf5 -y install /tmp/easyspeak-*.rpm
+rm -f /tmp/easyspeak-*.rpm /tmp/releases.json
 mkdir -p /usr/lib/opt
 mv /opt/easyspeak /usr/lib/opt/easyspeak
 echo 'L+ /opt/easyspeak - - - - /usr/lib/opt/easyspeak' > /usr/lib/tmpfiles.d/easyspeak-opt.conf
