@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ouex pipefail
 
+NAME=speakfin
+
 dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool
 
 rm -f /opt
@@ -21,17 +23,9 @@ echo 'L+ /opt/easyspeak - - - - /usr/lib/opt/easyspeak' > /usr/lib/tmpfiles.d/ea
 rm -rf /opt
 ln -s /var/opt /opt
 
-rpm --import /ctx/rpms/pubkey.gpg
-rpm -K /ctx/rpms/libfprint-tod-goodix-*.x86_64.rpm
-dnf5 -y install /tod/libfprint-tod-*.rpm /ctx/rpms/libfprint-tod-goodix-*.x86_64.rpm
-if rpm -q libfprint >/dev/null 2>&1; then
-  echo "stock libfprint is still installed"
-  exit 1
-fi
-
-install -Dm644 /ctx/ctsdownloads.pub /etc/pki/containers/ctsdownloads.pub
+install -Dm644 /ctx/$NAME.pub /etc/pki/containers/$NAME.pub
 mkdir -p /etc/containers/registries.d
-printf 'docker:\n  ghcr.io/ctsdownloads/image-template:\n    use-sigstore-attachments: true\n' > /etc/containers/registries.d/ctsdownloads-image-template.yaml
+printf 'docker:\n  ghcr.io/ctsdownloads/%s:\n    use-sigstore-attachments: true\n' "$NAME" > /etc/containers/registries.d/$NAME.yaml
 [ -f /etc/containers/policy.json ] || cp /usr/etc/containers/policy.json /etc/containers/policy.json
-jq '.transports.docker["ghcr.io/ctsdownloads/image-template"] = [{"type":"sigstoreSigned","keyPath":"/etc/pki/containers/ctsdownloads.pub","signedIdentity":{"type":"matchRepository"}}]' /etc/containers/policy.json > /tmp/policy.json
+jq --arg n "ghcr.io/ctsdownloads/$NAME" --arg k "/etc/pki/containers/$NAME.pub" '.transports.docker[$n] = [{"type":"sigstoreSigned","keyPath":$k,"signedIdentity":{"type":"matchRepository"}}]' /etc/containers/policy.json > /tmp/policy.json
 mv /tmp/policy.json /etc/containers/policy.json
