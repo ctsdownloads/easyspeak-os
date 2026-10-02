@@ -35,6 +35,8 @@ done
 grep -qF 'Muted; microphone released' "$core/tray.py" || { echo "EasySpeak log line changed: Muted"; exit 1; }
 grep -qF '💬 %s' "$core/speech.py" || { echo "EasySpeak log line changed: speak"; exit 1; }
 cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@speakfin /usr/share/gnome-shell/extensions/
+install -Dm755 /ctx/system_files/usr/libexec/speakfin-ready-dot-enable /usr/libexec/speakfin-ready-dot-enable
+install -Dm644 /ctx/system_files/etc/xdg/autostart/speakfin-ready-dot.desktop /etc/xdg/autostart/speakfin-ready-dot.desktop
 mkdir -p /usr/lib/opt
 mv /opt/easyspeak /usr/lib/opt/easyspeak
 echo 'L+ /opt/easyspeak - - - - /usr/lib/opt/easyspeak' > /usr/lib/tmpfiles.d/easyspeak-opt.conf

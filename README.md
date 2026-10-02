@@ -61,9 +61,12 @@ shows a dot in the top bar while EasySpeak is listening for commands without the
 wake word. Yellow means go ahead and speak. Orange means it is busy hearing,
 thinking or replying. No dot means it is waiting for the wake word. The
 extension reads EasySpeak's log lines from the session journal and watches its
-CPU use. After an update and a reboot, turn it on once:
+CPU use.
 
-    gnome-extensions enable ready-dot@speakfin
+A small login script switches the extension on the first time you log in after
+the update. If you turn it off later, it stays off:
+
+    gnome-extensions disable ready-dot@speakfin
 
 The build fails if a new EasySpeak release changes the log lines it reads.
 

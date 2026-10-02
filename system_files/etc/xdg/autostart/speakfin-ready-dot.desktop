@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Enable Ready Dot
+Comment=Turns on the ready-dot extension the first time you log in
+Exec=/usr/libexec/speakfin-ready-dot-enable
+Terminal=false
+NoDisplay=true
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
