@@ -65,9 +65,11 @@ ships the signing key and policy for this image.
 EasySpeak has no window of its own. The image adds a small GNOME extension that
 shows a dot in the top bar while EasySpeak is listening for commands without the
 wake word. Yellow means go ahead and speak. Orange means it is busy hearing,
-thinking or replying. No dot means it is waiting for the wake word. The
-extension reads EasySpeak's log lines from the session journal and watches its
-CPU use.
+thinking or replying. No dot means it is waiting for the wake word. When
+EasySpeak says it did not understand, a small card under the top bar offers the
+closest real commands. It only suggests commands from EasySpeak's own list, and
+nothing when none is close. The extension reads EasySpeak's log lines from the
+session journal and watches its CPU use.
 
 A small login script switches the extension on the first time you log in after
 the update. If you turn it off later, it stays off:
@@ -75,6 +77,14 @@ the update. If you turn it off later, it stays off:
     gnome-extensions disable ready-dot@speakfin
 
 The build fails if a new EasySpeak release changes the log lines it reads.
+
+## Command cheat sheet
+
+The build downloads EasySpeak's command list for the installed release and
+turns it into a short offline cheat sheet: the everyday commands are open and
+the long mode sections are folded. Open **EasySpeak Commands** from the app
+grid, or pin it to the dock. Type in its box to filter the list. If the
+download fails, the image still builds, just without the cheat sheet.
 
 ## Caveats
 

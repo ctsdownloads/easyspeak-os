@@ -2,6 +2,8 @@
 //
 // States: hidden (waiting for the wake word or asleep), ready (listening for a
 // command, no wake word needed) and busy (chime, thinking, or speaking a reply).
+// It also notices when EasySpeak did not understand a command, so the extension
+// can offer the closest real commands.
 
 export const HIDDEN = 'hidden';
 export const READY = 'ready';
@@ -13,6 +15,9 @@ const SPEAK_BASE_MS = 600;   // spoken replies: fixed part ...
 const SPEAK_WORD_MS = 380;   // ... plus time per word
 const CPU_BUSY_PERCENT = 100; // speech recognition shows as a CPU burst
 const CPU_HOLD_MS = 400;     // keep the busy colour long enough to be seen
+const MISS_WINDOW_MS = 4000; // "didn't understand" must follow the heard text this closely
+
+const NOT_UNDERSTOOD = /didn.t understand/i;
 
 // Turns one line of EasySpeak's log into an event, or null if it is irrelevant.
 export function parseEvent(message) {
@@ -26,10 +31,11 @@ export function parseEvent(message) {
     const speak = message.indexOf('\u{1F4AC} ');
     if (speak !== -1) {
         const text = message.slice(speak + 3).trim();
-        return {type: 'speak', words: text ? text.split(/\s+/).length : 0};
+        return {type: 'speak', text, words: text ? text.split(/\s+/).length : 0};
     }
-    if (message.includes('\u{1F442} '))
-        return {type: 'heard'};
+    const heard = message.indexOf('\u{1F442} ');
+    if (heard !== -1)
+        return {type: 'heard', text: message.slice(heard + 3).trim()};
     return null;
 }
 
@@ -48,6 +54,8 @@ export class ReadyTracker {
     constructor() {
         this.inSession = false;
         this.busyUntil = 0;
+        this.lastHeard = null;   // {text, at}
+        this.miss = null;        // text that was heard but not understood
     }
 
     event(ev, now) {
@@ -56,19 +64,34 @@ export class ReadyTracker {
         case 'hotkey':
             this.inSession = true;
             this.busyUntil = now + CHIME_MS;
+            this.lastHeard = null;
             break;
         case 'heard':
             this.busyUntil = Math.max(this.busyUntil, now + HEARD_MS);
+            this.lastHeard = {text: ev.text, at: now};
             break;
         case 'speak':
             this.busyUntil = Math.max(this.busyUntil,
                 now + SPEAK_BASE_MS + SPEAK_WORD_MS * ev.words);
+            if (NOT_UNDERSTOOD.test(ev.text) && this.lastHeard &&
+                now - this.lastHeard.at <= MISS_WINDOW_MS) {
+                this.miss = this.lastHeard.text;
+                this.lastHeard = null;
+            }
             break;
         case 'idle':
             this.inSession = false;
             this.busyUntil = 0;
+            this.lastHeard = null;
             break;
         }
+    }
+
+    // The text EasySpeak did not understand, once; null if there is none.
+    takeMiss() {
+        const m = this.miss;
+        this.miss = null;
+        return m;
     }
 
     cpu(percent, now) {
