@@ -1,12 +1,5 @@
 # EasySpeak-OS
 
-[![Build](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml/badge.svg)](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml)
-[![Status](https://img.shields.io/badge/status-pre--alpha-red.svg)](#status)
-[![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
-[![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
-[![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#verifying-the-signature)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-
 An image for a workstation, with [EasySpeak](https://easyspeak.dev/latest/)
 voice control installed for accessibility. It is a derivative of **Fedora®**,
 built upon Fedora Silverblue 44, with a set of packages carried over from
@@ -14,13 +7,20 @@ built upon Fedora Silverblue 44, with a set of packages carried over from
 small GNOME extension that shows what EasySpeak is doing.
 
 > **EasySpeak-OS is not Fedora.** It contains modified Fedora software and is
-> not provided or supported by the Fedora Project. Fedora's logos and release
-> packages have been removed. Official, unmodified Fedora is available from the
+> not provided or supported by the Fedora Project. The logos and release
+> packages from Fedora have been removed. Official, unmodified Fedora is available from the
 > Fedora Project at <https://fedoraproject.org/>.
 >
 > Fedora is a registered trademark of Red Hat, Inc., or its subsidiaries in the
 > United States and other countries. This project is not affiliated with or
 > endorsed by the Fedora Project or Red Hat.
+
+[![Build](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml/badge.svg)](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml)
+[![Status](https://img.shields.io/badge/status-pre--alpha-red.svg)](#status)
+[![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
+[![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
+[![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#verifying-the-signature)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ## Status
 
@@ -36,10 +36,10 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 
 | Part | Details |
 |------|---------|
-| Base | [Fedora Silverblue 44](https://fedoraproject.org/atomic-desktops/silverblue/) (`quay.io/fedora-ostree-desktops/silverblue:44`), with Fedora's logos and release packages replaced by the generic ones |
+| Base | [Fedora Silverblue 44](https://fedoraproject.org/atomic-desktops/silverblue/) (`quay.io/fedora-ostree-desktops/silverblue:44`), with the logos and release packages from Fedora replaced by the generic ones |
 | Packages | firefox, qutebrowser, v4l-utils, wtype, ydotool, xdg-terminal-exec, and the Fedora packages Bluefin adds that are listed in [`build_files/bluefin-packages.txt`](build_files/bluefin-packages.txt) |
 | Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in the app grid offers them later. See [Media codecs](#media-codecs) |
-| Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. Fedora's own Flathub entry, which stays off until you opt in, is removed |
+| Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. The Flathub entry that comes with Fedora, which stays off until you opt in, is removed |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from the app grid |
@@ -117,7 +117,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
 | `build_files/negativo17-multimedia.repo`, `RPM-GPG-KEY-negativo17` | The negativo17 repository and its signing key, pinned inside the image |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
-| `build_files/rebrand.sh` | Replaces Fedora's logo and release packages with the generic ones and sets the system name |
+| `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
 | `build_files/easyspeak-os-boot-label` | Installed as `easyspeak-os-boot-label`, an optional command that renames the firmware boot-menu entry |
 | `build_files/make-cheatsheet.py` | Turns EasySpeak's command docs into the cheat sheet and the on-screen list |
@@ -134,7 +134,7 @@ What the build checks:
   good one stays. Signing runs after the push, so a failed signing step leaves
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
-- The rebrand and boot-image steps fail the build if anything unexpected would be removed, if Fedora's logo or release packages are still installed, or if the new boot image lacks what is needed to unlock a disk.
+- The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
 
 EasySpeak installs into `/opt`, which is a symlink to `/var/opt` on Fedora Atomic systems and
 is not part of the image. The build makes `/opt` a real directory, moves the
@@ -159,10 +159,10 @@ name; `easyspeak-os-codecs` and `install-codecs` also work):
     codecs full     # the full ffmpeg set
     codecs remove   # takes them out again
 
-- **Web video only** adds Cisco's OpenH264 from Fedora's Cisco repository, so
-  Firefox can play most H.264 web video. Cisco provides it under its own H.264
+- **Web video only** adds Cisco's OpenH264 from the Cisco repository that Fedora
+  provides, so Firefox can play most H.264 web video. Cisco provides it under its own H.264
   patent license.
-- **Everything** replaces Fedora's free ffmpeg libraries with the full ffmpeg,
+- **Everything** replaces the free ffmpeg libraries from Fedora with the full ffmpeg,
   x264 and x265 from the [negativo17](https://negativo17.org/) repository. The
   repository definition and its signing key (fingerprint
   `0C5D 0F47 0484 AE2F C40A 9B65 97F3 0089 93E8 909B`) are pinned inside the
@@ -221,7 +221,7 @@ GPL), and its source is available from them:
   set, it comes from the [negativo17](https://negativo17.org/) multimedia
   repository, and its source packages (`ffmpeg`, `x264` and `x265`) are at
   <https://negativo17.org/repos/multimedia/fedora-44/SRPMS/>. If you choose
-  OpenH264, it comes from Cisco through Fedora's Cisco repository.
+  OpenH264, it comes from Cisco through the Cisco repository that Fedora provides.
 - **EasySpeak** is at <https://github.com/ctsdownloads/easyspeak>.
 - **Everything else** that was added is in this repository.
 
@@ -277,3 +277,9 @@ Also under their own licenses:
 - The speech models in EasySpeak's packages have their own licenses, such as
   NVIDIA's Parakeet model (CC BY 4.0). EasySpeak lists them on its
   [license page](https://easyspeak.dev/latest/license/).
+
+---
+
+## Trademarks
+
+Fedora® is a registered trademark of Red Hat, Inc., or its subsidiaries in the United States and other countries. EasySpeak-OS is not provided or supported by the Fedora Project, and is not affiliated with or endorsed by the Fedora Project or Red Hat.
