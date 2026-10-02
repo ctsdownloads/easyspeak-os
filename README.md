@@ -1,17 +1,26 @@
-# speakfin
+# EasySpeak-OS
 
-[![Build](https://github.com/ctsdownloads/speakfin/actions/workflows/build.yml/badge.svg)](https://github.com/ctsdownloads/speakfin/actions/workflows/build.yml)
+[![Build](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml/badge.svg)](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml)
 [![Status](https://img.shields.io/badge/status-pre--alpha-red.svg)](#status)
-[![Base](https://img.shields.io/badge/base-Bluefin%20stable-1f6feb.svg)](https://projectbluefin.io/)
+[![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
 [![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
 [![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#verifying-the-signature)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-A custom [Bluefin](https://projectbluefin.io/) image for a workstation, with
-[EasySpeak](https://easyspeak.dev/latest/) voice control installed for
-accessibility. It is stock `ghcr.io/ublue-os/bluefin:stable` plus a few
-packages, EasySpeak, and a small GNOME extension that shows what EasySpeak is
-doing.
+An image for a workstation, with [EasySpeak](https://easyspeak.dev/latest/)
+voice control installed for accessibility. It is a derivative of **Fedora®**,
+built upon Fedora Silverblue 44, with a set of packages carried over from
+[Bluefin](https://projectbluefin.io/), the full ffmpeg codecs, EasySpeak, and a
+small GNOME extension that shows what EasySpeak is doing.
+
+> **EasySpeak-OS is not Fedora.** It contains modified Fedora software and is
+> not provided or supported by the Fedora Project. Fedora's logos and release
+> packages have been removed. Official, unmodified Fedora is available from the
+> Fedora Project at <https://fedoraproject.org/>.
+>
+> Fedora is a registered trademark of Red Hat, Inc., or its subsidiaries in the
+> United States and other countries. This project is not affiliated with or
+> endorsed by the Fedora Project or Red Hat.
 
 ## Status
 
@@ -21,30 +30,31 @@ doing.
 > warranty and no support commitment. Roll back with `rpm-ostree rollback`.
 
 It has been used on the author's own machine only. It is not an official
-Universal Blue, Bluefin, Fedora or EasySpeak product.
+Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 
 ## What's in it
 
 | Part | Details |
 |------|---------|
-| Base | [`ghcr.io/ublue-os/bluefin:stable`](https://github.com/ublue-os/bluefin) |
-| Packages | firefox, qutebrowser, v4l-utils, wtype, ydotool |
+| Base | [Fedora Silverblue 44](https://fedoraproject.org/atomic-desktops/silverblue/) (`quay.io/fedora-ostree-desktops/silverblue:44`), with Fedora's logos and release packages replaced by the generic ones |
+| Packages | firefox, qutebrowser, v4l-utils, wtype, ydotool, xdg-terminal-exec, and the Fedora packages Bluefin adds that are listed in [`build_files/bluefin-packages.txt`](build_files/bluefin-packages.txt) |
+| Codecs | The full ffmpeg set (ffmpeg, libav\*, x264, x265) from the negativo17 multimedia repository, the source Universal Blue uses. The build skips the swap if it would remove anything else |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from the app grid |
 
 ## Install
 
-You need an existing Bluefin (or other Fedora Atomic) system and
+You need an existing Fedora Atomic system (Silverblue, Bluefin or similar) and
 [rpm-ostree](https://coreos.github.io/rpm-ostree/). Do this **once per
 machine**. It takes two rebases because the image ships its own signature
 policy: the first is unverified because a fresh machine has no key yet and this
 step installs it, and the second is verified.
 
 ```
-rpm-ostree rebase ostree-unverified-registry:ghcr.io/ctsdownloads/speakfin:latest
+rpm-ostree rebase ostree-unverified-registry:ghcr.io/ctsdownloads/easyspeak-os:latest
 systemctl reboot
-rpm-ostree rebase ostree-image-signed:docker://ghcr.io/ctsdownloads/speakfin:latest
+rpm-ostree rebase ostree-image-signed:docker://ghcr.io/ctsdownloads/easyspeak-os:latest
 systemctl reboot
 ```
 
@@ -60,7 +70,7 @@ rpm-ostree rollback    # go back to the previous image
 ### Verifying the signature
 
 ```
-cosign verify --key cosign.pub ghcr.io/ctsdownloads/speakfin:latest
+cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 ```
 
 ### First login
@@ -69,7 +79,7 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/speakfin:latest
 - Run `sudo usermod -aG input "$USER"` for hold-to-dictate, then log in again.
 - The Ready Dot extension switches itself on at your first login after the
   update. If you turn it off later it stays off:
-  `gnome-extensions disable ready-dot@speakfin`.
+  `gnome-extensions disable ready-dot@easyspeak-os`.
 - If `easyspeak` fails with a bad interpreter error, remove an old
   `~/.local/bin/easyspeak` left over from a source install.
 
@@ -94,12 +104,17 @@ Say "Hey Jarvis", wait for the chime, then say a command.
 
 [GitHub Actions](.github/workflows/build.yml) builds and signs the image on
 every push (except README-only ones) and daily at 10:05 UTC from the latest
-Bluefin, and publishes it to `ghcr.io/ctsdownloads/speakfin`.
+Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-os`.
 
 | Path | Purpose |
 |------|---------|
-| `Containerfile` | Starts from `bluefin:stable` and runs the build script |
+| `Containerfile` | Starts from `silverblue:44` and runs the build script |
 | `build_files/build.sh` | Installs the packages and EasySpeak, ships the signing policy, and runs the checks below |
+| `build_files/bluefin-packages.txt` | The Fedora packages carried over from Bluefin |
+| `build_files/codecs.sh` | Swaps in the full ffmpeg codecs, and skips itself if the swap looks unsafe |
+| `build_files/rebrand.sh` | Replaces Fedora's logo and release packages with the generic ones and sets the system name |
+| `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
+| `build_files/easyspeak-os-boot-label` | Installed as `easyspeak-os-boot-label`, an optional command that renames the firmware boot-menu entry |
 | `build_files/make-cheatsheet.py` | Turns EasySpeak's command docs into the cheat sheet and the on-screen list |
 | `system_files/` | Files copied into the image, including the Ready Dot extension |
 | `cosign.pub` | Public key for verifying the image |
@@ -114,11 +129,21 @@ What the build checks:
   good one stays. Signing runs after the push, so a failed signing step leaves
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
+- The rebrand and boot-image steps fail the build if anything unexpected would be removed, if Fedora's logo or release packages are still installed, or if the new boot image lacks what is needed to unlock a disk.
 
-EasySpeak installs into `/opt`, which is a symlink to `/var/opt` on Bluefin and
+EasySpeak installs into `/opt`, which is a symlink to `/var/opt` on Fedora Atomic systems and
 is not part of the image. The build makes `/opt` a real directory, moves the
 files to `/usr/lib/opt/easyspeak`, and adds a tmpfiles rule that links
 `/opt/easyspeak` back at boot.
+
+## Boot menu name
+
+Your firmware's boot menu keeps the name it got when you installed (for example
+"Fedora" or "bluefin"). That name is stored on your machine, so an image update
+cannot change it. To rename it:
+
+    sudo easyspeak-os-boot-label          # shows what would change
+    sudo easyspeak-os-boot-label --apply  # makes the change
 
 ## Known limitations
 

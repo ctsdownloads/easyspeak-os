@@ -29,8 +29,8 @@ const HELP_SECONDS = 90;
 const MAIN_SECTIONS = ['General', 'Apps', 'Files', 'Media', 'System'];
 const ENTRY_WORDS = ['grid', 'browser', 'notes', 'start tracking'];
 const DATA_DIRS = [
-    `${GLib.get_user_data_dir()}/speakfin`,
-    '/usr/share/speakfin',
+    `${GLib.get_user_data_dir()}/easyspeak-os`,
+    '/usr/share/easyspeak-os',
 ];
 
 const Dot = GObject.registerClass(
