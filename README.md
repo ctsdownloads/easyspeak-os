@@ -54,6 +54,19 @@ ships the signing key and policy for this image.
 - If `easyspeak` fails with a bad interpreter error, remove an old
   `~/.local/bin/easyspeak` left over from a source install.
 
+## Ready dot
+
+EasySpeak has no window of its own. The image adds a small GNOME extension that
+shows a dot in the top bar while EasySpeak is listening for commands without the
+wake word. Yellow means go ahead and speak. Orange means it is busy hearing,
+thinking or replying. No dot means it is waiting for the wake word. The
+extension reads EasySpeak's log lines from the session journal and watches its
+CPU use. After an update and a reboot, turn it on once:
+
+    gnome-extensions enable ready-dot@speakfin
+
+The build fails if a new EasySpeak release changes the log lines it reads.
+
 ## Caveats
 
 - Unofficial.
