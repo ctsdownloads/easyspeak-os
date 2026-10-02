@@ -1,0 +1,14 @@
+#!/bin/bash
+# The helper that always asks for the administrator password (polkit action auth_admin).
+# It accepts exactly one word: web, full or remove.
+set -uo pipefail
+. /usr/libexec/easyspeak-os-codecs-lib.sh
+need_root
+if [ "$#" -ne 1 ]; then echo "usage: easyspeak-os-codecs-admin web|full|remove"; exit 2; fi
+log "admin choice '$1' requested by uid $(caller)"
+case "$1" in
+  web)    do_web ;;
+  full)   do_full ;;
+  remove) do_remove ;;
+  *) echo "usage: easyspeak-os-codecs-admin web|full|remove"; exit 2 ;;
+esac

@@ -1,0 +1,15 @@
+[Unit]
+Description=Add the Flathub Flatpak remote
+ConditionPathExists=!/var/lib/flatpak/.easyspeak-os-flathub
+After=flatpak-add-fedora-repos.service
+Before=flatpak-system-helper.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/usr/bin/mkdir -p /var/lib/flatpak
+ExecStart=/usr/bin/flatpak remote-add --system --if-not-exists flathub /usr/share/easyspeak-os/flathub.flatpakrepo
+ExecStartPost=/usr/bin/touch /var/lib/flatpak/.easyspeak-os-flathub
+
+[Install]
+WantedBy=multi-user.target
