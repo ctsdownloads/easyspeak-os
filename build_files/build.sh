@@ -3,9 +3,11 @@ set -ouex pipefail
 
 NAME=speakfin
 
-dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool
+dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
+xargs -a /ctx/bluefin-packages.txt dnf5 -y install
+bash /ctx/codecs.sh
 
-rm -f /opt
+rm -rf /opt
 mkdir /opt
 curl -fsSL --retry 3 --retry-all-errors 'https://api.github.com/repos/ctsdownloads/easyspeak/releases?per_page=100' -o /tmp/releases.json
 pick() {
