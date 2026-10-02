@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install Media Codecs
+GenericName=Add video and audio codecs
+Comment=Optional: add the media codecs that are left out for legal reasons
+Exec=easyspeak-os-codecs gui
+Icon=applications-multimedia
+Terminal=false
+Categories=AudioVideo;System;
+Keywords=codecs;codec;ffmpeg;h264;video;audio;media;install;

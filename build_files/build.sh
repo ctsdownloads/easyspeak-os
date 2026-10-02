@@ -5,11 +5,27 @@ NAME=easyspeak-os
 
 dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
 xargs -a /ctx/bluefin-packages.txt dnf5 -y install
-bash /ctx/codecs.sh
 bash /ctx/rebrand.sh
 bash /ctx/initramfs.sh
 install -Dm755 /ctx/easyspeak-os-boot-label /usr/bin/easyspeak-os-boot-label
 install -Dm644 /ctx/NOTICE /usr/share/doc/easyspeak-os/NOTICE
+dnf5 -y remove fedora-flathub-remote || echo "note: fedora-flathub-remote was not removed"
+install -Dm644 /ctx/flathub.flatpakrepo /usr/share/easyspeak-os/flathub.flatpakrepo
+install -Dm644 /ctx/easyspeak-os-flathub.service /usr/lib/systemd/system/easyspeak-os-flathub.service
+install -Dm755 /ctx/easyspeak-os-codecs /usr/bin/easyspeak-os-codecs
+ln -sf easyspeak-os-codecs /usr/bin/codecs
+ln -sf easyspeak-os-codecs /usr/bin/install-codecs
+install -Dm644 /ctx/easyspeak-os-codecs.desktop /usr/share/applications/easyspeak-os-codecs.desktop
+install -Dm644 /ctx/easyspeak-os-codecs-prompt.desktop /etc/xdg/autostart/easyspeak-os-codecs-prompt.desktop
+install -Dm644 /ctx/easyspeak-os-codecs-lib.sh /usr/libexec/easyspeak-os-codecs-lib.sh
+install -Dm755 /ctx/easyspeak-os-codecs-setup /usr/libexec/easyspeak-os-codecs-setup
+install -Dm755 /ctx/easyspeak-os-codecs-admin /usr/libexec/easyspeak-os-codecs-admin
+install -Dm644 /ctx/dev.easyspeak.os.codecs.policy /usr/share/polkit-1/actions/dev.easyspeak.os.codecs.policy
+install -Dm644 /ctx/50-easyspeak-os-codecs.rules /usr/share/polkit-1/rules.d/50-easyspeak-os-codecs.rules
+install -Dm644 /ctx/negativo17-multimedia.repo /usr/share/easyspeak-os/negativo17-multimedia.repo
+install -Dm644 /ctx/RPM-GPG-KEY-negativo17 /usr/share/easyspeak-os/RPM-GPG-KEY-negativo17
+install -Dm644 /ctx/easyspeak-os-codecs-setup.service /usr/lib/systemd/system/easyspeak-os-codecs-setup.service
+systemctl enable easyspeak-os-flathub.service easyspeak-os-codecs-setup.service
 
 rm -rf /opt
 mkdir /opt

@@ -1,0 +1,36 @@
+#!/bin/bash
+# The ONE helper that polkit lets run without a password, and only during the one-time setup window:
+# the first 24 hours after this image first boots, until the question is answered.
+# It accepts exactly one word: web, full or skip. It does nothing else.
+set -uo pipefail
+. /usr/libexec/easyspeak-os-codecs-lib.sh
+need_root
+
+window_open() {
+  [ ! -e "$DONE" ] && [ -n "$(find "$OPEN" -maxdepth 0 -mmin -"$WINDOW_MINUTES" 2>/dev/null)" ]
+}
+
+if [ "$#" -ne 1 ]; then echo "usage: easyspeak-os-codecs-setup web|full|skip"; exit 2; fi
+
+case "$1" in
+  --open)   # run by a system service at boot: open the window once, never again
+    if [ ! -e "$DONE" ] && [ ! -e "$OPEN" ]; then mkdir -p "$STATE" && : > "$OPEN"; log "setup window opened"; fi
+    exit 0 ;;
+  web|full|skip) ;;
+  *) echo "usage: easyspeak-os-codecs-setup web|full|skip"; exit 2 ;;
+esac
+
+if ! window_open; then
+  echo "The one-time setup window is closed. Use Install Media Codecs from the app grid; it asks for your administrator password."
+  exit 3
+fi
+
+log "setup choice '$1' requested by uid $(caller)"
+rc=0
+case "$1" in
+  web)  do_web  || rc=$? ;;
+  full) do_full || rc=$? ;;
+  skip) ;;
+esac
+if [ "$rc" -eq 0 ]; then : > "$DONE"; rm -f "$OPEN"; log "setup window closed after '$1'"; fi
+exit "$rc"
