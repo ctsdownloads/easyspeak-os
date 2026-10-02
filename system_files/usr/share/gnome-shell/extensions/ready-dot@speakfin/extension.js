@@ -2,6 +2,8 @@
 // needed), orange = busy hearing, thinking or replying, hidden = waiting for the
 // wake word. It follows the session journal for EasySpeak's log lines and, while
 // a session is open, watches EasySpeak's CPU use to catch it thinking.
+// When EasySpeak says it did not understand, a small card under the top bar offers
+// the closest real commands.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -12,12 +14,22 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {BUSY, HIDDEN, ReadyTracker, cpuPercent, parseEvent, parseStatTicks} from './logic.js';
+import {suggest} from './suggest.js';
 
 const STYLE = {
     ready: 'color: #ffd60a; font-size: 20px;',
     busy: 'color: #ff7a00; font-size: 20px;',
 };
 const TICK_MS = 100;
+const CARD_SECONDS = 7;
+
+// What can be said right after "Hey Jarvis", plus the words that enter a mode.
+const MAIN_SECTIONS = ['General', 'Apps', 'Files', 'Media', 'System'];
+const ENTRY_WORDS = ['grid', 'browser', 'notes', 'start tracking'];
+const COMMAND_FILES = [
+    `${GLib.get_user_data_dir()}/speakfin/commands.json`,
+    '/usr/share/speakfin/commands.json',
+];
 
 const Dot = GObject.registerClass(
 class ReadyDot extends PanelMenu.Button {
@@ -56,6 +68,9 @@ export default class ReadyDotExtension extends Extension {
         this._pid = 0;
         this._prevTicks = null;
         this._prevAt = 0;
+        this._phrases = null;
+        this._card = null;
+        this._cardTimer = 0;
         this._follow();
     }
 
@@ -67,11 +82,13 @@ export default class ReadyDotExtension extends Extension {
             GLib.source_remove(this._retry);
         this._retry = 0;
         this._stopTicking();
+        this._hideCard();
         if (this._proc)
             this._proc.force_exit();
         this._proc = null;
         this._stream = null;
         this._tracker = null;
+        this._phrases = null;
         if (this._dot)
             this._dot.destroy();
         this._dot = null;
@@ -129,9 +146,83 @@ export default class ReadyDotExtension extends Extension {
             this._pid = pid;
             this._prevTicks = null;
         }
+        if (ev.type === 'heard' || ev.type === 'wake' || ev.type === 'hotkey' || ev.type === 'idle')
+            this._hideCard();
         this._tracker.event(ev, nowMs());
+        const miss = this._tracker.takeMiss();
+        if (miss !== null)
+            this._offerSuggestions(miss);
         this._update();
     }
+
+    // ---- "did you mean" card ----
+
+    _loadPhrases() {
+        if (this._phrases)
+            return this._phrases;
+        this._phrases = [];
+        for (const path of COMMAND_FILES) {
+            try {
+                const [ok, bytes] = GLib.file_get_contents(path);
+                if (!ok)
+                    continue;
+                const all = JSON.parse(new TextDecoder().decode(bytes));
+                this._phrases = all.filter(p =>
+                    MAIN_SECTIONS.includes(p.section) || ENTRY_WORDS.includes(p.phrase));
+                break;
+            } catch (e) {
+                // try the next location
+            }
+        }
+        return this._phrases;
+    }
+
+    _offerSuggestions(heard) {
+        const found = suggest(heard, this._loadPhrases());
+        if (!found.length)
+            return;
+        this._hideCard();
+        const box = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            reactive: false,
+            style: 'background-color: rgba(32, 32, 38, 0.96); color: #f2f2f2; ' +
+                'border: 2px solid #ffd60a; border-radius: 14px; padding: 12px 20px; spacing: 4px;',
+        });
+        box.add_child(new St.Label({
+            text: `Heard \u201C${heard.replace(/[.!?]+$/, '')}\u201D`,
+            style: 'font-size: 15px; color: #bbbbbb;',
+        }));
+        box.add_child(new St.Label({text: 'Did you mean:', style: 'font-size: 15px;'}));
+        for (const s of found) {
+            box.add_child(new St.Label({
+                text: `\u2022 ${s.phrase}`,
+                style: 'font-size: 22px; font-weight: bold; color: #ffd60a;',
+            }));
+        }
+        Main.uiGroup.add_child(box);
+        const monitor = Main.layoutManager.primaryMonitor;
+        const [, width] = box.get_preferred_width(-1);
+        box.set_position(
+            monitor.x + Math.floor((monitor.width - width) / 2),
+            monitor.y + Main.layoutManager.panelBox.height + 12);
+        this._card = box;
+        this._cardTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, CARD_SECONDS, () => {
+            this._cardTimer = 0;
+            this._hideCard();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _hideCard() {
+        if (this._cardTimer)
+            GLib.source_remove(this._cardTimer);
+        this._cardTimer = 0;
+        if (this._card)
+            this._card.destroy();
+        this._card = null;
+    }
+
+    // ---- dot state ----
 
     _update() {
         if (!this._dot || !this._tracker)
@@ -188,6 +279,7 @@ export default class ReadyDotExtension extends Extension {
         this._proc = null;
         this._stream = null;
         this._stopTicking();
+        this._hideCard();
         if (this._tracker)
             this._tracker.event({type: 'idle'}, nowMs());
         if (this._dot)
