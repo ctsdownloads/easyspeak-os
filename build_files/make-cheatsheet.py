@@ -178,6 +178,10 @@ def main():
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(render(cards, version))
+    ordered = order(cards)
+    sections = [{"title": title, "say": [say for say, _ in rows]} for title, rows in ordered]
+    with open(os.path.join(os.path.dirname(out_path) or ".", "cheatsheet.json"), "w", encoding="utf-8") as f:
+        json.dump(sections, f, ensure_ascii=False)
     phrases = [{"phrase": p.lower(), "section": title}
                for title, rows in cards for say, _ in rows for p in expand(say)]
     with open(os.path.join(os.path.dirname(out_path) or ".", "commands.json"), "w", encoding="utf-8") as f:
