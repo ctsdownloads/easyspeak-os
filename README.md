@@ -8,11 +8,19 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 An image for a workstation, with [EasySpeak](https://easyspeak.dev/latest/)
-voice control installed for accessibility. It is built on the official Fedora
-Silverblue 44 image, with a set of packages carried over from
+voice control installed for accessibility. It is a derivative of **Fedora®**,
+built upon Fedora Silverblue 44, with a set of packages carried over from
 [Bluefin](https://projectbluefin.io/), the full ffmpeg codecs, EasySpeak, and a
-small GNOME extension that shows what EasySpeak is doing. Fedora's logos and
-release branding are replaced.
+small GNOME extension that shows what EasySpeak is doing.
+
+> **EasySpeak-OS is not Fedora.** It contains modified Fedora software and is
+> not provided or supported by the Fedora Project. Fedora's logos and release
+> packages have been removed. Official, unmodified Fedora is available from the
+> Fedora Project at <https://fedoraproject.org/>.
+>
+> Fedora is a registered trademark of Red Hat, Inc., or its subsidiaries in the
+> United States and other countries. This project is not affiliated with or
+> endorsed by the Fedora Project or Red Hat.
 
 ## Status
 
@@ -22,9 +30,7 @@ release branding are replaced.
 > warranty and no support commitment. Roll back with `rpm-ostree rollback`.
 
 It has been used on the author's own machine only. It is not an official
-Universal Blue, Bluefin, Fedora or EasySpeak product, and none of them endorse
-it. It is derived from Fedora's software with Fedora's logos and release
-branding replaced. Fedora and Silverblue are trademarks of Red Hat, Inc.
+Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 
 ## What's in it
 

@@ -1,10 +1,13 @@
 #!/bin/bash
-# Rebuild the initramfs so the boot splash and the disk-unlock (LUKS) screen use a blank watermark
-# instead of Fedora's logo. The initramfs holds its own copy of the splash artwork, built before
-# our branding changes, so the logo only changes when it is rebuilt.
+# Rebuild the initramfs so the boot splash and the disk-unlock (LUKS) screen carry no Fedora logo.
+# The initramfs holds its own copy of the splash artwork, built before our branding changes, so the
+# logo only changes when it is rebuilt. The Fedora wordmark on those screens is
+# /usr/share/plymouth/themes/spinner/watermark.png, which came from fedora-logos. That package is
+# gone by now, so this writes a blank one in its place and checks that the blank one is what
+# ended up inside the new initramfs.
 # The original was built with: dracut --reproducible -v --add ostree --tmpdir /tmp/dracut -f --no-hostonly
 # This step FAILS the build if the new initramfs lacks anything needed to unlock a disk or boot,
-# or if the old logo is still inside it.
+# or if the splash artwork inside it is not the blank one.
 set -euo pipefail
 
 kvers=(/usr/lib/modules/*/)
@@ -14,7 +17,7 @@ IMG=/usr/lib/modules/$KVER/initramfs.img
 [ -f "$IMG" ] || { echo "ERROR: $IMG not found"; exit 1; }
 mode=$(stat -c %a "$IMG")
 
-# Blank logos (generic-logos would otherwise show its hot-dog mascot).
+# Blank logos. The generic-logos package would otherwise show its hot-dog mascot.
 python3 - <<'PY'
 import zlib, struct
 def chunk(t, d):
@@ -28,6 +31,7 @@ def blank(path, w, h):
 blank('/usr/share/pixmaps/system-logo-white.png', 240, 310)
 blank('/usr/share/pixmaps/fedora-logo.png', 240, 310)
 blank('/usr/share/pixmaps/fedora-logo-small.png', 128, 128)
+blank('/usr/share/plymouth/themes/spinner/watermark.png', 149, 43)   # same size as the original
 PY
 
 export DRACUT_NO_XATTR=1
@@ -38,10 +42,16 @@ chmod "$mode" "$IMG"
 # Safety checks: everything needed to unlock an encrypted disk and boot an ostree system.
 mods=$(lsinitrd -m "$IMG")
 for m in ostree crypt plymouth dm lvm systemd-cryptsetup kernel-modules; do
-  printf '%s\n' "$mods" | grep -qx "$m" || { echo "ERROR: the new initramfs lacks dracut module: $m"; exit 1; }
+  grep -qx "$m" <<< "$mods" || { echo "ERROR: the new initramfs lacks dracut module: $m"; exit 1; }
 done
-# The splash artwork inside the initramfs must now be the blank logo.
-want=$(sha256sum /usr/share/pixmaps/system-logo-white.png | cut -d' ' -f1)
-got=$(lsinitrd "$IMG" -f usr/share/plymouth/themes/spinner/watermark.png | sha256sum | cut -d' ' -f1)
-[ "$want" = "$got" ] || { echo "ERROR: the boot splash inside the initramfs still has the old logo"; exit 1; }
-echo "initramfs rebuilt for $KVER: $(du -h "$IMG" | cut -f1), modules ok, blank splash logo in place"
+
+# The splash artwork inside the initramfs must be the blank watermark.
+WM=usr/share/plymouth/themes/spinner/watermark.png
+want=$(sha256sum "/$WM" | cut -d' ' -f1)
+listing=$(lsinitrd "$IMG")
+if ! grep -qE " ${WM}\$" <<< "$listing"; then
+  echo "ERROR: $WM is missing from the new initramfs"; exit 1
+fi
+got=$(lsinitrd "$IMG" -f "$WM" | sha256sum | cut -d' ' -f1)
+[ "$want" = "$got" ] || { echo "ERROR: the splash artwork inside the new initramfs is not the blank one (expected ${want:0:12}, found ${got:0:12})"; exit 1; }
+echo "initramfs rebuilt for $KVER: $(du -h "$IMG" | cut -f1), modules ok, blank splash watermark in place"

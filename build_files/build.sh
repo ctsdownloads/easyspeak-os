@@ -9,6 +9,7 @@ bash /ctx/codecs.sh
 bash /ctx/rebrand.sh
 bash /ctx/initramfs.sh
 install -Dm755 /ctx/easyspeak-os-boot-label /usr/bin/easyspeak-os-boot-label
+install -Dm644 /ctx/NOTICE /usr/share/doc/easyspeak-os/NOTICE
 
 rm -rf /opt
 mkdir /opt
