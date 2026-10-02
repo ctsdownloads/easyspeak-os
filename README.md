@@ -9,18 +9,24 @@ accessibility. It is stock `ghcr.io/ublue-os/bluefin:stable` plus two additions.
 - **[EasySpeak](https://easyspeak.dev/latest/)** with its Parakeet and English
   speech packs. The newest release is installed when the image is built.
 
-## Switching to it
+## Switching to it (once per machine)
 
-The image ships its own signature policy, so switching takes two rebases. The
-first one is unverified because a fresh machine has no key yet. It installs the
-key and policy. The second one is verified.
+Do this once, the first time a machine switches to this image. It takes two
+rebases because the image ships its own signature policy. The first one is
+unverified because a fresh machine has no key yet. It installs the key and
+policy. The second one is verified. You never repeat these steps.
 
     rpm-ostree rebase ostree-unverified-registry:ghcr.io/ctsdownloads/speakfin:latest
     systemctl reboot
     rpm-ostree rebase ostree-image-signed:docker://ghcr.io/ctsdownloads/speakfin:latest
     systemctl reboot
 
-Update with `rpm-ostree upgrade`. Roll back with `rpm-ostree rollback`.
+## Updating
+
+After that, updating is the normal command. Reboot to finish. Roll back with
+`rpm-ostree rollback`.
+
+    rpm-ostree upgrade
 
 To check a signature by hand:
 
