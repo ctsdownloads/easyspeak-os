@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN" "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>EasySpeak-OS</vendor>
+  <vendor_url>https://github.com/ctsdownloads/easyspeak-os</vendor_url>
+
+  <!-- The one-time setup question. By default this asks for the administrator password too. The rules
+       file 50-easyspeak-os-codecs.rules lets the administrator (wheel) account, sitting at the machine,
+       skip that password. The helper itself refuses unless the setup window is open (first 24 hours
+       after the image first boots), accepts only web, full or skip, and installs a fixed package list
+       from a fixed, pinned repository. -->
+  <action id="dev.easyspeak.os.codecs.setup">
+    <description>Add the media codecs you chose during first-time setup</description>
+    <message>Add the media codecs you chose during first-time setup</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/easyspeak-os-codecs-setup</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+  <!-- Everything else asks for the administrator password, every time. -->
+  <action id="dev.easyspeak.os.codecs.admin">
+    <description>Add or remove media codecs</description>
+    <message>Authentication is required to add or remove media codecs</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/easyspeak-os-codecs-admin</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

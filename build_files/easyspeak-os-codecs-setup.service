@@ -1,0 +1,11 @@
+[Unit]
+Description=Open the one-time media codecs setup window
+ConditionPathExists=!/var/lib/easyspeak-os/codecs-setup-done
+ConditionPathExists=!/var/lib/easyspeak-os/codecs-setup-open
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/easyspeak-os-codecs-setup --open
+
+[Install]
+WantedBy=multi-user.target

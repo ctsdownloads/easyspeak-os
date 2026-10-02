@@ -1,0 +1,15 @@
+# negativo17 multimedia repository, pinned by EasySpeak-OS.
+# The signing key ships inside this image (RPM-GPG-KEY-negativo17), not fetched at install time.
+# Only used if you choose to add the full ffmpeg codecs. See the "Media codecs" section of the README.
+[fedora-multimedia]
+name=negativo17 - Multimedia
+baseurl=https://negativo17.org/repos/multimedia/fedora-$releasever/$basearch/
+enabled=1
+priority=90
+skip_if_unavailable=1
+gpgkey=file:///usr/share/easyspeak-os/RPM-GPG-KEY-negativo17
+gpgcheck=1
+enabled_metadata=1
+metadata_expire=6h
+type=rpm-md
+repo_gpgcheck=0

@@ -22,7 +22,6 @@ if [ -n "$bad" ]; then echo "ERROR: rebranding would also remove: $(echo $bad)";
 dnf5 -y install --allowerasing generic-logos generic-release
 rpm -q generic-logos generic-release
 if rpm -q fedora-logos fedora-release-common >/dev/null 2>&1; then echo "ERROR: Fedora branding packages are still installed"; exit 1; fi
-dnf5 -y remove fedora-bookmarks || echo "note: fedora-bookmarks was not removed"
 
 # The image's own name. ID_LIKE keeps tools that look for a Fedora-family system working.
 cat > /usr/lib/os-release <<'OSREL'

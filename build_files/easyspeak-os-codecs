@@ -1,0 +1,117 @@
+#!/bin/bash
+# easyspeak-os-codecs: add the media codecs that Fedora, and this image, leave out.
+#
+# Some audio and video formats (H.264, H.265 and others) are covered by patents in some
+# countries. Fedora does not ship them and neither does this image. Adding them is your choice
+# and your responsibility. Nothing is downloaded until you ask for it.
+#
+#   codecs            explain the options and show what each one would do (changes nothing)
+#   codecs web        web video in Firefox only: Cisco's licensed OpenH264
+#   codecs full       everything: the full ffmpeg, x264 and x265 from negativo17
+#   codecs remove     take them out again
+#   codecs gui        a window with three big buttons instead of typing
+#
+# Also called easyspeak-os-codecs and install-codecs. The dashed forms (--web, --full, --remove,
+# --gui) work too. A window also appears once, the first time you log in after this image first boots.
+#
+# Passwords: during that first-time setup window (the first 24 hours after the image first boots,
+# until you answer) the choice installs without a password, through one narrow polkit action that
+# can only add these fixed packages. At every other time it asks for your administrator password.
+# Changes are staged by rpm-ostree: restart to use them, and `rpm-ostree rollback` undoes them.
+set -uo pipefail
+
+STATE=/var/lib/easyspeak-os
+OPEN=$STATE/codecs-setup-open
+DONE=$STATE/codecs-setup-done
+SETUP=/usr/libexec/easyspeak-os-codecs-setup
+ADMIN=/usr/libexec/easyspeak-os-codecs-admin
+USTATE="${XDG_STATE_HOME:-$HOME/.local/state}/easyspeak-os"
+ARGS=("$@")
+
+say() { printf '%s\n' "$*"; }
+window_open() { [ ! -e "$DONE" ] && [ -n "$(find "$OPEN" -maxdepth 0 -mmin -1440 2>/dev/null)" ]; }
+
+run_helper() {   # $1 = web, full, remove or skip
+  if [ "$(id -u)" -eq 0 ]; then "$ADMIN" "$1"; return; fi          # already root, for example via sudo
+  command -v pkexec >/dev/null 2>&1 || { say "pkexec is missing. Run this with sudo instead."; return 1; }
+  if [ "$1" != remove ] && window_open; then pkexec "$SETUP" "$1"; else pkexec "$ADMIN" "$1"; fi
+}
+
+explain() {
+  say "Some audio and video formats are covered by patents in some countries."
+  say "Fedora, and this image, leave them out. Installing them is your choice and your"
+  say "responsibility. EasySpeak does not need them."
+  say
+  say "Two choices:"
+  say "  codecs web   Web video in Firefox only. Adds Cisco's OpenH264 from Fedora's Cisco"
+  say "               repository, under Cisco's own H.264 patent license."
+  say "  codecs full  Everything. Replaces Fedora's free ffmpeg libraries with the full ffmpeg,"
+  say "               x264 and x265 from the negativo17 repository (pinned in this image)."
+  say
+  if window_open; then
+    say "The first-time setup window is open, so either choice installs with no password."
+  else
+    say "Either choice asks for your administrator password, in the standard system box."
+  fi
+  say "Restart afterwards. To take them out again: codecs remove"
+}
+
+ask() {   # prints web or full, or nothing for "Not now"
+  local note out rc
+  if window_open; then note="Either choice installs now with no password, because this is first-time setup. Later, Install Media Codecs asks for your administrator password."
+  else note="Either choice asks for your administrator password next."; fi
+  out=$(zenity --question --title="Install Media Codecs" --width=600 \
+        --ok-label="Web video only" --extra-button="Everything" --cancel-label="Not now" \
+        --text="Some audio and video formats are covered by patents in some countries. Fedora, and this system, leave them out. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: Cisco's OpenH264 for Firefox, provided under Cisco's own patent license.\n\nEverything: the full ffmpeg, x264 and x265 from negativo17.org.\n\n$note" 2>/dev/null); rc=$?
+  if [ "$rc" -eq 0 ]; then say web; elif [ "$out" = "Everything" ]; then say full; fi
+}
+
+install_with_window() {   # $1 = web or full
+  local log pid rc; log=$(mktemp)
+  run_helper "$1" >"$log" 2>&1 &
+  pid=$!
+  ( while kill -0 "$pid" 2>/dev/null; do echo; sleep 1; done; echo 100 ) | \
+    zenity --progress --pulsate --auto-close --no-cancel --title="Install Media Codecs" --text="Installing. This can take a few minutes." || true
+  wait "$pid"; rc=$?
+  if [ "$rc" -eq 0 ]; then
+    zenity --question --title="Install Media Codecs" --ok-label="Restart now" --cancel-label="Later" \
+      --text="Done. Restart to finish." && systemctl reboot
+  else
+    zenity --error --title="Install Media Codecs" --width=520 \
+      --text="It did not work, and nothing was changed.\n\n$(tail -n 5 "$log" | head -c 600)"
+  fi
+  rm -f "$log"
+}
+
+gui() {
+  command -v zenity >/dev/null 2>&1 || { say "zenity is missing. Use the typed commands instead: run  codecs"; exit 1; }
+  local choice; choice=$(ask)
+  if [ -n "$choice" ]; then install_with_window "$choice"
+  elif window_open; then run_helper skip >/dev/null 2>&1; fi      # "Not now" closes the setup window
+  return 0
+}
+
+first_login() {
+  command -v zenity >/dev/null 2>&1 || exit 0
+  window_open || exit 0
+  [ -e "$USTATE/codecs-asked" ] && exit 0
+  mkdir -p "$USTATE" && : > "$USTATE/codecs-asked"
+  gui
+}
+
+mode=explain
+for a in "${ARGS[@]}"; do
+  case "$a" in
+    web|--web) mode=web ;; full|--full) mode=full ;; remove|--remove) mode=remove ;;
+    gui|--gui) mode=gui ;; --first-login) mode=first ;; --apply) ;; -h|--help|help) mode=explain ;;
+    *) say "Unknown option: $a. Run  codecs  to see the choices."; exit 2 ;;
+  esac
+done
+case "$mode" in
+  explain) explain ;;
+  web)     run_helper web ;;
+  full)    run_helper full ;;
+  remove)  run_helper remove ;;
+  gui)     gui ;;
+  first)   first_login ;;
+esac
