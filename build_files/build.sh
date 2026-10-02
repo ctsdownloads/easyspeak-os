@@ -89,5 +89,13 @@ install -Dm644 /ctx/$NAME.pub /etc/pki/containers/$NAME.pub
 mkdir -p /etc/containers/registries.d
 printf 'docker:\n  ghcr.io/ctsdownloads/%s:\n    use-sigstore-attachments: true\n' "$NAME" > /etc/containers/registries.d/$NAME.yaml
 [ -f /etc/containers/policy.json ] || cp /usr/etc/containers/policy.json /etc/containers/policy.json
-jq --arg n "ghcr.io/ctsdownloads/$NAME" --arg k "/etc/pki/containers/$NAME.pub" '.transports.docker[$n] = [{"type":"sigstoreSigned","keyPath":$k,"signedIdentity":{"type":"matchRepository"}}]' /etc/containers/policy.json > /tmp/policy.json
+# Refuse by default, but allow every transport the way Fedora's stock policy effectively does, and
+# require our signature for our own image. rpm-ostree will not use `ostree-image-signed` with a policy
+# whose default is insecureAcceptAnything.
+jq --arg n "ghcr.io/ctsdownloads/$NAME" --arg k "/etc/pki/containers/$NAME.pub" '
+  .default = [{"type":"reject"}]
+  | reduce ("docker","docker-daemon","containers-storage","oci","oci-archive","dir","docker-archive","tarball","sif","atomic") as $t (.; .transports[$t][""] = [{"type":"insecureAcceptAnything"}])
+  | .transports.docker[$n] = [{"type":"sigstoreSigned","keyPath":$k,"signedIdentity":{"type":"matchRepository"}}]
+' /etc/containers/policy.json > /tmp/policy.json
 mv /tmp/policy.json /etc/containers/policy.json
+jq -e --arg n "ghcr.io/ctsdownloads/$NAME" '(.default | length == 1 and .[0].type == "reject") and (.transports.docker[$n][0].type == "sigstoreSigned") and (.transports.docker[""][0].type == "insecureAcceptAnything")' /etc/containers/policy.json > /dev/null || { echo "ERROR: the container policy is not what the signed rebase needs"; exit 1; }

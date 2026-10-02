@@ -18,8 +18,18 @@ caller() { printf '%s' "${PKEXEC_UID:-unknown}"; }
 present() { local p; for p in "$@"; do rpm -q "$p" >/dev/null 2>&1 && printf '%s ' "$p"; done; }
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "This helper must run as root, through polkit."; exit 1; }; }
 
+# Run a command and show its output. If it fails, keep a full copy in the system log, because the
+# window can only show a few lines:  journalctl -t easyspeak-os-codecs
+run_logged() {
+  local out rc
+  out=$("$@" 2>&1); rc=$?
+  printf '%s\n' "$out"
+  [ "$rc" -eq 0 ] || printf '%s\n' "$out" | logger -t easyspeak-os-codecs
+  return "$rc"
+}
+
 do_web() {
-  rpm-ostree install --idempotent $WEB
+  run_logged rpm-ostree install --idempotent $WEB
 }
 
 do_full() {
@@ -27,7 +37,7 @@ do_full() {
   local cmd=(override remove) p
   for p in $(present $FREE); do cmd+=("$p"); done
   for p in $FULL; do cmd+=(--install "$p"); done
-  if ! rpm-ostree "${cmd[@]}"; then
+  if ! run_logged rpm-ostree "${cmd[@]}"; then
     rm -f "$REPO_DST"
     echo "The change was not made, and nothing was left behind."
     return 1
