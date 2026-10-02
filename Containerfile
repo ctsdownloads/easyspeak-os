@@ -12,4 +12,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build.sh
 
+LABEL org.opencontainers.image.description="EasySpeak-OS: a derivative of Fedora® with EasySpeak voice control. Not Fedora, and not provided or supported by the Fedora Project. Official Fedora: https://fedoraproject.org/ Fedora® is a registered trademark of Red Hat, Inc., or its subsidiaries in the United States and other countries."
+LABEL org.opencontainers.image.source="https://github.com/ctsdownloads/easyspeak-os"
+
 RUN bootc container lint
