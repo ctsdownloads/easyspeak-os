@@ -1,7 +1,7 @@
 {
   "uuid": "ready-dot@speakfin",
   "name": "Ready Dot",
-  "description": "Dot in the top bar: yellow while EasySpeak is ready for a command, orange while it is busy.",
+  "description": "Dot in the top bar: yellow while EasySpeak is ready for a command, orange while it is busy. Offers the closest commands when it did not understand.",
   "shell-version": ["47", "48", "49", "50"],
-  "version": 2
+  "version": 3
 }

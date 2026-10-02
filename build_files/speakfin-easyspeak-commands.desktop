@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=EasySpeak Commands
+GenericName=Voice command cheat sheet
+Comment=One-page list of the voice commands EasySpeak understands
+Exec=xdg-open /usr/share/speakfin/easyspeak-commands.html
+Icon=help-browser
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=easyspeak;voice;commands;help;cheat;sheet;

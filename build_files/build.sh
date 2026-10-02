@@ -34,9 +34,29 @@ for s in 'Wake! (confidence' 'Listening for wake word' 'Hotkey dictation' '👂 
 done
 grep -qF 'Muted; microphone released' "$core/tray.py" || { echo "EasySpeak log line changed: Muted"; exit 1; }
 grep -qF '💬 %s' "$core/speech.py" || { echo "EasySpeak log line changed: speak"; exit 1; }
+grep -qF "didn't understand" "$core/main.py" || { echo "EasySpeak log line changed: didn't understand"; exit 1; }
 cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@speakfin /usr/share/gnome-shell/extensions/
 install -Dm755 /ctx/system_files/usr/libexec/speakfin-ready-dot-enable /usr/libexec/speakfin-ready-dot-enable
 install -Dm644 /ctx/system_files/etc/xdg/autostart/speakfin-ready-dot.desktop /etc/xdg/autostart/speakfin-ready-dot.desktop
+
+# Offline cheat sheet of EasySpeak's commands (and the phrase list for the "did you mean" card),
+# from its docs for the installed version. If anything here fails, the image still builds,
+# just without them.
+ver=$(rpm -q --qf '%{VERSION}' easyspeak)
+cheat_ok=0
+for tag in "$ver" "v$ver"; do
+  if curl -fsSL --retry 3 -o /tmp/commands.md "https://raw.githubusercontent.com/ctsdownloads/easyspeak/$tag/docs/commands.md" &&
+     python3 /ctx/make-cheatsheet.py /tmp/commands.md /usr/share/speakfin/easyspeak-commands.html "$ver"; then
+    cheat_ok=1
+    break
+  fi
+done
+if [ "$cheat_ok" = 1 ]; then
+  install -Dm644 /ctx/speakfin-easyspeak-commands.desktop /usr/share/applications/speakfin-easyspeak-commands.desktop
+else
+  echo "WARNING: EasySpeak command cheat sheet was not generated"
+fi
+rm -f /tmp/commands.md
 mkdir -p /usr/lib/opt
 mv /opt/easyspeak /usr/lib/opt/easyspeak
 echo 'L+ /opt/easyspeak - - - - /usr/lib/opt/easyspeak' > /usr/lib/tmpfiles.d/easyspeak-opt.conf
