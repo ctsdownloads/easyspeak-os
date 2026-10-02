@@ -6,6 +6,7 @@ NAME=speakfin
 dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
 xargs -a /ctx/bluefin-packages.txt dnf5 -y install
 bash /ctx/codecs.sh
+bash /ctx/rebrand.sh
 
 rm -rf /opt
 mkdir /opt

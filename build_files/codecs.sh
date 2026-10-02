@@ -8,7 +8,14 @@ PKGS="ffmpeg ffmpeg-libs libavcodec libavdevice libavfilter libavformat libavuti
 curl -fsSL --retry 3 https://negativo17.org/repos/fedora-multimedia.repo -o "$REPO" || { warn "could not download the repo file"; exit 0; }
 dnf5 config-manager setopt fedora-multimedia.priority=90 || { warn "could not set the repo priority"; rm -f "$REPO"; exit 0; }
 plan=$(dnf5 install --assumeno --allowerasing --setopt=install_weak_deps=False $PKGS 2>&1) || true
-removed=$(printf '%s\n' "$plan" | awk '/^Removing:/{f=1;next} /^[A-Z][A-Za-z ]*:$/{f=0} f && NF {print $1}')
+# dnf5 lists swapped-out packages as "replacing NAME" lines (an upgrade of the same name is not a removal)
+# and real removals under "Removing:". Collect every package name that would go away.
+removed=$(printf '%s\n' "$plan" | awk '
+/^Removing:/ {rm=1; next}
+/^[A-Z][A-Za-z ]*:$/ {rm=0}
+rm && NF {print $1; next}
+/^[[:space:]]+replacing[[:space:]]/ { if ($2 != prev) print $2; next }
+/^[[:space:]]+[A-Za-z0-9]/ { prev=$1 }')
 bad=$(printf '%s\n' "$removed" | grep -vE '^(ffmpeg-free|lib(av|sw|postproc)[a-z]*-free)$' | grep . || true)
 if [ -n "$bad" ]; then warn "the swap would also remove: $(echo $bad)"; rm -f "$REPO"; exit 0; fi
 dnf5 -y install --allowerasing --setopt=install_weak_deps=False $PKGS || { warn "the install failed"; rm -f "$REPO"; exit 0; }

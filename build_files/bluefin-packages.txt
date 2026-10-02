@@ -34,7 +34,6 @@ fxload
 fzf
 gcc
 gcc-c++
-generic-logos
 git
 git-credential-libsecret
 glow
