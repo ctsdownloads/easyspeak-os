@@ -9,7 +9,7 @@ DONE=$STATE/codecs-setup-done        # exists once the setup question has been a
 WINDOW_MINUTES=1440                  # the setup window lasts 24 hours at most
 REPO_SRC=/usr/share/easyspeak-os/negativo17-multimedia.repo
 REPO_DST=/etc/yum.repos.d/negativo17-multimedia.repo
-FREE="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free"
+FREE="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free xevd-libs xeve-libs"
 FULL="ffmpeg ffmpeg-libs libavcodec libavdevice libavfilter libavformat libavutil libswresample libswscale x264-libs x265-libs"
 WEB="openh264 mozilla-openh264 gstreamer1-plugin-openh264"
 
