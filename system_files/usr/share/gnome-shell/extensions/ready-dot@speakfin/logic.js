@@ -39,6 +39,14 @@ export function parseEvent(message) {
     return null;
 }
 
+// True when what EasySpeak heard was a request for its command list: "help", "help me",
+// "please help". Longer sentences that merely contain the word do not count.
+export function isHelpRequest(text) {
+    const words = text.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+    return words.length > 0 && words.length <= 3 && words.includes('help') &&
+        words.every(w => ['help', 'me', 'please', 'hey', 'jarvis', 'now'].includes(w));
+}
+
 // utime + stime (clock ticks) from the text of /proc/<pid>/stat.
 export function parseStatTicks(stat) {
     const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');

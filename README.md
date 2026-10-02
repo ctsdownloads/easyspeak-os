@@ -68,8 +68,10 @@ wake word. Yellow means go ahead and speak. Orange means it is busy hearing,
 thinking or replying. No dot means it is waiting for the wake word. When
 EasySpeak says it did not understand, a small card under the top bar offers the
 closest real commands. It only suggests commands from EasySpeak's own list, and
-nothing when none is close. The extension reads EasySpeak's log lines from the
-session journal and watches its CPU use.
+nothing when none is close. Saying "help" after the wake word puts the full
+command list on screen. It stays until you speak again, or for 90 seconds. The
+extension reads EasySpeak's log lines from the session journal and watches its
+CPU use.
 
 A small login script switches the extension on the first time you log in after
 the update. If you turn it off later, it stays off:

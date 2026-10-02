@@ -13,7 +13,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
-import {BUSY, HIDDEN, ReadyTracker, cpuPercent, parseEvent, parseStatTicks} from './logic.js';
+import {BUSY, HIDDEN, ReadyTracker, cpuPercent, isHelpRequest, parseEvent, parseStatTicks} from './logic.js';
+import {planHelp} from './helpview.js';
 import {suggest} from './suggest.js';
 
 const STYLE = {
@@ -22,13 +23,14 @@ const STYLE = {
 };
 const TICK_MS = 100;
 const CARD_SECONDS = 7;
+const HELP_SECONDS = 90;
 
 // What can be said right after "Hey Jarvis", plus the words that enter a mode.
 const MAIN_SECTIONS = ['General', 'Apps', 'Files', 'Media', 'System'];
 const ENTRY_WORDS = ['grid', 'browser', 'notes', 'start tracking'];
-const COMMAND_FILES = [
-    `${GLib.get_user_data_dir()}/speakfin/commands.json`,
-    '/usr/share/speakfin/commands.json',
+const DATA_DIRS = [
+    `${GLib.get_user_data_dir()}/speakfin`,
+    '/usr/share/speakfin',
 ];
 
 const Dot = GObject.registerClass(
@@ -71,6 +73,9 @@ export default class ReadyDotExtension extends Extension {
         this._phrases = null;
         this._card = null;
         this._cardTimer = 0;
+        this._help = null;
+        this._helpTimer = 0;
+        this._helpData = null;
         this._follow();
     }
 
@@ -83,12 +88,14 @@ export default class ReadyDotExtension extends Extension {
         this._retry = 0;
         this._stopTicking();
         this._hideCard();
+        this._hideHelp();
         if (this._proc)
             this._proc.force_exit();
         this._proc = null;
         this._stream = null;
         this._tracker = null;
         this._phrases = null;
+        this._helpData = null;
         if (this._dot)
             this._dot.destroy();
         this._dot = null;
@@ -148,6 +155,11 @@ export default class ReadyDotExtension extends Extension {
         }
         if (ev.type === 'heard' || ev.type === 'wake' || ev.type === 'hotkey' || ev.type === 'idle')
             this._hideCard();
+        // The full list stays up when the session ends, and goes when you speak again.
+        if (ev.type === 'heard' && isHelpRequest(ev.text))
+            this._showHelp();
+        else if (ev.type === 'heard' || ev.type === 'wake' || ev.type === 'hotkey')
+            this._hideHelp();
         this._tracker.event(ev, nowMs());
         const miss = this._tracker.takeMiss();
         if (miss !== null)
@@ -157,22 +169,24 @@ export default class ReadyDotExtension extends Extension {
 
     // ---- "did you mean" card ----
 
-    _loadPhrases() {
-        if (this._phrases)
-            return this._phrases;
-        this._phrases = [];
-        for (const path of COMMAND_FILES) {
+    _readJson(name) {
+        for (const dir of DATA_DIRS) {
             try {
-                const [ok, bytes] = GLib.file_get_contents(path);
-                if (!ok)
-                    continue;
-                const all = JSON.parse(new TextDecoder().decode(bytes));
-                this._phrases = all.filter(p =>
-                    MAIN_SECTIONS.includes(p.section) || ENTRY_WORDS.includes(p.phrase));
-                break;
+                const [ok, bytes] = GLib.file_get_contents(`${dir}/${name}`);
+                if (ok)
+                    return JSON.parse(new TextDecoder().decode(bytes));
             } catch (e) {
                 // try the next location
             }
+        }
+        return null;
+    }
+
+    _loadPhrases() {
+        if (!this._phrases) {
+            const all = this._readJson('commands.json') || [];
+            this._phrases = all.filter(p =>
+                MAIN_SECTIONS.includes(p.section) || ENTRY_WORDS.includes(p.phrase));
         }
         return this._phrases;
     }
@@ -220,6 +234,74 @@ export default class ReadyDotExtension extends Extension {
         if (this._card)
             this._card.destroy();
         this._card = null;
+    }
+
+    // ---- full command list, shown when you say "help" ----
+
+    _showHelp() {
+        if (!this._helpData)
+            this._helpData = this._readJson('cheatsheet.json');
+        const sections = this._helpData;
+        if (!sections || !sections.length)
+            return;
+        this._hideCard();
+        this._hideHelp();
+        const monitor = Main.layoutManager.primaryMonitor;
+        const top = Main.layoutManager.panelBox.height + 12;
+        const availW = Math.floor(monitor.width * 0.96);
+        const availH = monitor.height - top - 20;
+        const plan = planHelp(sections, availW, availH);
+
+        const panel = new St.BoxLayout({
+            reactive: false,
+            clip_to_allocation: true,
+            width: Math.min(plan.width, availW),
+            height: Math.min(plan.height, availH),
+            style: 'background-color: rgba(32, 32, 38, 0.97); color: #f2f2f2; ' +
+                'border: 2px solid #ffd60a; border-radius: 14px; ' +
+                `padding: ${plan.padPx}px; spacing: ${plan.gapPx}px;`,
+        });
+        for (const col of plan.columns) {
+            const box = new St.BoxLayout({
+                orientation: Clutter.Orientation.VERTICAL,
+                reactive: false,
+                width: Math.ceil(col.chars * plan.charPx),
+            });
+            col.blocks.forEach((index, n) => {
+                const section = sections[index];
+                box.add_child(new St.Label({
+                    text: section.title,
+                    style: `font-size: ${plan.fontPx}px; font-weight: bold; color: #ffd60a; ` +
+                        `margin-top: ${n ? plan.headGapPx : 0}px;`,
+                }));
+                for (const say of section.say) {
+                    box.add_child(new St.Label({
+                        text: say,
+                        style: `font-size: ${plan.fontPx}px;`,
+                    }));
+                }
+            });
+            panel.add_child(box);
+        }
+        Main.uiGroup.add_child(panel);
+        panel.set_position(
+            monitor.x + Math.floor((monitor.width - panel.width) / 2),
+            monitor.y + top);
+        this._help = panel;
+        this._helpTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, HELP_SECONDS, () => {
+            this._helpTimer = 0;
+            this._hideHelp();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _hideHelp() {
+        if (this._helpTimer)
+            GLib.source_remove(this._helpTimer);
+        this._helpTimer = 0;
+        if (this._help)
+            this._help.destroy();
+        this._help = null;
     }
 
     // ---- dot state ----
@@ -280,6 +362,7 @@ export default class ReadyDotExtension extends Extension {
         this._stream = null;
         this._stopTicking();
         this._hideCard();
+        this._hideHelp();
         if (this._tracker)
             this._tracker.event({type: 'idle'}, nowMs());
         if (this._dot)
