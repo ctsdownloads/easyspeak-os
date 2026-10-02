@@ -1,0 +1,13 @@
+EasySpeak-OS is not Fedora.
+
+EasySpeak-OS is a derivative of Fedora, built upon Fedora Silverblue. It contains
+modified Fedora software and is not provided or supported by the Fedora Project.
+Fedora's logos and release packages (fedora-logos, fedora-release and
+fedora-release-notes) have been removed or replaced.
+
+Official, unmodified Fedora is available from the Fedora Project at
+https://fedoraproject.org/
+
+Fedora is a registered trademark of Red Hat, Inc., or its subsidiaries in the
+United States and other countries. This project is not affiliated with or
+endorsed by the Fedora Project or Red Hat.
