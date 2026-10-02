@@ -26,6 +26,13 @@ install -Dm644 /ctx/negativo17-multimedia.repo /usr/share/easyspeak-os/negativo1
 install -Dm644 /ctx/RPM-GPG-KEY-negativo17 /usr/share/easyspeak-os/RPM-GPG-KEY-negativo17
 install -Dm644 /ctx/easyspeak-os-codecs-setup.service /usr/lib/systemd/system/easyspeak-os-codecs-setup.service
 systemctl enable easyspeak-os-flathub.service easyspeak-os-codecs-setup.service
+# Default wallpaper. The override file sorts after Fedora's own 10_ overrides, so it wins.
+install -Dm644 /ctx/branding/wallpaper.png /usr/share/backgrounds/easyspeak-os/wallpaper.png
+install -Dm644 /ctx/branding/easyspeak-os.xml /usr/share/gnome-background-properties/easyspeak-os.xml
+install -Dm644 /ctx/branding/zz-easyspeak-os-background.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-background.gschema.override
+glib-compile-schemas /usr/share/glib-2.0/schemas 2>&1 | grep -v 'deprecated' || true
+got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.background picture-uri)
+[ "$got" = "'file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'" ] || { echo "ERROR: the default wallpaper is $got, not the EasySpeak-OS one"; exit 1; }
 
 rm -rf /opt
 mkdir /opt
