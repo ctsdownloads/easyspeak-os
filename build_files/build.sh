@@ -26,6 +26,15 @@ for re in '^easyspeak-(?<v>[0-9]+\.[0-9]+\.[0-9]+)-[0-9]+\.x86_64\.rpm$' \
 done
 dnf5 -y install /tmp/easyspeak-*.rpm
 rm -f /tmp/easyspeak-*.rpm /tmp/releases.json
+
+# The ready dot reads these EasySpeak log lines; fail the build if they change
+core=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/core)
+for s in 'Wake! (confidence' 'Listening for wake word' 'Hotkey dictation' '👂 %s'; do
+  grep -qF "$s" "$core/main.py" || { echo "EasySpeak log line changed: $s"; exit 1; }
+done
+grep -qF 'Muted; microphone released' "$core/tray.py" || { echo "EasySpeak log line changed: Muted"; exit 1; }
+grep -qF '💬 %s' "$core/speech.py" || { echo "EasySpeak log line changed: speak"; exit 1; }
+cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@speakfin /usr/share/gnome-shell/extensions/
 mkdir -p /usr/lib/opt
 mv /opt/easyspeak /usr/lib/opt/easyspeak
 echo 'L+ /opt/easyspeak - - - - /usr/lib/opt/easyspeak' > /usr/lib/tmpfiles.d/easyspeak-opt.conf
