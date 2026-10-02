@@ -26,18 +26,18 @@ dnf5 -y remove fedora-bookmarks || echo "note: fedora-bookmarks was not removed"
 
 # The image's own name. ID_LIKE keeps tools that look for a Fedora-family system working.
 cat > /usr/lib/os-release <<'OSREL'
-NAME="speakfin"
-ID=speakfin
+NAME="EasySpeak-OS"
+ID=easyspeak-os
 ID_LIKE="fedora"
 VERSION_ID=44
 VERSION="44"
 PLATFORM_ID="platform:f44"
-PRETTY_NAME="speakfin 44"
+PRETTY_NAME="EasySpeak-OS 44"
 ANSI_COLOR="0;34"
-HOME_URL="https://github.com/ctsdownloads/speakfin"
-DOCUMENTATION_URL="https://github.com/ctsdownloads/speakfin"
-SUPPORT_URL="https://github.com/ctsdownloads/speakfin/issues"
-BUG_REPORT_URL="https://github.com/ctsdownloads/speakfin/issues"
+HOME_URL="https://github.com/ctsdownloads/easyspeak-os"
+DOCUMENTATION_URL="https://github.com/ctsdownloads/easyspeak-os"
+SUPPORT_URL="https://github.com/ctsdownloads/easyspeak-os/issues"
+BUG_REPORT_URL="https://github.com/ctsdownloads/easyspeak-os/issues"
 OSREL
 ln -sf ../usr/lib/os-release /etc/os-release
 echo "rebranded: $(. /usr/lib/os-release; echo "$PRETTY_NAME")"

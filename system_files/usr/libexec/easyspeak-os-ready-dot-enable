@@ -1,0 +1,45 @@
+#!/bin/bash
+# Turns the ready-dot extension on once, the first time a user logs in after the image gains it.
+# If the user turns it off later, it stays off.
+# The extension was renamed: an older ready-dot@... entry may still be enabled, or may have left a
+# marker. That choice is carried over, then the old entry and marker are cleaned up.
+uuid=ready-dot@easyspeak-os
+state="${XDG_STATE_HOME:-$HOME/.local/state}"
+marker="$state/easyspeak-os/ready-dot-enabled"
+[ -e "$marker" ] && exit 0
+
+enabled=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)
+old_entries=$(printf '%s' "$enabled" | grep -oE 'ready-dot@[A-Za-z0-9._-]+' | grep -vx "$uuid" || true)
+old_markers=$(find "$state" -maxdepth 2 -name ready-dot-enabled ! -path "$marker" 2>/dev/null || true)
+
+finish() {
+    if [ -n "$old_entries" ]; then
+        python3 - "$uuid" <<'PY'
+import ast, subprocess, sys
+uuid = sys.argv[1]
+cur = subprocess.run(['gsettings', 'get', 'org.gnome.shell', 'enabled-extensions'],
+                     capture_output=True, text=True).stdout.strip().replace('@as ', '')
+lst = ast.literal_eval(cur)
+new = [x for x in lst if not (x.startswith('ready-dot@') and x != uuid)]
+if new != lst:
+    subprocess.run(['gsettings', 'set', 'org.gnome.shell', 'enabled-extensions', str(new)])
+PY
+    fi
+    if [ -n "$old_markers" ]; then
+        printf '%s\n' "$old_markers" | while read -r m; do rm -f "$m"; rmdir "$(dirname "$m")" 2>/dev/null; done
+    fi
+    mkdir -p "$(dirname "$marker")" && touch "$marker"
+}
+
+# It was on under the old name once, and has since been turned off: leave it off.
+if [ -n "$old_markers" ] && [ -z "$old_entries" ]; then finish; exit 0; fi
+
+for _ in $(seq 1 15); do
+    gnome-extensions enable "$uuid" >/dev/null 2>&1
+    if gsettings get org.gnome.shell enabled-extensions | grep -q "$uuid"; then
+        finish
+        exit 0
+    fi
+    sleep 2
+done
+exit 0
