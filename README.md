@@ -156,6 +156,27 @@ cannot change it. To rename it:
   signature, and a new release is installed automatically.
 - Requires GNOME Shell 47 or newer on Wayland, which is EasySpeak's requirement.
 
+## Source code
+
+This repository is the source for how the image is built. The software inside
+the image comes from other projects, under their own licenses (some of them the
+GPL), and its source is available from them:
+
+- **Fedora packages**, which is almost everything in the image, come from the
+  Fedora Project. Their source is at <https://src.fedoraproject.org/>. On a
+  Fedora system, `rpm -q --qf '%{SOURCERPM}\n' <package>` names the source
+  package of anything installed, and `dnf download --source <source package>`
+  downloads it.
+- **The full ffmpeg codecs** (ffmpeg, x264, x265 and their libraries) come from
+  the [negativo17](https://negativo17.org/) multimedia repository. The source
+  packages (`ffmpeg`, `x264` and `x265`) are at
+  <https://negativo17.org/repos/multimedia/fedora-44/SRPMS/>.
+- **EasySpeak** is at <https://github.com/ctsdownloads/easyspeak>.
+- **Everything else** that was added is in this repository.
+
+If you cannot find the source for something in the image, open an issue at
+<https://github.com/ctsdownloads/easyspeak-os/issues>.
+
 ## Credits
 
 - [Universal Blue](https://universal-blue.org/) and the
@@ -178,17 +199,26 @@ cannot change it. To rename it:
 
 ## License
 
-The files in this repository (the build scripts and the Ready Dot extension)
-are under the [Apache License 2.0](LICENSE), the same license as the Universal
-Blue template and Bluefin. The license text came with the template.
+**The files in this repository** (the build scripts, the boot-image and
+rebrand steps, the Ready Dot extension and the helper commands) are under the
+[Apache License 2.0](LICENSE).
 
-The image itself also contains other software under its own licenses, for
-example EasySpeak ([GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)) and
-the Fedora and Bluefin packages. This repository's license does not change
-those.
+**The image itself is not under that license.** EasySpeak-OS is built on
+Fedora Silverblue. It is a collection of software from many other projects,
+each under its own license, and this repository cannot change them. The Fedora
+base alone declares hundreds of different license expressions, from the GPL
+(the Linux kernel is GPL-2.0-only with the Linux syscall note) and LGPL to MIT
+and BSD. Fedora explains its licensing at
+<https://docs.fedoraproject.org/en-US/legal/>. See [Source code](#source-code)
+for where to get the source.
 
-Two more things are not covered by the Apache license:
+Also in the image, under their own licenses:
 
+- [EasySpeak](https://github.com/ctsdownloads/easyspeak) is
+  [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
+- The full ffmpeg codecs come from negativo17. As those packages declare it,
+  ffmpeg is LGPL-3.0-or-later, x264 is GPL-2.0-or-later, and x265 is
+  GPL-2.0-or-later and BSD.
 - The cheat sheet and the on-screen command list are generated at build time
   from EasySpeak's command documentation, so they fall under EasySpeak's
   license (GPL-3.0).
