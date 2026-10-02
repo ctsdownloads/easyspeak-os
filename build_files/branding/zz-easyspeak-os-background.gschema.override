@@ -1,0 +1,14 @@
+[org.gnome.desktop.background]
+picture-uri='file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'
+picture-uri-dark='file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'
+picture-options='zoom'
+primary-color='#0b0f19'
+secondary-color='#0b0f19'
+color-shading-type='solid'
+
+[org.gnome.desktop.screensaver]
+picture-uri='file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'
+picture-options='zoom'
+primary-color='#0b0f19'
+secondary-color='#0b0f19'
+color-shading-type='solid'

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
+<wallpapers>
+  <wallpaper deleted="false">
+    <name>EasySpeak-OS</name>
+    <filename>/usr/share/backgrounds/easyspeak-os/wallpaper.png</filename>
+    <filename-dark>/usr/share/backgrounds/easyspeak-os/wallpaper.png</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#0b0f19</pcolor>
+    <scolor>#0b0f19</scolor>
+  </wallpaper>
+</wallpapers>
