@@ -9,7 +9,8 @@ DONE=$STATE/codecs-setup-done        # exists once the setup question has been a
 WINDOW_MINUTES=1440                  # the setup window lasts 24 hours at most
 REPO_SRC=/usr/share/easyspeak-os/negativo17-multimedia.repo
 REPO_DST=/etc/yum.repos.d/negativo17-multimedia.repo
-FREE="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free xevd-libs xeve-libs"
+FREE="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free"
+REPLACE="xevd-libs xeve-libs"   # Fedora ships different library files under these names
 FULL="ffmpeg ffmpeg-libs libavcodec libavdevice libavfilter libavformat libavutil libswresample libswscale x264-libs x265-libs"
 WEB="openh264 mozilla-openh264 gstreamer1-plugin-openh264"
 
@@ -34,8 +35,9 @@ do_web() {
 
 do_full() {
   install -m 0644 "$REPO_SRC" "$REPO_DST" || return 1
-  local cmd=(override remove) p
-  for p in $(present $FREE); do cmd+=("$p"); done
+  local cmd=(override replace --experimental --from=repo=fedora-multimedia) p
+  for p in $(present $REPLACE); do cmd+=("$p"); done
+  for p in $(present $FREE); do cmd+=(--remove "$p"); done
   for p in $FULL; do cmd+=(--install "$p"); done
   if ! run_logged rpm-ostree "${cmd[@]}"; then
     rm -f "$REPO_DST"
@@ -47,7 +49,7 @@ do_full() {
 do_remove() {
   local layered; layered=$(present $FULL $WEB)
   [ -z "$layered" ] || rpm-ostree uninstall $layered || true
-  rpm-ostree override reset $FREE || true
+  rpm-ostree override reset $FREE $REPLACE || true
   rm -f "$REPO_DST"
   echo "Removed. Restart to finish."
 }

@@ -78,7 +78,7 @@ install_with_window() {   # $1 = web or full
       --text="Done. Restart to finish." && systemctl reboot
   else
     zenity --error --title="Install Media Codecs" --width=520 \
-      --text="It did not work, and nothing was changed.\n\n$(grep -v '^$' "$log" | head -n 8 | head -c 700)\n\nThe full text is in the system log:  journalctl -t easyspeak-os-codecs"
+      --text="It did not work, and nothing was changed.\n\n$(sed -n '/^error:/,$p' "$log" | head -n 10 | head -c 900)\n\nThe full text is in the system log:  journalctl -t easyspeak-os-codecs"
   fi
   rm -f "$log"
 }
