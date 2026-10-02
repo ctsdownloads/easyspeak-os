@@ -3,11 +3,11 @@
 # The initramfs holds its own copy of the splash artwork, built before our branding changes, so the
 # logo only changes when it is rebuilt. The Fedora wordmark on those screens is
 # /usr/share/plymouth/themes/spinner/watermark.png, which came from fedora-logos. That package is
-# gone by now, so this writes a blank one in its place and checks that the blank one is what
+# gone by now, so this installs the EasySpeak-OS logo in its place and checks that it is what
 # ended up inside the new initramfs.
 # The original was built with: dracut --reproducible -v --add ostree --tmpdir /tmp/dracut -f --no-hostonly
 # This step FAILS the build if the new initramfs lacks anything needed to unlock a disk or boot,
-# or if the splash artwork inside it is not the blank one.
+# or if the splash artwork inside it is not the EasySpeak-OS logo.
 set -euo pipefail
 
 kvers=(/usr/lib/modules/*/)
@@ -31,8 +31,10 @@ def blank(path, w, h):
 blank('/usr/share/pixmaps/system-logo-white.png', 240, 310)
 blank('/usr/share/pixmaps/fedora-logo.png', 240, 310)
 blank('/usr/share/pixmaps/fedora-logo-small.png', 128, 128)
-blank('/usr/share/plymouth/themes/spinner/watermark.png', 149, 43)   # same size as the original
 PY
+# The EasySpeak-OS logo, drawn at the bottom of the boot and disk-unlock screens.
+[ -f /ctx/branding/boot-watermark.png ] || { echo 'ERROR: /ctx/branding/boot-watermark.png is missing'; exit 1; }
+install -Dm644 /ctx/branding/boot-watermark.png /usr/share/plymouth/themes/spinner/watermark.png
 
 export DRACUT_NO_XATTR=1
 mkdir -p /tmp/dracut
@@ -45,13 +47,13 @@ for m in ostree crypt plymouth dm lvm systemd-cryptsetup kernel-modules; do
   grep -qx "$m" <<< "$mods" || { echo "ERROR: the new initramfs lacks dracut module: $m"; exit 1; }
 done
 
-# The splash artwork inside the initramfs must be the blank watermark.
+# The splash artwork inside the initramfs must be the EasySpeak-OS logo.
 WM=usr/share/plymouth/themes/spinner/watermark.png
-want=$(sha256sum "/$WM" | cut -d' ' -f1)
+want=$(sha256sum /ctx/branding/boot-watermark.png | cut -d' ' -f1)
 listing=$(lsinitrd "$IMG")
 if ! grep -qE " ${WM}\$" <<< "$listing"; then
   echo "ERROR: $WM is missing from the new initramfs"; exit 1
 fi
 got=$(lsinitrd "$IMG" -f "$WM" | sha256sum | cut -d' ' -f1)
-[ "$want" = "$got" ] || { echo "ERROR: the splash artwork inside the new initramfs is not the blank one (expected ${want:0:12}, found ${got:0:12})"; exit 1; }
-echo "initramfs rebuilt for $KVER: $(du -h "$IMG" | cut -f1), modules ok, blank splash watermark in place"
+[ "$want" = "$got" ] || { echo "ERROR: the splash artwork inside the new initramfs is not the EasySpeak-OS logo (expected ${want:0:12}, found ${got:0:12})"; exit 1; }
+echo "initramfs rebuilt for $KVER: $(du -h "$IMG" | cut -f1), modules ok, EasySpeak-OS logo in place"
