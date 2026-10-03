@@ -88,7 +88,10 @@ fi
 rm -f /tmp/commands.md
 mkdir -p /usr/lib/opt
 mv /opt/easyspeak /usr/lib/opt/easyspeak
-echo 'L+ /opt/easyspeak - - - - /usr/lib/opt/easyspeak' > /usr/lib/tmpfiles.d/easyspeak-opt.conf
+# Create /var/opt first, then link EasySpeak inside it. (A rule on /opt/easyspeak fails on a first boot, because
+# /opt points at a /var/opt that does not exist yet when the rule runs.)
+printf 'd /var/opt 0755 root root -\nL+ /var/opt/easyspeak - - - - /usr/lib/opt/easyspeak\n' > /usr/lib/tmpfiles.d/easyspeak-opt.conf
+grep -q '^L+ /var/opt/easyspeak ' /usr/lib/tmpfiles.d/easyspeak-opt.conf || { echo 'ERROR: the EasySpeak link rule is wrong'; exit 1; }
 rm -rf /opt
 ln -s /var/opt /opt
 
