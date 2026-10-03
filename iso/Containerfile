@@ -1,0 +1,7 @@
+# Live variant of EasySpeak-OS, for building a bootable live ISO.
+# It follows the "Container-native ISO contract" and the recipe Fedora's own Kinoite live-ISO
+# example uses (github.com/ondrejbudai/bootc-isos), with GNOME in place of KDE.
+# Build with:  podman build --cap-add sys_admin --security-opt label=disable -f iso/Containerfile iso
+FROM ghcr.io/ctsdownloads/easyspeak-os:latest
+
+RUN --mount=type=bind,source=src,target=/src /src/build.sh
