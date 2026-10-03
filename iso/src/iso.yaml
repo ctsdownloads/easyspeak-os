@@ -1,0 +1,10 @@
+label: "EasySpeak-OS-Live"
+grub2:
+  timeout: 10
+  entries:
+    - name: "EasySpeak-OS Live"
+      linux: "/images/pxeboot/vmlinuz quiet rhgb root=live:CDLABEL=EasySpeak-OS-Live enforcing=0 rd.live.image"
+      initrd: "/images/pxeboot/initrd.img"
+    - name: "EasySpeak-OS Live (basic graphics)"
+      linux: "/images/pxeboot/vmlinuz quiet rhgb root=live:CDLABEL=EasySpeak-OS-Live enforcing=0 rd.live.image nomodeset"
+      initrd: "/images/pxeboot/initrd.img"
