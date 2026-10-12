@@ -1,0 +1,13 @@
+# RPM Fusion free, as published in RPM Fusion's own rpmfusion-free-release package, shipped by EasySpeak-OS.
+# Copied into /etc/yum.repos.d only when you choose "Everything" in Install Media Codecs.
+# The signing key comes from Fedora's distribution-gpg-keys package.
+[rpmfusion-free-updates]
+name=RPM Fusion for Fedora $releasever - Free - Updates
+#baseurl=http://download1.rpmfusion.org/free/fedora/updates/$releasever/$basearch/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-updates-released-$releasever&arch=$basearch
+enabled=1
+enabled_metadata=1
+type=rpm-md
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=file:///usr/share/distribution-gpg-keys/rpmfusion/RPM-GPG-KEY-rpmfusion-free-fedora-$releasever

@@ -39,7 +39,12 @@ install -Dm755 /ctx/easyspeak-os-codecs-setup /usr/libexec/easyspeak-os-codecs-s
 install -Dm755 /ctx/easyspeak-os-codecs-admin /usr/libexec/easyspeak-os-codecs-admin
 install -Dm644 /ctx/dev.easyspeak.os.codecs.policy /usr/share/polkit-1/actions/dev.easyspeak.os.codecs.policy
 install -Dm644 /ctx/50-easyspeak-os-codecs.rules /usr/share/polkit-1/rules.d/50-easyspeak-os-codecs.rules
-install -Dm644 /ctx/negativo17-multimedia.repo /usr/share/easyspeak-os/negativo17-multimedia.repo
+# "Everything" comes from RPM Fusion free, copied into /etc only when chosen. Its key comes from Fedora's
+# distribution-gpg-keys package; fail the build if that key is missing.
+install -Dm644 /ctx/rpmfusion-free.repo /usr/share/easyspeak-os/rpmfusion-free.repo
+install -Dm644 /ctx/rpmfusion-free-updates.repo /usr/share/easyspeak-os/rpmfusion-free-updates.repo
+[ -s "/usr/share/distribution-gpg-keys/rpmfusion/RPM-GPG-KEY-rpmfusion-free-fedora-$(rpm -E %fedora)" ] || { echo 'ERROR: the RPM Fusion signing key is missing'; exit 1; }
+# Kept only so machines that still have the old negativo17 codecs can update until they run  codecs remove .
 install -Dm644 /ctx/RPM-GPG-KEY-negativo17 /usr/share/easyspeak-os/RPM-GPG-KEY-negativo17
 install -Dm644 /ctx/easyspeak-os-codecs-setup.service /usr/lib/systemd/system/easyspeak-os-codecs-setup.service
 systemctl enable easyspeak-os-flathub.service easyspeak-os-codecs-setup.service
