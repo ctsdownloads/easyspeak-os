@@ -5,6 +5,23 @@ NAME=easyspeak-os
 
 dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
 xargs -a /ctx/bluefin-packages.txt dnf5 -y install
+# Updates and Homebrew the Bluefin way, from Universal Blue's package repository: the updater (uupd) on its daily
+# timer, and Homebrew (ublue-brew, unpacked at boot by brew-setup.service, kept updated by uupd). No second updater:
+# remove only GNOME Software's OS-update plugin, as Bluefin does; the Software app itself stays.
+# Update by hand any time:  sudo uupd
+curl -fsSL --retry 3 "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-$(rpm -E %fedora)/ublue-os-packages-fedora-$(rpm -E %fedora).repo" -o /etc/yum.repos.d/ublue-os-packages.repo
+dnf5 -y install uupd ublue-brew
+rm -f /etc/yum.repos.d/ublue-os-packages.repo
+dnf5 -y remove gnome-software-rpm-ostree
+# Services that must be on by default, also after a first boot (which applies these preset rules):
+# EasySpeak-OS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
+printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
+systemctl enable tailscaled.service podman-auto-update.timer uupd.timer brew-setup.service
+for u in tailscaled.service uupd.timer brew-setup.service; do [ "$(systemctl is-enabled "$u")" = enabled ] || { echo "ERROR: $u is not enabled"; exit 1; }; done
+rpm -q gnome-software-rpm-ostree >/dev/null 2>&1 && { echo "ERROR: a second OS updater is still installed"; exit 1; }
+# tuned: use the same version Bluefin ships (Bluefin stable: tuned and tuned-ppd 2.27.0-1.fc44).
+if [ "$(rpm -q --qf '%{VERSION}' tuned)" != "2.27.0" ]; then dnf5 -y downgrade tuned-2.27.0-1.fc44 tuned-ppd-2.27.0-1.fc44; fi
+[ "$(rpm -q --qf '%{VERSION}' tuned)" = 2.27.0 ] && [ "$(rpm -q --qf '%{VERSION}' tuned-ppd)" = 2.27.0 ] || { echo "ERROR: tuned does not match Bluefin's 2.27.0"; exit 1; }
 bash /ctx/rebrand.sh
 bash /ctx/initramfs.sh
 install -Dm755 /ctx/easyspeak-os-boot-label /usr/bin/easyspeak-os-boot-label

@@ -19,9 +19,24 @@ fi
 bad=$(printf '%s\n' "$removed" | grep -vE '^(fedora-logos|fedora-release(-[a-z0-9-]+)?)$' || true)
 if [ -n "$bad" ]; then echo "ERROR: rebranding would also remove: $(echo $bad)"; exit 1; fi
 
+# Fedora's release packages also hold Fedora's default list of services that switch on by themselves (systemd
+# presets). Keep that list exactly as Fedora ships it: copy the files out now, put them back after the swap.
+keep=$(mktemp -d)
+for f in $(rpm -ql fedora-release-common fedora-release-identity-silverblue fedora-release-silverblue 2>/dev/null | grep -E '^/usr/lib/systemd/(system|user)-preset/[^/]+[.]preset$'); do
+  mkdir -p "$keep$(dirname "$f")"; cp -a "$f" "$keep$f"
+done
+[ -f "$keep/usr/lib/systemd/system-preset/90-default.preset" ] || { echo "ERROR: Fedora's preset files were not found"; exit 1; }
+
 dnf5 -y install --allowerasing generic-logos generic-release
 rpm -q generic-logos generic-release
 if rpm -q fedora-logos fedora-release-common >/dev/null 2>&1; then echo "ERROR: Fedora branding packages are still installed"; exit 1; fi
+
+# Put Fedora's preset files back as NN-name-fedora.preset. That name sorts just before the generic package's
+# NN-name.preset, so Fedora's lines win, exactly as on Fedora.
+for f in $(cd "$keep" && find usr -name '*.preset'); do
+  install -Dm644 "$keep/$f" "/$(dirname "$f")/$(basename "$f" .preset)-fedora.preset"
+done
+rm -rf "$keep"
 
 # The image's own name. ID_LIKE keeps tools that look for a Fedora-family system working.
 cat > /usr/lib/os-release <<'OSREL'
