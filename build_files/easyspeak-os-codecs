@@ -7,7 +7,7 @@
 #
 #   codecs            explain the options and show what each one would do (changes nothing)
 #   codecs web        web video in Firefox only: Cisco's licensed OpenH264
-#   codecs full       everything: the full ffmpeg, x264 and x265 from negativo17
+#   codecs full       everything: the full ffmpeg, x264 and x265 from RPM Fusion
 #   codecs remove     take them out again
 #   codecs gui        a window with three big buttons instead of typing
 #
@@ -46,7 +46,7 @@ explain() {
   say "  codecs web   Web video in Firefox only. Adds Cisco's OpenH264 from Fedora's Cisco"
   say "               repository, under Cisco's own H.264 patent license."
   say "  codecs full  Everything. Replaces Fedora's free ffmpeg libraries with the full ffmpeg,"
-  say "               x264 and x265 from the negativo17 repository (pinned in this image)."
+  say "               x264 and x265 from RPM Fusion, the source standard Fedora uses."
   say
   if window_open; then
     say "The first-time setup window is open, so either choice installs with no password."
@@ -62,7 +62,7 @@ ask() {   # prints web or full, or nothing for "Not now"
   else note="Either choice asks for your administrator password next."; fi
   out=$(zenity --question --title="Install Media Codecs" --width=600 \
         --ok-label="Web video only" --extra-button="Everything" --cancel-label="Not now" \
-        --text="Some audio and video formats are covered by patents in some countries. Fedora, and this system, leave them out. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: Cisco's OpenH264 for Firefox, provided under Cisco's own patent license.\n\nEverything: the full ffmpeg, x264 and x265 from negativo17.org.\n\n$note" 2>/dev/null); rc=$?
+        --text="Some audio and video formats are covered by patents in some countries. Fedora, and this system, leave them out. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: Cisco's OpenH264 for Firefox, provided under Cisco's own patent license.\n\nEverything: the full ffmpeg, x264 and x265 from RPM Fusion (rpmfusion.org).\n\n$note" 2>/dev/null); rc=$?
   if [ "$rc" -eq 0 ]; then say web; elif [ "$out" = "Everything" ]; then say full; fi
 }
 

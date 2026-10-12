@@ -115,7 +115,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-codecs` | Installed as `easyspeak-os-codecs` (also `codecs` and `install-codecs`), the optional command and windows that add media codecs |
 | `build_files/easyspeak-os-codecs-setup`, `-admin`, `-lib.sh` | The two privileged helpers and their shared fixed settings, run through polkit |
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
-| `build_files/negativo17-multimedia.repo`, `RPM-GPG-KEY-negativo17` | The negativo17 repository and its signing key, pinned inside the image |
+| `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
@@ -163,10 +163,10 @@ name; `easyspeak-os-codecs` and `install-codecs` also work):
   provides, so Firefox can play most H.264 web video. Cisco provides it under its own H.264
   patent license.
 - **Everything** replaces the free ffmpeg libraries from Fedora with the full ffmpeg,
-  x264 and x265 from the [negativo17](https://negativo17.org/) repository. The
-  repository definition and its signing key (fingerprint
-  `0C5D 0F47 0484 AE2F C40A 9B65 97F3 0089 93E8 909B`) are pinned inside the
-  image, not fetched at install time.
+  x264 and x265 from [RPM Fusion](https://rpmfusion.org/), the source standard
+  Fedora uses. The repository definitions ship inside the image, and the signing
+  key (fingerprint `E9A4 91A3 DE24 7814 E7E0 67EA E06F 8ECD D651 FF2E`) comes
+  from Fedora's own `distribution-gpg-keys` package.
 
 ### Passwords
 
@@ -218,9 +218,9 @@ GPL), and its source is available from them:
   package of anything installed, and `dnf download --source <source package>`
   downloads it.
 - **Optional codecs** are not part of the image. If you choose the full ffmpeg
-  set, it comes from the [negativo17](https://negativo17.org/) multimedia
-  repository, and its source packages (`ffmpeg`, `x264` and `x265`) are at
-  <https://negativo17.org/repos/multimedia/fedora-44/SRPMS/>. If you choose
+  set, it comes from the [RPM Fusion](https://rpmfusion.org/) free repository,
+  and its source packages (`ffmpeg`, `x264` and `x265`) are at
+  <https://download1.rpmfusion.org/free/fedora/updates/44/SRPMS/>. If you choose
   OpenH264, it comes from Cisco through the Cisco repository that Fedora provides.
 - **EasySpeak** is at <https://github.com/ctsdownloads/easyspeak>.
 - **Everything else** that was added is in this repository.
@@ -268,9 +268,8 @@ Also under their own licenses:
 - [EasySpeak](https://github.com/ctsdownloads/easyspeak) is
   [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
 - The optional codecs are not part of the image. If you install the full
-  ffmpeg set from negativo17, those packages declare ffmpeg as
-  LGPL-3.0-or-later, x264 as GPL-2.0-or-later, and x265 as GPL-2.0-or-later
-  and BSD.
+  ffmpeg set from RPM Fusion, those packages declare ffmpeg as GPLv3+, x264 as
+  GPLv2+, and x265 as GPLv2+ and BSD.
 - The cheat sheet and the on-screen command list are generated at build time
   from EasySpeak's command documentation, so they fall under EasySpeak's
   license (GPL-3.0).
