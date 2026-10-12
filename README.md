@@ -3,8 +3,8 @@
 An image for a workstation, with [EasySpeak](https://easyspeak.dev/latest/)
 voice control installed for accessibility. It is a derivative of **Fedora®**,
 built upon Fedora Silverblue 44, with a set of packages carried over from
-[Bluefin](https://projectbluefin.io/), EasySpeak, and a
-small GNOME extension that shows what EasySpeak is doing.
+[Bluefin](https://projectbluefin.io/), Bluefin's updater and Homebrew setup,
+EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 
 > **EasySpeak-OS is not Fedora.** It contains modified Fedora software and is
 > not provided or supported by the Fedora Project. The logos and release
@@ -38,6 +38,10 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 |------|---------|
 | Base | [Fedora Silverblue 44](https://fedoraproject.org/atomic-desktops/silverblue/) (`quay.io/fedora-ostree-desktops/silverblue:44`), with the logos and release packages from Fedora replaced by the generic ones |
 | Packages | firefox, qutebrowser, v4l-utils, wtype, ydotool, xdg-terminal-exec, and the Fedora packages Bluefin adds that are listed in [`build_files/bluefin-packages.txt`](build_files/bluefin-packages.txt) |
+| Updates | Automatic, with Bluefin's updater `uupd`: the system, Flatpaks, Distrobox containers and Homebrew. See [Updating and rolling back](#updating-and-rolling-back) |
+| Homebrew | Set up on first boot, as on Bluefin, for command-line tools (`brew`) |
+| Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale and Podman's automatic container updates, as on Bluefin |
+| Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
 | Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in the app grid offers them later. See [Media codecs](#media-codecs) |
 | Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. The Flathub entry that comes with Fedora, which stays off until you opt in, is removed |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
@@ -61,12 +65,24 @@ systemctl reboot
 
 ### Updating and rolling back
 
-After that, updating is the normal command. Reboot to finish.
+Updates are automatic. Bluefin's updater, `uupd`, runs on its own timer and
+updates the system, Flatpaks, Distrobox containers and Homebrew. A new system
+image takes effect at the next reboot. To update by hand:
 
 ```
-rpm-ostree upgrade
-rpm-ostree rollback    # go back to the previous image
+sudo uupd
 ```
+
+`uupd` updates the system with `bootc`, and falls back to `rpm-ostree` when
+needed, for example when packages such as the full codecs are layered on top of
+the image. `rpm-ostree upgrade` also still works. To go back to the previous
+image:
+
+```
+rpm-ostree rollback
+```
+
+To see when the next automatic update runs: `systemctl list-timers uupd.timer`.
 
 ### Verifying the signature
 
@@ -135,6 +151,14 @@ What the build checks:
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
+- The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, or if the RPM Fusion signing key is missing.
+
+The release packages from Fedora also hold Fedora's lists of which services
+start by themselves (systemd presets). The rebrand step copies those lists out
+before removing the packages and puts them back unchanged, so a fresh install
+switches on the same services Fedora does. `uupd` and Homebrew (`ublue-brew`)
+come from Universal Blue's package repository, which is used only during the
+build and is not left enabled on the system.
 
 EasySpeak installs into `/opt`, which is a symlink to `/var/opt` on Fedora Atomic systems and
 is not part of the image. The build makes `/opt` a real directory, moves the
@@ -166,7 +190,9 @@ name; `easyspeak-os-codecs` and `install-codecs` also work):
   x264 and x265 from [RPM Fusion](https://rpmfusion.org/), the source standard
   Fedora uses. The repository definitions ship inside the image, and the signing
   key (fingerprint `E9A4 91A3 DE24 7814 E7E0 67EA E06F 8ECD D651 FF2E`) comes
-  from Fedora's own `distribution-gpg-keys` package.
+  from Fedora's own `distribution-gpg-keys` package. These packages are layered
+  on top of the image, so on a machine that has them, system updates go
+  through `rpm-ostree`.
 
 ### Passwords
 
@@ -205,6 +231,15 @@ cannot change it. To rename it:
 - EasySpeak's RPMs are checked by the sha256 digest GitHub publishes, not by a
   signature, and a new release is installed automatically.
 - Requires GNOME Shell 47 or newer on Wayland, which is EasySpeak's requirement.
+- tuned is held at 2.27.0, the version Bluefin ships. Fedora's 2.28.0 froze the
+  power-mode switch on the author's machine. To move to a newer version, change
+  the version in `build_files/build.sh` once Bluefin does.
+- The updater and Homebrew come from Universal Blue's package repository. If it
+  becomes unavailable, the build fails and machines stay on the last good image,
+  without updates, until the build is fixed.
+- If RPM Fusion falls behind Fedora, a system update can fail on machines with
+  the full codecs. Nothing breaks: they stay on their current version until RPM
+  Fusion catches up.
 
 ## Source code
 
@@ -222,6 +257,9 @@ GPL), and its source is available from them:
   and its source packages (`ffmpeg`, `x264` and `x265`) are at
   <https://download1.rpmfusion.org/free/fedora/updates/44/SRPMS/>. If you choose
   OpenH264, it comes from Cisco through the Cisco repository that Fedora provides.
+- **The updater and Homebrew setup** come from Universal Blue: `uupd` is at
+  <https://github.com/ublue-os/uupd>, and the packages are built in
+  <https://copr.fedorainfracloud.org/coprs/ublue-os/packages/>.
 - **EasySpeak** is at <https://github.com/ctsdownloads/easyspeak>.
 - **Everything else** that was added is in this repository.
 
@@ -242,6 +280,8 @@ If you cannot find the source for something in the image, open an issue at
   [acknowledgments](https://github.com/ctsdownloads/easyspeak#acknowledgments).
 - [cosign](https://github.com/sigstore/cosign) from Sigstore, for image
   signing.
+- [Homebrew](https://brew.sh/), [Tailscale](https://tailscale.com/) and
+  [RPM Fusion](https://rpmfusion.org/).
 - [GNOME](https://www.gnome.org/), [qutebrowser](https://qutebrowser.org/),
   [Firefox](https://www.mozilla.org/firefox/),
   [wtype](https://github.com/atx/wtype),
