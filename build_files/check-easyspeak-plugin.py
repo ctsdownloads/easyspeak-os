@@ -52,4 +52,20 @@ folder.mkdir(parents=True, exist_ok=True)
 assert dialogs.handle("open browser", Core()) is None, "dialogs plugin takes words that are not a button"
 assert dialogs.handle("set up and install", Core()) is True, "dialogs plugin does not press a button by name"
 assert (folder / f"{os.getpid()}.answer").read_text() == "ok", "dialogs plugin pressed the wrong button"
+# A list window from easyspeak-os-dialog: its lines are named by their name, not by the visible number column
+dialog = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+if dialog:
+    import importlib.machinery
+    dlg = importlib.machinery.SourceFileLoader("dialog", str(dialog)).load_module()
+    info = dlg.describe(["--list", "--print-column=1", "--hide-column=1", "--column=n", "--column=No.",
+                         "--column=App", "--column=Installed in"],
+                        ["0", "1", "Google Chrome", "Flathub", "1", "2", "Discord", "Ubuntu box"])
+    assert [r["say"] for r in info["rows"]] == ["Google Chrome", "Discord"], f"list lines named wrong: {info['rows']}"
+    (folder / f"{os.getpid()}.answer").unlink(missing_ok=True)
+    (folder / f"{os.getpid()}.json").write_text(json.dumps({**info, "pid": os.getpid(), "time": 2}))
+    assert dialogs.handle("number two", Core()) is True and \
+        (folder / f"{os.getpid()}.answer").read_text() == "row:1", "'number two' does not pick line 2"
+    (folder / f"{os.getpid()}.answer").unlink()
+    assert dialogs.handle("discord", Core()) is True and \
+        (folder / f"{os.getpid()}.answer").read_text() == "row:1", "a line's name does not pick it"
 print("easyspeak_os_dialogs loads and works")

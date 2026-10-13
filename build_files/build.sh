@@ -157,7 +157,8 @@ grep -qF "didn't understand" "$core/main.py" || { echo "EasySpeak log line chang
 cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os /usr/share/gnome-shell/extensions/
 install -Dm755 /ctx/system_files/usr/libexec/easyspeak-os-ready-dot-enable /usr/libexec/easyspeak-os-ready-dot-enable
 install -Dm644 /ctx/system_files/etc/xdg/autostart/easyspeak-os-ready-dot.desktop /etc/xdg/autostart/easyspeak-os-ready-dot.desktop
-# Voice commands "update system", "install a package" and "remove an app": plugin files in EasySpeak's own plugin
+# Voice commands "update system", "install a package", "remove an app", "repair app boxes" and the
+# EasySpeak-OS windows: plugin files in EasySpeak's own plugin
 # folder; EasySpeak itself is unchanged. Fail the build if a new EasySpeak release would no longer load them the way
 # EasySpeak loads its own plugins.
 plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
@@ -166,7 +167,7 @@ install -Dm644 /ctx/easyspeak_os_update.py "$plugins/easyspeak_os_update.py"
 install -Dm644 /ctx/easyspeak_os_apps.py "$plugins/easyspeak_os_apps.py"
 install -Dm644 /ctx/easyspeak_os_dialogs.py "$plugins/easyspeak_os_dialogs.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
-"$py" /ctx/check-easyspeak-plugin.py "$plugins" || { echo 'ERROR: EasySpeak would not load the EasySpeak-OS plugins'; exit 1; }
+"$py" /ctx/check-easyspeak-plugin.py "$plugins" /usr/bin/easyspeak-os-dialog || { echo 'ERROR: EasySpeak would not load the EasySpeak-OS plugins'; exit 1; }
 
 # The EasySpeak-OS voice commands, read from the plugins, go into the cheat sheet, the "help" overlay and
 # "did you mean" as their own section.

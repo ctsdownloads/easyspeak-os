@@ -67,9 +67,12 @@ def describe(args, stdin_rows):
     buttons += [(e, "extra:" + e) for e in values(args, "--extra-button")]
     rows = []
     if mode == "--list":
-        columns = len(values(args, "--column"))
+        heads = values(args, "--column")
+        columns = len(heads)
         hidden = {int(c) for v in values(args, "--hide-column") for c in v.split(",") if c.strip().isdigit()}
-        show = next((c for c in range(1, columns + 1) if c not in hidden), 1)
+        # the line's name: the first visible column that is not just its number ("No.", which "number two" covers)
+        show = next((c for c in range(1, columns + 1) if c not in hidden and heads[c - 1] != "No."),
+                    next((c for c in range(1, columns + 1) if c not in hidden), 1))
         printed = int(value(args, "--print-column", "1")) if (value(args, "--print-column", "1") or "1").isdigit() else 1
         for i in range(0, len(stdin_rows) - columns + 1, columns):
             cells = stdin_rows[i:i + columns]
