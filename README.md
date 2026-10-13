@@ -146,6 +146,31 @@ grid, or say "install a package"), and EasySpeak-OS:
 
 System Update keeps the boxes up to date, along with everything else.
 
+Each box also gets two small desktop parts that apps from these files expect and
+a fresh box lacks: zenity, for progress windows (Discord's first start downloads
+the rest of Discord and shows its progress with it; without zenity there is no
+window at all), and notify-send, for notifications. They are added while the box
+is set up. A box made before this was added gets them once, quietly, at the next
+login. Opening links is left to Distrobox, which already sends it to your desktop.
+
+Setting up a box and adding a package to the system also send a desktop
+notification when they start, so you know it is working even if the progress
+window opens behind another window.
+
+**Starting and stopping box apps.** An app's app grid entry starts it through
+`easyspeak-os-box-run`, not straight through Distrobox:
+
+- The app's messages go to `~/.cache/easyspeak-os/logs/<app>.log`, not back
+  through its link to the desktop. If that link goes away (for example when a
+  task manager's Force Stop ends it), the app keeps working instead of crashing
+  with "write EPIPE" error windows, as Discord did.
+- Right-click the app in the app grid or dash and choose **Quit <app>** to stop
+  it inside the box, even when it is stuck: it is asked to quit, and forced to
+  after 10 seconds. A normal Stop from the desktop is passed on to the app too.
+- Remove Apps quits a running app before removing it.
+
+App grid entries made before this are switched over once, at the next login.
+
 **The first time.** Before anything is downloaded, one window explains what the
 box means for you: the app opens from the app grid like any other, it can use
 the files in your home folder, your system itself is not changed, and Remove
@@ -225,6 +250,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package" and "remove an app" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
 | `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps** and **Repair App Boxes**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
+| `build_files/easyspeak-os-box-run` | Starts box apps for their app grid entries with their messages in a log file, and stops them (the Quit action) |
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |

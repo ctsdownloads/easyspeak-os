@@ -1,0 +1,64 @@
+#!/bin/bash
+# Starts and stops apps that live in an app box (Distrobox), for their app grid entries.
+#
+#   easyspeak-os-box-run BOX COMMAND [ARGS...]   start COMMAND in BOX
+#   easyspeak-os-box-run --stop KEY              quit every running copy of that app (KEY is the command's name)
+#
+# Why: an app started straight through distrobox-enter writes its messages back through that link. If the link
+# goes away (the link process is stopped, as a desktop "Force Stop" does), the app's next message fails and
+# Electron apps such as Discord crash with "write EPIPE", over and over. Here the app's messages go to
+# ~/.cache/easyspeak-os/logs/KEY.log inside the box instead, so the link can go away safely.
+# Stopping: the app's process ID is written to a small file, so a Stop from the desktop (passed on by the trap
+# below) or the launcher's Quit action can reach the app inside the box: TERM first, KILL after 10 seconds.
+set -u
+STATE="${XDG_RUNTIME_DIR:-/tmp}/easyspeak-os-box-apps"
+
+tree() {   # a process and all its children, children first
+  local c
+  for c in $(pgrep -P "$1" 2>/dev/null); do tree "$c"; done
+  echo "$1"
+}
+
+stop_key() {
+  local f pid pids="" i
+  for f in "$STATE/$1".*.pid; do
+    [ -s "$f" ] || continue
+    pid=$(cat "$f")
+    kill -0 "$pid" 2>/dev/null && pids="$pids $(tree "$pid" | tr '\n' ' ')"
+    rm -f "$f"
+  done
+  [ -n "$pids" ] || return 0
+  kill -TERM $pids 2>/dev/null
+  for i in $(seq 20); do
+    kill -0 $pids 2>/dev/null || return 0
+    sleep 0.5
+  done
+  kill -KILL $pids 2>/dev/null
+  return 0
+}
+
+if [ "${1:-}" = --stop ]; then
+  [ -n "${2:-}" ] || { echo "usage: easyspeak-os-box-run --stop KEY"; exit 2; }
+  stop_key "$2"
+  exit 0
+fi
+[ "$#" -ge 2 ] || { echo "usage: easyspeak-os-box-run BOX COMMAND [ARGS...]"; exit 2; }
+
+box=$1; shift
+key=$(basename "$1")
+mkdir -p "$STATE"
+pidf="$STATE/$key.$$.pid"
+log="$HOME/.cache/easyspeak-os/logs/$key.log"
+mkdir -p "${log%/*}"
+[ -f "$log" ] && [ "$(stat -c %s "$log")" -gt 5000000 ] && mv -f "$log" "$log.old"
+
+trap 'stop_key "$key"; exit 0' TERM INT HUP
+# The inner shell records its own process ID, then becomes the app (exec keeps the ID), with its input from
+# nowhere and its messages going to the log file.
+distrobox-enter -n "$box" -- env EASYSPEAK_PID="$pidf" EASYSPEAK_LOG="$log" \
+  sh -c 'echo $$ > "$EASYSPEAK_PID"; exec "$@" </dev/null >>"$EASYSPEAK_LOG" 2>&1' sh "$@" </dev/null >/dev/null 2>&1 &
+wait $!
+rc=$?
+# the link ended; forget the app only if it ended too (if it is still running, Quit must still find it)
+[ -s "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null || rm -f "$pidf"
+exit "$rc"

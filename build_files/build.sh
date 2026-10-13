@@ -27,6 +27,9 @@ install -Dm644 /ctx/easyspeak-os-update.desktop /usr/share/applications/easyspea
 # (password every time); drivers and other system parts are offered as a layered .rpm, or refused for a .deb.
 install -Dm755 /ctx/easyspeak-os-packages /usr/bin/easyspeak-os-packages
 install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
+# Starts and stops box apps for their app grid entries: their messages go to a log file (so an app does not crash
+# when its link to the desktop goes away), and a right-click Quit stops the app inside the box.
+install -Dm755 /ctx/easyspeak-os-box-run /usr/libexec/easyspeak-os-box-run
 install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/dev.easyspeak.os.hwrules.policy
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
