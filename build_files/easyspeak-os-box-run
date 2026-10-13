@@ -19,6 +19,18 @@ tree() {   # a process and all its children, children first
   echo "$1"
 }
 
+# Quitting from the dock takes a few seconds, and GNOME may show its "not responding" window meanwhile. Say so.
+quit_notice() {
+  local name="" f
+  for f in "$HOME"/.local/share/applications/*.desktop; do
+    grep -q -- "--stop $1\$" "$f" 2>/dev/null || continue
+    name=$(sed -n 's/^Name=//p' "$f" | head -1); break
+  done
+  name=${name:-$1}
+  command -v notify-send >/dev/null 2>&1 && notify-send --app-name="$name" --icon=application-exit-symbolic \
+    "Quitting $name" "Stopping $name in its box. This takes a few seconds. If GNOME shows a Force Quit / Wait window, you do not need to press anything: $name closes on its own." || true
+}
+
 stop_key() {
   local f pid pids="" i
   for f in "$STATE/$1".*.pid; do
@@ -28,6 +40,7 @@ stop_key() {
     rm -f "$f"
   done
   [ -n "$pids" ] || return 0
+  [ -n "${EASYSPEAK_QUIET:-}" ] || quit_notice "$1"
   kill -TERM $pids 2>/dev/null
   for i in $(seq 20); do
     kill -0 $pids 2>/dev/null || return 0

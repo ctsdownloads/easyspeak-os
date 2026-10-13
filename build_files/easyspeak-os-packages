@@ -18,7 +18,8 @@ Before installing, the file is checked for parts a box cannot provide:
   - drivers, firmware, printer and scanner drivers, login and network plugins and background services
     without an app need the system itself. An .rpm can be added to the system image instead (with the
     administrator password, after a restart). A .deb cannot.
-If Flathub has the same app, that is offered first.
+If Flathub has the same app, that is offered first. A package that only adds a download source (a repository)
+adds it to the box, then offers the apps from it.
 
 What was installed is recorded in ~/.local/share/easyspeak-os/apps.json, so Remove Apps can undo it.
 """
@@ -90,7 +91,11 @@ def norm(p):
 
 
 def wanted_text(p):
-    return (p.endswith(".rules") and "/udev/rules.d/" in p) or p.endswith(".desktop")
+    base = os.path.basename(p)
+    return (p.endswith(".rules") and "/udev/rules.d/" in p) or p.endswith(".desktop") or bool(REPO_FILE.match(p)) \
+        or p.endswith((".metainfo.xml", ".appdata.xml")) or base in ("Makefile", "Kbuild") or \
+        p.startswith(("/usr/lib/systemd/system-preset/", "/usr/lib/systemd/user-preset/")) or \
+        (p.startswith("/usr/share/polkit-1/actions/") and p.endswith(".policy"))
 
 
 def read_tar(pkg, fileobj, mode):
@@ -244,6 +249,11 @@ def classify(pkg):
          or re.search(r"\.ko(\.(xz|zst|gz))?$", p) or (p.startswith("/usr/src/") and p.endswith("/dkms.conf")))
     if re.search(r"(^|[\s,(])(dkms|akmods|kernel-devel|linux-headers[\w.-]*)([\s,()]|$)", pkg.depends):
         found["driver"] = True
+    # driver source built when the package is installed (VirtualBox does this): a kernel module makefile
+    if any(t for p, t in pkg.texts.items() if os.path.basename(p) in ("Makefile", "Kbuild") and "obj-m" in t):
+        found["driver"] = True
+    if re.search(r"(^|[\s;|&(])(modprobe|insmod|depmod|dkms)\s", pkg.scripts):
+        found["driver"] = True
     flag("firmware", lambda p: p.startswith("/usr/lib/firmware/"))
     flag("printer", lambda p: starts(p, "/usr/lib/cups/", "/usr/share/cups/model/", "/usr/share/cups/drv/",
                                     "/usr/share/ppd/"))
@@ -257,6 +267,38 @@ def classify(pkg):
                                and re.search(r"\.(service|socket|timer|path)$", p))
          or starts(p, "/etc/init.d/", "/usr/share/dbus-1/system-services/", "/usr/share/dbus-1/system.d/",
                    "/etc/dbus-1/system.d/"))
+    # A service the package's own install script turns on (systemctl enable/start) is one the app needs. Services
+    # left to the system's defaults (Fedora's presets, or the lines Debian and Ubuntu packaging adds for every
+    # service) are optional.
+    units = [os.path.basename(p) for p in files if (starts(p, "/usr/lib/systemd/system/", "/etc/systemd/system/")
+             and re.search(r"\.(service|socket|timer|path)$", p)) or p.startswith("/etc/init.d/")]
+    user_units = [os.path.basename(p) for p in files if p.startswith("/usr/lib/systemd/user/") and p.endswith(".service")]
+    presets = "\n".join(t for p, t in pkg.texts.items() if "/systemd/system-preset/" in p)
+    turned_on = False
+    for line in pkg.scripts.splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            continue
+        user = bool(re.search(r"--user\b|--global\b", line))
+        if re.search(r"\bsystemctl\b.*\b(enable|start|restart|reenable)\b", line):
+            if (units and not user) or (user_units and user):
+                turned_on = True
+        elif user and user_units and re.search(r"\bsystemctl\b.*\bdaemon-reload\b", line):
+            turned_on = True        # reloads the account's services so its own is ready to start (Docker Desktop)
+    if re.search(r"^\s*enable\s", presets, re.M):
+        turned_on = True
+    # An app that runs as administrator (root): its polkit rule lets pkexec start one of its own programs as root
+    # (Timeshift's does), or its app grid entry starts it with pkexec or sudo. A box cannot give it that.
+    own = set(files)
+    root_programs = [m for p, t in pkg.texts.items() if p.startswith("/usr/share/polkit-1/actions/")
+                     for m in re.findall(r"org\.freedesktop\.policykit\.exec\.path\">\s*([^<\s]+)", t)
+                     if norm(m) in own]
+    root_launch = any(re.search(r"(?m)^Exec=\s*(\S*/)?(pkexec|sudo|gksu|gksudo|kdesu|su-to-root)\b", pkg.texts.get(p, ""))
+                      for p in apps)
+    if turned_on:
+        found["needed_service"] = True
+    elif user_units:
+        found["user_service"] = True
     flag("settings", lambda p: starts(p, "/usr/lib/sysctl.d/", "/etc/sysctl.d/", "/usr/lib/udev/hwdb.d/",
                                      "/etc/udev/hwdb.d/"))
     flag("admin", lambda p: starts(p, "/usr/share/polkit-1/", "/etc/polkit-1/"))
@@ -269,14 +311,20 @@ def classify(pkg):
         "login": "login or security settings",
         "network": "a network or VPN plugin for the system",
         "service": "a background service that starts with the computer",
+        "needed_service": "a background service the app needs, which cannot run in a box",
+        "user_service": "a background service for your account (in a box it does not start)",
         "programrules": "a hardware rule that runs a program",
     }
     if program_rules:
         found["programrules"] = True
     blocking = [words[k] for k in ("driver", "firmware", "printer", "scanner", "login", "network") if k in found]
     notes = []
-    if "service" in found:
+    if "needed_service" in found:
+        blocking.append(words["needed_service"])
+    elif "service" in found:
         (notes if apps else blocking).append(words["service"])
+    if "user_service" in found:
+        notes.append(words["user_service"])
     if "programrules" in found:
         (notes if apps else blocking).append(words["programrules"])
     if "settings" in found:
@@ -285,14 +333,40 @@ def classify(pkg):
         notes.append("parts that need administrator rights (these may not work)")
 
     docs = ("/usr/share/doc/", "/usr/share/licenses/", "/usr/share/man/", "/usr/share/metainfo/",
-            "/usr/share/appdata/", "/usr/lib/.build-id/")
+            "/usr/share/appdata/", "/usr/lib/.build-id/", "/usr/share/lintian/")
     rules_only = bool(safe_rules) and not blocking and \
         all(p in safe_rules or starts(p, *docs) for p in files)
+    # a package that only adds a download source (a repository) and its signing key, and no app
+    keys = ("/etc/pki/rpm-gpg/", "/usr/share/distribution-gpg-keys/", "/etc/apt/trusted.gpg.d/", "/etc/apt/keyrings/",
+            "/usr/share/keyrings/", "/etc/debsig/", "/usr/share/debsig/")
+    repo_files = {p: t for p, t in pkg.texts.items() if REPO_FILE.match(p)}
+    source_only = bool(repo_files) and not blocking and \
+        all(REPO_FILE.match(p) or starts(p, *keys, *docs) for p in files)
     bins = sorted(p for p in files if re.match(r"/usr/bin/[^/]+$", p))[:10]
     # one app: its own name; several (Syncthing has "Start Syncthing" and "Syncthing Web UI"): the package name
     title = next(iter(apps.values())) if len(apps) == 1 else pkg.name.capitalize() if apps else pkg.name
     return {"apps": apps, "bins": bins, "safe_rules": safe_rules, "blocking": blocking, "notes": notes,
-            "rules_only": rules_only, "title": title}
+            "rules_only": rules_only, "source_only": source_only, "needs_root": bool(apps) and bool(root_programs or root_launch), "sources": source_names(repo_files, pkg.kind),
+            "title": title}
+
+
+def source_names(repo_files, kind):
+    """The download sources a package adds: [(id, name, enabled)], from its .repo, .list or .sources files."""
+    out = []
+    for p, text in repo_files.items():
+        if kind == "rpm" and p.endswith(".repo"):
+            for m in re.finditer(r"^\[([^\]]+)\]\s*\n((?:(?!\[).*\n?)*)", text, re.M):
+                body = m.group(2)
+                name = re.search(r"^name\s*=\s*(.*)$", body, re.M)
+                on = re.search(r"^enabled\s*=\s*(\S+)", body, re.M)
+                out.append((m.group(1).strip(), (name.group(1).strip() if name else m.group(1)).replace(
+                    "$releasever", fedora_version()).replace("$basearch", platform.machine()),
+                    not on or on.group(1) not in ("0", "false", "no")))
+        else:
+            for m in re.finditer(r"^\s*deb\s+(?:\[[^\]]*\]\s+)?(\S+)|^URIs:\s*(\S+)", text, re.M):
+                url = m.group(1) or m.group(2)
+                out.append((url, re.sub(r"^\w+://", "", url).split("/")[0], True))
+    return out
 
 
 # ---------------------------------------------------------------- talking to the person
@@ -868,7 +942,8 @@ def unexport(entry):
         except OSError:
             m = None
         if m and os.access(BOX_RUN, os.X_OK):
-            subprocess.run([BOX_RUN, "--stop", m.group(1)], capture_output=True)
+            subprocess.run([BOX_RUN, "--stop", m.group(1)], capture_output=True,
+                           env={**os.environ, "EASYSPEAK_QUIET": "1"})
     for path in entry.get("apps", []):
         if box_exists(box):
             subprocess.run(in_box(box, "distrobox-export", "--app", path, "--delete"), capture_output=True)
@@ -958,23 +1033,72 @@ def remove_rules(name):
 
 # ---------------------------------------------------------------- Flathub
 
+GENERIC = re.compile(r"(^|\s)(web browser|browser|desktop|for linux|client|launcher|app|stable|beta|bin)$")
+
+
+def base_name(s):
+    """A name without the generic words packages add: 'Brave Web Browser' and 'brave-browser' -> 'brave'."""
+    s = re.sub(r"[^a-z0-9 ]", " ", (s or "").lower()).strip()
+    for _ in range(3):
+        s = GENERIC.sub("", s).strip()
+    return s.replace(" ", "")
+
+
+def app_ids(pkg):
+    """App IDs the package names itself by (its app data file or launcher, e.g. com.visualstudio.code)."""
+    ids = []
+    for p in pkg.files:
+        b = os.path.basename(p)
+        for end in (".metainfo.xml", ".appdata.xml", ".desktop"):
+            if b.endswith(end) and b.count(".") >= 2 + end.count("."):
+                ids.append(b[:-len(end)])
+        if b.endswith((".metainfo.xml", ".appdata.xml")):
+            m = re.search(r"<id>\s*([^<\s]+?)(\.desktop)?\s*</id>", pkg.texts.get(p, ""))
+            if m and m.group(1).count(".") >= 2:
+                ids.append(m.group(1))
+    return list(dict.fromkeys(ids))
+
+
+def flathub_get(url, data=None):
+    req = urllib.request.Request(url, method="POST" if data else "GET", data=json.dumps(data).encode() if data else None,
+                                 headers={"Content-Type": "application/json"})
+    return json.load(urllib.request.urlopen(req, timeout=8))
+
+
 def flathub_match(pkg, info):
-    """(app id, name) of the same app on Flathub, or None. Quiet if offline."""
+    """(app id, name) of the same app on Flathub, or None. Quiet if offline.
+    1. An app ID the package itself names, if Flathub has it.
+    2. The same name (package name or app name).
+    3. The same name without generic words ('Brave Web Browser' = 'Brave'), only for apps Flathub has verified
+       as coming from their maker, so a look-alike is never offered."""
     if not shutil.which("flatpak"):
         return None
-    want = {re.sub(r"[^a-z0-9]", "", s.lower()) for s in (pkg.name, info["title"]) if s}
-    want.discard("")
-    try:
-        req = urllib.request.Request("https://flathub.org/api/v2/search", method="POST",
-                                     data=json.dumps({"query": info["title"]}).encode(),
-                                     headers={"Content-Type": "application/json"})
-        hits = json.load(urllib.request.urlopen(req, timeout=8)).get("hits", [])
-    except Exception:
-        return None
-    for h in hits[:10]:
+    for app_id in app_ids(pkg)[:4]:
+        try:
+            data = flathub_get(f"https://flathub.org/api/v2/appstream/{app_id}")
+            if data and data.get("id"):
+                return data["id"], data.get("name") or info["title"]
+        except Exception:
+            continue
+    want = {norm_name(s) for s in (pkg.name, info["title"]) if s} - {""}
+    loose = {base_name(s) for s in (pkg.name, info["title"]) if s} - {""}
+    hits, seen = [], set()
+    for query in dict.fromkeys([info["title"], pkg.name]):
+        try:
+            for h in flathub_get("https://flathub.org/api/v2/search", {"query": query}).get("hits", [])[:10]:
+                if h.get("app_id") not in seen:
+                    seen.add(h.get("app_id"))
+                    hits.append(h)
+        except Exception:
+            continue
+    for h in hits:
         app_id, name = h.get("app_id", ""), h.get("name", "")
-        last = app_id.rsplit(".", 1)[-1]
-        if re.sub(r"[^a-z0-9]", "", name.lower()) in want or re.sub(r"[^a-z0-9]", "", last.lower()) in want:
+        if norm_name(name) in want or norm_name(app_id.rsplit(".", 1)[-1]) in want:
+            return app_id, name
+    for h in hits:
+        app_id, name = h.get("app_id", ""), h.get("name", "")
+        if h.get("verification_verified") and (base_name(name) in loose or
+                                               base_name(app_id.rsplit(".", 1)[-1]) in loose):
             return app_id, name
     return None
 
@@ -1262,6 +1386,14 @@ def install(path):
                 f"Look for the version for {'amd64 or x86_64' if machine == 'x86_64' else machine}.", "warning")
         return 1
 
+    if info["needs_root"]:
+        say(f"{title} has to run as administrator (root) on the system itself. A box cannot give it that, so it "
+            f"cannot be installed here.\n\nNothing was installed.", "warning")
+        return 1
+
+    if info["source_only"]:        # (opened again: offers its apps again, rather than "already installed")
+        return install_source(pkg, info)
+
     go_on, mode, code = already_installed(pkg, info, title)
     if not go_on:
         return code
@@ -1270,7 +1402,8 @@ def install(path):
     if mode != "install":
         return box_install(pkg, info, title, mode=mode)
 
-    match = None if info["rules_only"] else flathub_match(pkg, info)
+    # (not for an app just chosen from a download source: the person picked that source on purpose)
+    match = None if info["rules_only"] or pkg.name in SOURCED else flathub_match(pkg, info)
     if match and flatpak_installed(match[0]):
         app_id, name = match
         a = ask(f"{name} is already installed from Flathub.", ok="Open it", extra="Install the file too")
@@ -1366,6 +1499,111 @@ def install(path):
     return box_install(pkg, info, title)
 
 
+# ---------------------------------------------------------------- packages that only add a download source
+
+SOURCED = set()      # packages installed from a download source in this run: System Update keeps them current
+FROM_SOURCE = CACHE / "from-source"
+
+
+def source_packages(kind, box, sources):
+    """[(package, summary)] offered by the download sources the box just got."""
+    if kind == "rpm":
+        ids = [i for i, _, on in sources if on]
+        r = subprocess.run(in_box(box, "dnf", "-q", "repoquery", "--repo=" + ",".join(ids), "--latest-limit=1",
+                                  f"--arch={platform.machine()},noarch", "--queryformat=%{name}\t%{summary}\n"),
+                           capture_output=True, text=True)
+        rows = [l.split("\t", 1) for l in r.stdout.splitlines() if "\t" in l]
+    else:
+        # Ubuntu names each source's list after its address: packages.microsoft.com/ubuntu/24.04/prod ->
+        # packages.microsoft.com_ubuntu_24.04_prod_dists_..._Packages
+        # The lists are kept compressed (.lz4), one per kind of processor; only this computer's and "all" are wanted
+        marks = [re.sub(r"^\w+://", "", url).rstrip("/").replace("/", "_") + "_" for url, _, on in sources if on]
+        arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
+        new = [f for f in apt_lists(box) if any(os.path.basename(f).startswith(m) for m in marks) and
+               re.search(rf"_binary-({arch}|all)_Packages(\.\w+)?$", f)]
+        rows, name = [], None
+        if new:
+            r = subprocess.run(in_box(box, "sh", "-c", "for f in " + " ".join(shlex.quote(f) for f in new) +
+                                      "; do /usr/lib/apt/apt-helper cat-file \"$f\"; done | "
+                                      "grep -E '^(Package|Description):'"), capture_output=True, text=True)
+            for line in r.stdout.splitlines():
+                if line.startswith("Package:"):
+                    name = line.split(":", 1)[1].strip()
+                    rows.append([name, ""])
+                elif line.startswith("Description:") and rows and not rows[-1][1]:
+                    rows[-1][1] = line.split(":", 1)[1].strip()
+    seen, out = set(), []
+    for n, summary in sorted(rows, key=lambda r: r[0].lower()):
+        n = n.strip()
+        if n and n not in seen and not re.search(r"-(devel|dev|debuginfo|debugsource|dbg|doc|docs)$", n):
+            seen.add(n)
+            out.append((n, summary.strip()))
+    return out
+
+
+def apt_lists(box):
+    r = subprocess.run(in_box(box, "sh", "-c", "ls -d /var/lib/apt/lists/*_Packages* 2>/dev/null"),
+                       capture_output=True, text=True)
+    return r.stdout.split()
+
+
+def install_source(pkg, info):
+    """A package with no app, only a download source (a repository): add the source to the box, then pick an app
+    from it. The app is then installed like any file, and System Update keeps it up to date from the source."""
+    box = BOXES[pkg.kind]
+    names = [n for _, n, on in info["sources"] if on] or [pkg.name]
+    shown = "\n".join("  - " + n for n in names[:6])
+    title = f"{pkg.name} (download source)"
+    new_box = not box_exists(box["name"])
+    text = (f"{pkg.path.name} does not contain an app. It adds a download source:\n{shown}\n\n"
+            f"It goes into the {box['label']}. Then you choose an app from it, and that app is installed in the box "
+            f"like any other. System Update keeps apps from this source up to date.")
+    size = None
+    if new_box:
+        intro, size = box_intro(pkg.kind, "This download source")
+        text += "\n\n" + intro.split("\n\n")[-1]
+    if ask(text, ok="Set up and add it" if new_box else "Add it") != "ok":
+        return 1
+    if new_box:
+        if not setup_box(pkg.kind, size):
+            return 1
+    have = next((r for r in load() if r["where"] == box["name"] and r["package"] == pkg.name), None)
+    if not have and box_install(pkg, info, title, quiet=True) != 0:
+        return failed(f"Adding the download source {pkg.name}")
+    if pkg.kind == "deb":
+        if not run_steps("Getting the list of apps from the new download source.",
+                         [in_box(box["name"], "sudo", "apt-get", "update")]):
+            return failed(f"Reading the download source {pkg.name}")
+    busy("Reading the list of apps from the new download source")
+    apps = source_packages(pkg.kind, box["name"], info["sources"])
+    if not apps:
+        say(f"The download source is added to the {box['label']}, but it does not list any apps right now. "
+            f"It may need the internet; open {pkg.path.name} again later to choose an app.", "warning")
+        return 0
+    i = choose("The download source is added. Which app do you want from it?\n"
+               "Start typing a name to find it in the list.", ["App", "About it"], [list(a) for a in apps])
+    if i is None:
+        say(f"The download source stays in the {box['label']}. Open {pkg.path.name} again to choose an app, or "
+            f"remove the source with Remove Apps.")
+        return 0
+    name = apps[i][0]
+    folder = FROM_SOURCE / pkg.kind
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
+    cmd = ["dnf", "-q", "download", f"--destdir={folder}", name] if pkg.kind == "rpm" else \
+        ["sh", "-c", f"cd {shlex.quote(str(folder))} && apt-get download {shlex.quote(name)}"]
+    if not run_steps(f"Downloading {name}.", [in_box(box["name"], *cmd)]):
+        return failed(f"Downloading {name}")
+    files = sorted(folder.glob("*.rpm" if pkg.kind == "rpm" else "*.deb"))
+    if not files:
+        return failed(f"Downloading {name}", reason=f"{name} could not be downloaded from the source.")
+    # keep the file where Repair can find it again, like any installed file
+    keep = CACHE / files[0].name
+    shutil.move(str(files[0]), keep)
+    SOURCED.add(name)
+    return install(str(keep))
+
+
 def staged_copy(pkg):
     CACHE.mkdir(parents=True, exist_ok=True)
     dest = CACHE / pkg.path.name
@@ -1410,9 +1648,11 @@ def box_install(pkg, info, title, quiet=False, mode="install"):
     old = next((r for r in load() if r["where"] == box and r["package"] == pkg.name), {})
     # Updates: the package (or its install script, as Chrome's and VS Code's do) added a download source
     updates = adds_source(pkg) or bool(set(box_repos(box, pkg.kind)) - set(repos_before)) or \
-        bool(old.get("updates"))
+        bool(old.get("updates")) or pkg.name in SOURCED
     entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins,
              "rules": bool(old.get("rules")), "file": f, "version": pkg.evr, "updates": updates}
+    if info.get("source_only"):
+        entry["source"] = True
     remember(entry)
     extra = ""
     if quiet:
@@ -1507,8 +1747,10 @@ def remove():
         unexport(entry)
         ok = True
         if box_exists(where) and box_works(where):
+            # a download source is purged on Ubuntu, so its source file (a kept setting otherwise) goes too
+            purge = ["--purge"] if entry.get("source") else []
             cmd = ["sudo", "dnf", "-y", "remove", entry["package"]] if where == BOXES["rpm"]["name"] else \
-                ["sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y", entry["package"]]
+                ["sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y", *purge, entry["package"]]
             ok = run_steps(f"Removing {title}.", [in_box(where, *cmd)])
         if ok and entry.get("rules"):
             ok = remove_rules(entry["package"])
@@ -1547,7 +1789,8 @@ def check(path):
     info = classify(pkg)
     print(json.dumps({"kind": pkg.kind, "name": pkg.name, "version": pkg.version, "title": info["title"],
                       "apps": list(info["apps"]), "bins": info["bins"], "rules": list(info["safe_rules"]),
-                      "rules_only": info["rules_only"], "needs_system": info["blocking"],
+                      "rules_only": info["rules_only"], "source_only": info["source_only"], "needs_root": info["needs_root"],
+                      "sources": [n for _, n, on in info["sources"] if on], "needs_system": info["blocking"],
                       "wont_work_in_box": info["notes"]}, indent=1))
     return 0
 
