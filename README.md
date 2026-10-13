@@ -160,7 +160,7 @@ What the build checks:
 - If the cheat sheet cannot be generated, the image still builds without it.
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
-- The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, or if the RPM Fusion signing key is missing.
+- The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
 
 The release packages from Fedora also hold Fedora's lists of which services
 start by themselves (systemd presets). The rebrand step copies those lists out
@@ -246,9 +246,11 @@ cannot change it. To rename it:
 - The updater and Homebrew come from Universal Blue's package repository. If it
   becomes unavailable, the build fails and machines stay on the last good image,
   without updates, until the build is fixed.
-- If RPM Fusion falls behind Fedora, a system update can fail on machines with
-  the full codecs. Nothing breaks: they stay on their current version until RPM
-  Fusion catches up.
+- If RPM Fusion falls behind Fedora, for example right after a new Fedora
+  version, the build fails and no image is published, so nobody moves ahead of
+  RPM Fusion. Rebuild once RPM Fusion catches up. A short gap is still possible
+  between builds; then a system update fails on machines with the full codecs.
+  Nothing breaks: they stay on their current version until RPM Fusion catches up.
 
 ## Source code
 
