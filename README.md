@@ -171,6 +171,19 @@ window opens behind another window.
 
 App grid entries made before this are switched over once, at the next login.
 
+**Already installed?** Before anything else, it checks whether the app is
+already there, and asks instead of installing again:
+
+| Already there | What it says |
+|---------------|--------------|
+| In its box, same version | "already installed (version …)": **Open it**, **Reinstall** or Cancel |
+| In its box, older version | "Update … from version … to …?": **Update** or Cancel |
+| In its box, newer version | "This file is an older version …": **Install the older version** or Cancel |
+| From Flathub (installed any way) | "already installed from Flathub": **Open it**, **Install the file too** or Cancel |
+| In the other box | "already installed in the Fedora box": **Open it**, **Install it here too** or Cancel |
+| On the system (part of it) | "already part of your system" |
+| On the system (added with Install Package File) | Same version: says so. Newer file: offers to update it (administrator password, restart) |
+
 **The first time.** Before anything is downloaded, one window explains what the
 box means for you: the app opens from the app grid like any other, it can use
 the files in your home folder, your system itself is not changed, and Remove
