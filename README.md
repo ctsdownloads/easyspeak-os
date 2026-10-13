@@ -200,6 +200,12 @@ window opens behind another window.
 - Right-click the app in the app grid or dash and choose **Quit <app>** to stop
   it inside the box, even when it is stuck: it is asked to quit, and forced to
   after 10 seconds. A normal Stop from the desktop is passed on to the app too.
+- **Quitting a box app from the dock takes a while, and that is expected.** After
+  you choose **Quit <app>** in the dock, the app can stay open for several
+  seconds while it is stopped inside the box. During that time GNOME may show its
+  "not responding" window with **Force Quit** and **Wait**. That is normal and
+  nothing is wrong: the app closes on its own a few seconds later, and the window
+  goes away with it. You do not need to press anything.
 - Remove Apps quits a running app before removing it.
 
 App grid entries made before this are switched over once, at the next login.
