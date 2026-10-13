@@ -1,0 +1,98 @@
+#!/usr/bin/python3 -I
+"""Add or remove an app's hardware rules (udev) on the system. Runs as root through polkit, password every time.
+
+  easyspeak-os-hwrules add PACKAGE RULEFILE...
+  easyspeak-os-hwrules remove PACKAGE
+
+Only rules that set device permissions and properties are accepted. A rule that runs a program (RUN, PROGRAM,
+IMPORT{program}) is refused, because the program would run as root on the system. Each file is written to
+/etc/udev/rules.d under its own name with a first line naming the package, and only files with that line are
+ever removed. An existing file that is not ours is never replaced.
+"""
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+RULES = Path("/etc/udev/rules.d")
+PKG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}$")
+FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\.rules$")
+RUNS_PROGRAM = re.compile(r"\bRUN\b(?!\{builtin\})|\bPROGRAM\b|IMPORT\{program\}")
+
+
+def marker(pkg):
+    return f"# easyspeak-os-package: {pkg}\n"
+
+
+def ours(path, pkg):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.readline() == marker(pkg)
+    except OSError:
+        return False
+
+
+def fail(msg):
+    print(msg)
+    sys.exit(1)
+
+
+def reload():
+    subprocess.run(["udevadm", "control", "--reload"], check=False)
+    subprocess.run(["udevadm", "trigger", "--action=change"], check=False)
+
+
+def add(pkg, files):
+    texts = {}
+    for f in files:
+        name = os.path.basename(f)
+        if not FILE.match(name):
+            fail(f"Not a rule file name: {name}")
+        st = os.stat(f)
+        if st.st_size > 64 * 1024:
+            fail(f"{name} is too large for a hardware rule.")
+        text = Path(f).read_text(encoding="utf-8")
+        joined = re.sub(r"\\\n", " ", text)
+        if any(RUNS_PROGRAM.search(l) for l in joined.splitlines() if not l.lstrip().startswith("#")):
+            fail(f"{name} runs a program, so it is not added.")
+        target = RULES / name
+        if target.exists() and not ours(target, pkg):
+            fail(f"{target} already exists and belongs to something else.")
+        texts[name] = text
+    if not texts:
+        fail("No rule files given.")
+    RULES.mkdir(parents=True, exist_ok=True)
+    for name, text in texts.items():
+        tmp = RULES / f".{name}.tmp"
+        tmp.write_text(marker(pkg) + "# Added by Install Package File. Remove it with Remove Apps.\n" + text)
+        os.chmod(tmp, 0o644)
+        tmp.replace(RULES / name)
+        print(f"Added {RULES / name}")
+    reload()
+
+
+def remove(pkg):
+    for path in sorted(RULES.glob("*.rules")):
+        if ours(path, pkg):
+            path.unlink()
+            print(f"Removed {path}")
+    reload()
+
+
+def main(argv):
+    if os.geteuid() != 0:
+        fail("This helper runs through polkit (pkexec).")
+    if len(argv) >= 3 and argv[1] in ("add", "remove") and PKG.match(argv[2]):
+        if argv[1] == "add" and len(argv) > 3:
+            add(argv[2], argv[3:])
+            return 0
+        if argv[1] == "remove" and len(argv) == 3:
+            remove(argv[2])
+            return 0
+    print(__doc__.split("\n\n")[1])
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

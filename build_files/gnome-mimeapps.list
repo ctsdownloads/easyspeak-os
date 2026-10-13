@@ -1,0 +1,5 @@
+# EasySpeak-OS: .rpm and .deb files open in Install Package File, which puts them in a box.
+# GNOME reads this before Fedora's mimeapps.list in the same folder.
+[Default Applications]
+application/x-rpm=easyspeak-os-install-package.desktop
+application/vnd.debian.binary-package=easyspeak-os-install-package.desktop

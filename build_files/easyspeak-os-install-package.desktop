@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install Package File
+Comment=Install an app from an .rpm or .deb file
+Keywords=rpm;deb;package;install;distrobox;
+Icon=system-software-install-symbolic
+Exec=/usr/bin/easyspeak-os-packages install %f
+MimeType=application/x-rpm;application/vnd.debian.binary-package;
+Categories=System;
+Terminal=false
