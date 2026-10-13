@@ -23,7 +23,8 @@ TESTS = {
                              "install updates": "/usr/bin/easyspeak-os-update"},
                             ["open browser", "install a package"]),
     "easyspeak_os_apps": ({"install a package": "install", "install an app from a file": "install",
-                           "uninstall an app": "remove", "remove a program": "remove"},
+                           "uninstall an app": "remove", "remove a program": "remove",
+                           "repair app boxes": "repair", "fix the box": "repair"},
                           ["install updates", "open browser", "update system", "remove word"]),
 }
 for name, (takes, leaves) in TESTS.items():

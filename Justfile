@@ -121,6 +121,12 @@ build $target_image=image_name $tag=default_tag:
     LABELS+=("--label" "org.opencontainers.image.title={{ image_name }}")
     LABELS+=("--label" "org.opencontainers.image.vendor={{ repo_organization }}")
 
+    # The repository's GitHub token, when there is one (the GitHub Actions build), as a build secret: the build
+    # uses it to read EasySpeak's release list without hitting the anonymous API limit. It never enters the image.
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        BUILD_ARGS+=("--secret" "id=GITHUB_TOKEN,env=GITHUB_TOKEN")
+    fi
+
     # This actually builds the image!
     PODMAN_BUILD_ARGS=("${BUILD_ARGS[@]}" "${LABELS[@]}" --pull=newer --tag "${target_image}:${tag}" --file Containerfile)
 

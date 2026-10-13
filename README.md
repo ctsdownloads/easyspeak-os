@@ -122,7 +122,8 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   **System Update**, the same window as in the app grid. This command comes from EasySpeak-OS,
   as a plugin added to EasySpeak's plugin folder, and works in English only.
 - **Install and remove apps by voice.** Say "install a package" to open
-  **Install Package File**, or "remove an app" to open **Remove Apps**. These also
+  **Install Package File**, "remove an app" to open **Remove Apps**, or "repair
+  app boxes" to open **Repair App Boxes**. These also
   come from EasySpeak-OS as a plugin, in English only.
 - **Command cheat sheet.** Open **EasySpeak Commands** from the app grid. The
   everyday commands are open and the long mode sections are folded.
@@ -133,16 +134,44 @@ The system is an image, so packages are not installed into it directly. Open an
 .rpm or .deb file (double-click it, open **Install Package File** from the app
 grid, or say "install a package"), and EasySpeak-OS:
 
-1. Checks what the package contains, without installing anything.
+1. Checks what the package contains, without installing anything. A package
+   made for a different kind of processor (ARM, or 32-bit only) is stopped here,
+   with the reason.
 2. Offers Flathub instead when Flathub has the same app, since Flathub apps
    update on their own.
-3. Puts .rpm files in a Fedora box and .deb files in an Ubuntu 24.04 box. The
-   box is made the first time it is needed, after a short explanation. Each box
-   is a Distrobox container, kept separate from any boxes of your own.
+3. Puts .rpm files in a Fedora box and .deb files in an Ubuntu 24.04 box. Each
+   box is a Distrobox container, kept separate from any boxes of your own.
 4. Adds the app to the app grid. A package with no app gets its commands on your
    `PATH` (`~/.local/bin`) instead.
 
 System Update keeps the boxes up to date, along with everything else.
+
+**The first time.** Before anything is downloaded, one window explains what the
+box means for you: the app opens from the app grid like any other, it can use
+the files in your home folder, your system itself is not changed, and Remove
+Apps takes it out cleanly. It gives the real download size (looked up from the
+image, about 375 MB for the Fedora box and 210 MB for the Ubuntu box at the time
+of writing). One button, **Set up and install**, does both. The progress window
+shows plain steps (downloading, creating, getting it ready, installing) rather
+than the tools' own output, says how long a long step has been going once a
+minute, and has a **Cancel** button while the box is being set up. Cancelling,
+or a failed setup, leaves no half-made box.
+
+**When something goes wrong,** the window says why in plain words for the usual
+reasons: no internet connection, a full disk, a package made for a different
+Fedora or Ubuntu version (naming what it needs), a file that would replace part
+of the system, or the password not given. Otherwise it shows the last lines of
+the log. The full log is in `~/.cache/easyspeak-os/packages/last.log`.
+
+**Repairing a box.** If a box stops working, installing into it offers
+**Repair the box**: the box is set up again from scratch, the apps that were
+installed into it with Install Package File are put back from the saved copies
+of their files, and then the new app is installed. **Repair App Boxes** in the
+app grid (or "repair app boxes") does the same at any time. When System Update
+cannot update the boxes, it offers to check them and repairs only a box that is
+broken; if the broken one is a box of your own, it says so instead. Repair does
+not touch your files, and things installed inside a box some other way are not
+put back.
 
 What works in a box, and what needs the system itself:
 
@@ -194,7 +223,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package" and "remove an app" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
-| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `gnome-mimeapps.list` | **Install Package File** and **Remove Apps**, and the setting that opens .rpm and .deb files in them |
+| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps** and **Repair App Boxes**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
@@ -209,7 +238,10 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 What the build checks:
 
 - Each EasySpeak RPM is verified against the sha256 digest GitHub publishes for
-  it before it is installed.
+  it before it is installed. The release list is read from GitHub's API with the
+  repository's own token, passed to the build as a secret and never stored in the
+  image, because anonymous API calls from GitHub's shared build machines are
+  often refused.
 - The build fails if a new EasySpeak release changes the log lines Ready Dot
   reads, so the image does not ship a dot that shows the wrong thing.
 - If the build fails before the push step, no image is published and the last

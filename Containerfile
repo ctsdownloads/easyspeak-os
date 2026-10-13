@@ -10,6 +10,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=tmpfs,dst=/tmp \
+    --mount=type=secret,id=GITHUB_TOKEN \
     /ctx/build.sh
 
 LABEL org.opencontainers.image.description="EasySpeak-OS: a derivative of Fedora® with EasySpeak voice control. Not Fedora, and not provided or supported by the Fedora Project. Official Fedora: https://fedoraproject.org/ Fedora® is a registered trademark of Red Hat, Inc., or its subsidiaries in the United States and other countries."
