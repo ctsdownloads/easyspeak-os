@@ -30,6 +30,8 @@ install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
 install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/dev.easyspeak.os.hwrules.policy
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
+# At login, once: says whether a package added to the system is ready, and for a printer driver offers to add the printer.
+install -Dm644 /ctx/easyspeak-os-packages-after-restart.desktop /etc/xdg/autostart/easyspeak-os-packages-after-restart.desktop
 # .rpm and .deb files open in Install Package File (GNOME reads gnome-mimeapps.list before Fedora's mimeapps.list).
 install -Dm644 /ctx/gnome-mimeapps.list /usr/share/applications/gnome-mimeapps.list
 update-desktop-database /usr/share/applications

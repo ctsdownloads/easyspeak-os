@@ -4,6 +4,7 @@
   easyspeak-os-packages install [FILE]   install an .rpm or .deb (no FILE: pick one from Downloads)
   easyspeak-os-packages remove           remove an app installed this way
   easyspeak-os-packages check FILE       say what a package needs, without installing anything
+  (easyspeak-os-packages after-restart runs at login, once, after something was added to the system)
 
 The system itself is an image, so apps from .rpm and .deb files go into a box (a Distrobox container):
 .rpm files into a Fedora box, .deb files into an Ubuntu box. Each box is made the first time it is needed,
@@ -69,6 +70,7 @@ class Package:
         self.texts = {}           # path -> text, for udev rules and desktop files
         self.depends = ""         # requirements, as one lowercase string
         self.scripts = ""         # install scripts, as one lowercase string
+        self.vendor = ""          # rpm Vendor or deb Maintainer, to name the maker
 
 
 def norm(p):
@@ -111,8 +113,8 @@ def read_rpm(pkg):
         if r.returncode != 0:
             raise ValueError(r.stderr.strip() or "rpm could not read it")
         return r.stdout
-    info = q("--qf", "%{NAME}\n%{VERSION}-%{RELEASE}\n%{ARCH}\n").split("\n")
-    pkg.kind, pkg.name, pkg.version, pkg.arch = "rpm", info[0], info[1], info[2]
+    info = q("--qf", "%{NAME}\n%{VERSION}-%{RELEASE}\n%{ARCH}\n%{VENDOR}\n").split("\n")
+    pkg.kind, pkg.name, pkg.version, pkg.arch, pkg.vendor = "rpm", info[0], info[1], info[2], info[3]
     pkg.nevra = f"{pkg.name}-{pkg.version}.{pkg.arch}"
     pkg.depends = q("--requires").lower()
     pkg.scripts = q("--scripts").lower()
@@ -159,6 +161,7 @@ def read_deb(pkg):
     pkg.name = fields.get("package", "").strip()
     pkg.version = fields.get("version", "").strip()
     pkg.arch = fields.get("architecture", "").strip()
+    pkg.vendor = fields.get("maintainer", "").strip()
     pkg.depends = " ".join(fields.get(k, "") for k in ("depends", "pre-depends")).lower()
     pkg.scripts = "\n".join(scripts).lower()
     read_tar(pkg, io.BytesIO(data), "r:*")
@@ -568,6 +571,87 @@ def flathub_match(pkg, info):
     return None
 
 
+# ---------------------------------------------------------------- printers
+
+MAKERS = ["Brother", "Canon", "Epson", "HP", "Samsung", "Xerox", "Lexmark", "Ricoh", "Kyocera", "Konica Minolta",
+          "OKI", "Sharp", "Pantum", "Dell", "Fujifilm", "Toshiba"]
+
+
+def maker(pkg):
+    """The printer maker named in the package, or ''."""
+    name, vendor = pkg.name.lower(), f" {pkg.vendor} ".lower().replace("hewlett", " hp ")
+    for m in MAKERS:
+        w = re.escape(m.split()[0].lower())
+        # in the package name the maker may start a word ("printer-driver-hpcups"); in the vendor it must be a
+        # whole word, so "Canonical" (Ubuntu's maintainer) is not Canon
+        if re.search(rf"(^|[^a-z]){w}", name) or re.search(rf"[^a-z]{w}[^a-z]", vendor):
+            return m
+    return ""
+
+
+def open_printers():
+    try:
+        subprocess.Popen(["gnome-control-center", "printers"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def try_driverless(title, kind):
+    """Most printers need no driver. Offer to add the printer first. Returns 'printers', 'driver' or None."""
+    extra = "Install the driver" if kind == "rpm" else "About this driver"
+    answer = ask(f"{title} is a printer driver. Most printers do not need one: they show up by themselves in "
+                 f"Settings, under Printers, and print without a driver.\n\nTry adding your printer there first?",
+                 ok="Open Printers", extra=extra)
+    if answer == "ok":
+        open_printers()
+        later = "open this file again and choose Install the driver." if kind == "rpm" else \
+            "open this file again to see how to get the driver."
+        say(f"Printers is open. Choose Add Printer.\n\nIf your printer is not listed, or does not print correctly, {later}")
+        return "printers"
+    return "driver" if answer == "extra" else None
+
+
+# ---------------------------------------------------------------- after a restart
+
+PENDING = STATE.with_name("pending.json")
+
+
+def pending(entries=None):
+    if entries is None:
+        try:
+            return json.loads(PENDING.read_text())
+        except (OSError, ValueError):
+            return []
+    PENDING.parent.mkdir(parents=True, exist_ok=True)
+    if entries:
+        PENDING.write_text(json.dumps(entries, indent=1))
+    else:
+        PENDING.unlink(missing_ok=True)
+
+
+def after_restart():
+    """Run at login. For each package added to the system, say whether it is there now, once."""
+    left = []
+    for e in pending():
+        if subprocess.run(["rpm", "-q", e["package"]], capture_output=True).returncode == 0:
+            if e.get("printer"):
+                notify(f"The printer driver {e['title']} is ready.")
+                if ask(f"The printer driver {e['title']} is ready.\n\nAdd your printer now? In Printers, choose "
+                       f"Add Printer, then pick your printer.", ok="Open Printers", cancel="Later") == "ok":
+                    open_printers()
+            else:
+                notify(f"{e['title']} is now on the system.")
+                say(f"{e['title']} is now on the system.")
+        elif staged_system():
+            left.append(e)          # added, but this computer has not restarted into it yet
+        else:
+            notify(f"{e['title']} was not added to the system.")
+            say(f"{e['title']} is not on the system. Adding it may have been undone, or the system started from an "
+                f"older version. Open the file again to add it.", "warning")
+    pending(left)
+    return 0
+
+
 # ---------------------------------------------------------------- install
 
 def plain_list(items):
@@ -642,6 +726,21 @@ def install(path):
 
     if info["blocking"]:
         reasons = plain_list(info["blocking"])
+        printer = "a printer driver" in info["blocking"]
+        if printer:
+            choice = try_driverless(title, pkg.kind)
+            if choice != "driver":
+                return 0 if choice == "printers" else 1
+        if pkg.kind == "deb" and printer:
+            who = maker(pkg)
+            site = f"{who}'s support site" if who else "the printer maker's support site"
+            if ask(f"{title} is a printer driver made for Ubuntu and Debian (.deb). This system takes printer drivers "
+                   f"only as .rpm files.\n\nWhat to do:\n  1. Go to {site} and find the driver for your printer.\n"
+                   f"  2. When it asks for your system, choose the .rpm version (it may be called Fedora, Red Hat or "
+                   f"RPM).\n  3. Open that .rpm file here.\n\nOr try your printer without a driver first.",
+                   ok="Open Printers", cancel="Close") == "ok":
+                open_printers()
+            return 1
         if pkg.kind == "deb":
             say(f"{title} cannot be installed from a .deb on this system. It has:\n{reasons}\n\n"
                 f"These need the system itself, and the system cannot take .deb packages. "
@@ -653,7 +752,7 @@ def install(path):
                f"file. You can remove it later with Remove Apps.",
                ok="Add to the system") != "ok":
             return 1
-        return install_system(pkg, title)
+        return install_system(pkg, title, printer)
 
     box = BOXES[pkg.kind]
     text = f"Install {title} in the {box['label']}?"
@@ -736,15 +835,20 @@ def offer_restart(text):
         subprocess.run(["systemctl", "reboot"])
 
 
-def install_system(pkg, title):
+def install_system(pkg, title, printer=False):
     f = str(staged_copy(pkg))
     if not run_steps(f"Adding {title} to the system. This can take a few minutes.",
                      [["rpm-ostree", "install", "--idempotent", f]]):
         failed(f"Adding {title} to the system")
         return 1
     remember({"title": title, "package": pkg.name, "nevra": pkg.nevra, "where": "system"})
+    # checked once at the next login: is it really there, and for a printer driver, add the printer
+    pending([e for e in pending() if e["package"] != pkg.name] + [{"title": title, "package": pkg.name,
+                                                                  "printer": printer}])
+    after = "After the restart, you will be asked to add your printer." if printer else \
+        "After the restart, you will be told when it is ready."
     notify(f"{title} is added. Restart to use it.")
-    offer_restart(f"{title} is added to the system. Restart to use it.")
+    offer_restart(f"{title} is added to the system. Restart to use it.\n\n{after}")
     return 0
 
 
@@ -785,6 +889,7 @@ def remove():
         failed(f"Removing {title}")
         return 1
     forget(entry)
+    pending([e for e in pending() if e["package"] != entry["package"]])
     notify(f"{title} is removed.")
     if where == "system":
         offer_restart(f"{title} is removed. Restart to finish.")
@@ -806,11 +911,14 @@ def check(path):
 
 
 def main(argv):
-    if len(argv) < 2 or argv[1] not in ("install", "remove", "check") or (argv[1] == "check" and len(argv) < 3):
+    if len(argv) < 2 or argv[1] not in ("install", "remove", "check", "after-restart") or \
+            (argv[1] == "check" and len(argv) < 3):
         print(__doc__.split("\n\n")[1])
         return 2
     if argv[1] == "check":
         return check(argv[2])
+    if argv[1] == "after-restart" and not pending():
+        return 0
     CACHE.mkdir(parents=True, exist_ok=True)
     lock = open(CACHE / ".lock", "w")
     try:
@@ -818,6 +926,8 @@ def main(argv):
     except OSError:
         say("Another install or removal is already running. Try again when it is done.")
         return 1
+    if argv[1] == "after-restart":
+        return after_restart()
     if argv[1] == "install":
         return install(argv[2] if len(argv) > 2 else None)
     return remove()
