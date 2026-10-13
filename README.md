@@ -125,6 +125,18 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   **Install Package File**, "remove an app" to open **Remove Apps**, or "repair
   app boxes" to open **Repair App Boxes**. These also
   come from EasySpeak-OS as a plugin, in English only.
+- **Answer EasySpeak-OS windows by voice.** While an EasySpeak-OS window is open
+  (Install Package File, Remove Apps, Repair App Boxes, System Update, Install
+  Media Codecs), say a button's name to press it: "set up and install", "open
+  it", "restart now", "cancel". In a list, say "number two" or the name on the
+  line. Say "read it" to hear the window and the buttons you can say. The window
+  is never read out by itself: the open microphone would hear it and could press
+  one of its buttons. When no such window is open, these words do nothing, so
+  they never get in the way of other commands. English only.
+- **The EasySpeak-OS commands are in the help.** "help", the cheat sheet and the
+  "did you mean" card include them, in their own EasySpeak-OS section. The list is
+  read from the plugins when the image is built, so a new command shows up there
+  without anyone remembering to add it.
 - **Command cheat sheet.** Open **EasySpeak Commands** from the app grid. The
   everyday commands are open and the long mode sections are folded.
 
@@ -263,6 +275,8 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package" and "remove an app" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
 | `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps** and **Repair App Boxes**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
+| `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeak-OS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
+| `build_files/os-commands.py` | Reads the EasySpeak-OS voice commands from the plugins for the help overlay, the cheat sheet and "did you mean" |
 | `build_files/easyspeak-os-box-run` | Starts box apps for their app grid entries with their messages in a log file, and stops them (the Quit action) |
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
@@ -270,7 +284,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
 | `build_files/easyspeak-os-boot-label` | Installed as `easyspeak-os-boot-label`, an optional command that renames the firmware boot-menu entry |
-| `build_files/make-cheatsheet.py` | Turns EasySpeak's command docs into the cheat sheet and the on-screen list |
+| `build_files/make-cheatsheet.py` | Turns EasySpeak's command docs, plus the EasySpeak-OS commands, into the cheat sheet and the on-screen list |
 | `system_files/` | Files copied into the image, including the Ready Dot extension |
 | `cosign.pub` | Public key for verifying the image |
 
@@ -290,6 +304,7 @@ What the build checks:
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
+- The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window).
 - The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads three real Fedora packages (an app, a background service and a hardware rule).
 
 The release packages from Fedora also hold Fedora's lists of which services

@@ -300,8 +300,13 @@ def classify(pkg):
 GUI = bool(shutil.which("zenity")) and bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
 
 
+# easyspeak-os-dialog is zenity plus voice: while a window is open, EasySpeak can press its buttons ("set up and
+# install", "cancel"), pick a line of a list ("number two") or read it out ("read it"). zenity is the fallback.
+DIALOG = "/usr/bin/easyspeak-os-dialog" if os.access("/usr/bin/easyspeak-os-dialog", os.X_OK) else "zenity"
+
+
 def zenity(*args, stdin=None):
-    return subprocess.run(["zenity", f"--title={TITLE}", "--width=520", *args], input=stdin,
+    return subprocess.run([DIALOG, f"--title={TITLE}", "--width=520", *args], input=stdin,
                           capture_output=True, text=True)
 
 
@@ -381,7 +386,8 @@ def run_steps(text, steps, cancel=False):
     bar = None
     if GUI:
         mode = ["--pulsate"] if len(steps) == 1 else []
-        bar = subprocess.Popen(["zenity", f"--title={TITLE}", "--width=520", "--progress", *mode, "--auto-close",
+        bar = subprocess.Popen([DIALOG if cancel else "zenity", f"--title={TITLE}", "--width=520", "--progress",
+                                *mode, "--auto-close",
                                 *([] if cancel else ["--no-cancel"]), f"--text={html.escape(text)}"],
                                stdin=subprocess.PIPE, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:

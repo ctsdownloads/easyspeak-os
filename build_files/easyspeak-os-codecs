@@ -26,6 +26,8 @@ DONE=$STATE/codecs-setup-done
 SETUP=/usr/libexec/easyspeak-os-codecs-setup
 ADMIN=/usr/libexec/easyspeak-os-codecs-admin
 USTATE="${XDG_STATE_HOME:-$HOME/.local/state}/easyspeak-os"
+# easyspeak-os-dialog is zenity plus voice (say a button's name to press it, "read it" to hear the window).
+DIALOG=zenity; [ -x /usr/bin/easyspeak-os-dialog ] && DIALOG=/usr/bin/easyspeak-os-dialog
 ARGS=("$@")
 
 say() { printf '%s\n' "$*"; }
@@ -60,7 +62,7 @@ ask() {   # prints web or full, or nothing for "Not now"
   local note out rc
   if window_open; then note="Either choice installs now with no password, because this is first-time setup. Later, Install Media Codecs asks for your administrator password."
   else note="Either choice asks for your administrator password next."; fi
-  out=$(zenity --question --title="Install Media Codecs" --width=600 \
+  out=$($DIALOG --question --title="Install Media Codecs" --width=600 \
         --ok-label="Web video only" --extra-button="Everything" --cancel-label="Not now" \
         --text="Some audio and video formats are covered by patents in some countries. Fedora, and this system, leave them out. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: Cisco's OpenH264 for Firefox, provided under Cisco's own patent license.\n\nEverything: the full ffmpeg, x264 and x265 from RPM Fusion (rpmfusion.org).\n\n$note" 2>/dev/null); rc=$?
   if [ "$rc" -eq 0 ]; then say web; elif [ "$out" = "Everything" ]; then say full; fi
@@ -74,10 +76,10 @@ install_with_window() {   # $1 = web or full
     zenity --progress --pulsate --auto-close --no-cancel --title="Install Media Codecs" --text="Installing. This can take a few minutes." || true
   wait "$pid"; rc=$?
   if [ "$rc" -eq 0 ]; then
-    zenity --question --title="Install Media Codecs" --ok-label="Restart now" --cancel-label="Later" \
+    $DIALOG --question --title="Install Media Codecs" --ok-label="Restart now" --cancel-label="Later" \
       --text="Done. Restart to finish." && systemctl reboot
   else
-    zenity --error --title="Install Media Codecs" --width=520 \
+    $DIALOG --error --title="Install Media Codecs" --width=520 \
       --text="It did not work, and nothing was changed.\n\n$(sed -n '/^error:/,$p' "$log" | head -n 10 | head -c 900)\n\nThe full text is in the system log:  journalctl -t easyspeak-os-codecs"
   fi
   rm -f "$log"

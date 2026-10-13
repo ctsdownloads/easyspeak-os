@@ -1,6 +1,8 @@
 """Build test: load the EasySpeak-OS plugins exactly the way EasySpeak loads its plugins, and try them."""
-import importlib, sys
+import importlib, json, os, sys, tempfile
 from pathlib import Path
+
+os.environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp()     # the dialogs plugin looks for open windows here
 
 plugins_dir = Path(sys.argv[1])
 sys.path.insert(0, str(plugins_dir.parent))           # what EasySpeak's load_plugins() does
@@ -38,3 +40,16 @@ for name, (takes, leaves) in TESTS.items():
     for phrase in leaves:
         assert module.handle(phrase, Core()) is None, f"{name}: takes '{phrase}', which is not its own"
     print(f"{name} loads and works")
+
+# The dialogs plugin: it takes nothing while no EasySpeak-OS window is open, and presses a window's button by name.
+dialogs = importlib.import_module("plugins.easyspeak_os_dialogs")
+assert dialogs.handle("cancel", Core()) is None, "dialogs plugin takes words while no window is open"
+folder = Path(dialogs.DIALOGS)
+folder.mkdir(parents=True, exist_ok=True)
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 1, "text": "Install Discord?", "rows": [],
+    "buttons": [{"say": "Set up and install", "does": "ok"}, {"say": "Cancel", "does": "cancel"}]}))
+assert dialogs.handle("open browser", Core()) is None, "dialogs plugin takes words that are not a button"
+assert dialogs.handle("set up and install", Core()) is True, "dialogs plugin does not press a button by name"
+assert (folder / f"{os.getpid()}.answer").read_text() == "ok", "dialogs plugin pressed the wrong button"
+print("easyspeak_os_dialogs loads and works")
