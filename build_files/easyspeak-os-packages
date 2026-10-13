@@ -1566,7 +1566,7 @@ def take_lock(lock, quiet=False):
         print(f"Waiting for the other install or removal to finish ({doing_now()}).")
         fcntl.flock(lock, fcntl.LOCK_EX)
         return True
-    text = f"Another install or removal is running:\n{doing_now()}\n\nThis waits for it to finish, then goes on."
+    text = waiting_text(doing_now())
     bar = subprocess.Popen([DIALOG, f"--title={TITLE}", "--width=520", "--progress", "--pulsate", "--auto-close",
                             f"--text={html.escape(text)}"], stdin=subprocess.PIPE, text=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1583,8 +1583,7 @@ def take_lock(lock, quiet=False):
         if now != shown:
             shown = now
             try:
-                bar.stdin.write("# " + html.escape(f"Another install or removal is running:\n{now}\n\n"
-                                                    f"This waits for it to finish, then goes on.") + "\n")
+                bar.stdin.write("# " + html.escape(waiting_text(now)) + "\n")
                 bar.stdin.flush()
             except (BrokenPipeError, OSError):
                 pass
@@ -1597,6 +1596,11 @@ def take_lock(lock, quiet=False):
             pass
         bar.wait()
     return got
+
+
+def waiting_text(now):
+    """One line: a progress window's text update ends at the line's end, so a second line would be dropped."""
+    return f"Another install or removal is running ({now.rstrip('.')}). This waits for it to finish, then goes on."
 
 
 def doing_now():
