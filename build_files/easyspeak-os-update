@@ -4,6 +4,8 @@
 # so no password is needed. Without a desktop it runs in the terminal.
 set -u
 SERVICE=uupd-manual.service
+# easyspeak-os-dialog is zenity plus voice (say a button's name to press it, "read it" to hear the window).
+DIALOG=zenity; [ -x /usr/bin/easyspeak-os-dialog ] && DIALOG=/usr/bin/easyspeak-os-dialog
 
 staged() {   # is a new system image waiting for a restart?
   rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; sys.exit(0 if any(d.get("staged") for d in json.load(sys.stdin)["deployments"]) else 1)'
@@ -82,25 +84,25 @@ notify() { command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Sys
 failed=""; [ "$rc" -ne 0 ] && failed=$(failed_parts "$start")
 if [ "$rc" -ne 0 ] && [ -z "$failed" ]; then
   notify "The update did not finish."
-  zenity --error --title="System Update" --width=480 \
+  $DIALOG --error --title="System Update" --width=480 \
     --text="The update did not finish.\n\nDetails are in the system log:  journalctl -u $SERVICE"
   exit 1
 fi
 note=""; [ -n "$failed" ] && note="Updated, except: $failed\nDetails:  journalctl -u $SERVICE\n\n"
 # Boxes did not update: offer to check the app boxes from Install Package File and repair one that is broken.
 if [[ "$failed" == *Distroboxes* ]] && [ -x /usr/bin/easyspeak-os-packages ]; then
-  zenity --question --title="System Update" --width=480 --ok-label="Check the boxes" --cancel-label="Not now" \
+  $DIALOG --question --title="System Update" --width=480 --ok-label="Check the boxes" --cancel-label="Not now" \
     --text="Some boxes (Distrobox) did not update.\n\nCheck the app boxes from Install Package File, and repair one if it is broken?" \
     && /usr/bin/easyspeak-os-packages repair --if-broken
 fi
 if staged; then
   notify "${failed:+Updated, except: $failed. }A new system is ready. Restart to use it."
-  zenity --question --title="System Update" --width=480 --ok-label="Restart now" --cancel-label="Later" \
+  $DIALOG --question --title="System Update" --width=480 --ok-label="Restart now" --cancel-label="Later" \
     --text="${note}A new system is ready. Restart to use it." && systemctl reboot
 elif [ -n "$failed" ]; then
   notify "Updated, except: $failed"
-  zenity --warning --title="System Update" --width=480 --text="${note%\\n\\n}"
+  $DIALOG --warning --title="System Update" --width=480 --text="${note%\\n\\n}"
 else
   notify "Done. Everything is up to date."
-  zenity --info --title="System Update" --text="Done. Everything is up to date."
+  $DIALOG --info --title="System Update" --text="Done. Everything is up to date."
 fi

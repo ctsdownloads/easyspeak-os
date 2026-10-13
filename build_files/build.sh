@@ -26,6 +26,9 @@ install -Dm644 /ctx/easyspeak-os-update.desktop /usr/share/applications/easyspea
 # time it is needed. Hardware rules that only set permissions go onto the system through a polkit helper
 # (password every time); drivers and other system parts are offered as a layered .rpm, or refused for a .deb.
 install -Dm755 /ctx/easyspeak-os-packages /usr/bin/easyspeak-os-packages
+# zenity plus voice: the EasySpeak-OS windows go through it, so EasySpeak can press their buttons (see the
+# easyspeak_os_dialogs plugin).
+install -Dm755 /ctx/easyspeak-os-dialog /usr/bin/easyspeak-os-dialog
 install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
 # Starts and stops box apps for their app grid entries: their messages go to a log file (so an app does not crash
 # when its link to the desktop goes away), and a right-click Quit stops the app inside the box.
@@ -161,8 +164,13 @@ plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
 [ -d "$plugins" ] || { echo "ERROR: EasySpeak's plugin folder was not found"; exit 1; }
 install -Dm644 /ctx/easyspeak_os_update.py "$plugins/easyspeak_os_update.py"
 install -Dm644 /ctx/easyspeak_os_apps.py "$plugins/easyspeak_os_apps.py"
+install -Dm644 /ctx/easyspeak_os_dialogs.py "$plugins/easyspeak_os_dialogs.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
 "$py" /ctx/check-easyspeak-plugin.py "$plugins" || { echo 'ERROR: EasySpeak would not load the EasySpeak-OS plugins'; exit 1; }
+
+# The EasySpeak-OS voice commands, read from the plugins, go into the cheat sheet, the "help" overlay and
+# "did you mean" as their own section.
+"$py" /ctx/os-commands.py "$plugins" /tmp/os-commands.json || { echo 'ERROR: the EasySpeak-OS command list could not be made'; exit 1; }
 
 # Offline cheat sheet of EasySpeak's commands (and the phrase list for the "did you mean" card),
 # from its docs for the installed version. If anything here fails, the image still builds,
@@ -171,17 +179,26 @@ ver=$(rpm -q --qf '%{VERSION}' easyspeak)
 cheat_ok=0
 for tag in "$ver" "v$ver"; do
   if curl -fsSL --retry 3 -o /tmp/commands.md "https://raw.githubusercontent.com/ctsdownloads/easyspeak/$tag/docs/commands.md" &&
-     python3 /ctx/make-cheatsheet.py /tmp/commands.md /usr/share/easyspeak-os/easyspeak-commands.html "$ver"; then
+     python3 /ctx/make-cheatsheet.py /tmp/commands.md /usr/share/easyspeak-os/easyspeak-commands.html "$ver" /tmp/os-commands.json; then
     cheat_ok=1
     break
   fi
 done
 if [ "$cheat_ok" = 1 ]; then
+  # every EasySpeak-OS command must be in the "help" overlay's list
+  python3 - /tmp/os-commands.json /usr/share/easyspeak-os/cheatsheet.json <<'PY' || { echo "ERROR: EasySpeak-OS commands are missing from the help overlay"; exit 1; }
+import json, sys
+want = [r["say"] for r in json.load(open(sys.argv[1]))]
+have = {s for sec in json.load(open(sys.argv[2])) for s in sec["say"]}
+missing = [w for w in want if w not in have]
+print("missing from help:", missing) if missing else print(f"help overlay has all {len(want)} EasySpeak-OS commands")
+sys.exit(1 if missing else 0)
+PY
   install -Dm644 /ctx/easyspeak-os-commands.desktop /usr/share/applications/easyspeak-os-commands.desktop
 else
   echo "WARNING: EasySpeak command cheat sheet was not generated"
 fi
-rm -f /tmp/commands.md
+rm -f /tmp/commands.md /tmp/os-commands.json
 mkdir -p /usr/lib/opt
 mv /opt/easyspeak /usr/lib/opt/easyspeak
 # Create /var/opt first, then link EasySpeak inside it. (A rule on /opt/easyspeak fails on a first boot, because

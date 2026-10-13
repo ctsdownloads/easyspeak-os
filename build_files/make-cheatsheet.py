@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Turns EasySpeak's commands.md into a one-page offline cheat sheet (HTML).
 
-usage: make-cheatsheet.py COMMANDS.md OUT.html VERSION
+usage: make-cheatsheet.py COMMANDS.md OUT.html VERSION [EASYSPEAK-OS.json]
+EASYSPEAK-OS.json lists the EasySpeak-OS voice commands ([{"say": ..., "does": ...}], from os-commands.py); they
+become an "EasySpeak-OS" section, shown with the everyday ones. A "say" in [brackets] describes what to say
+rather than being the words themselves, so it is shown but never offered by "did you mean".
 Only the Python standard library is used.
 """
 import html
@@ -142,7 +145,7 @@ Full docs: https://easyspeak.dev/</footer>
 
 
 # Everyday commands first; anything not listed keeps the document's order after them.
-FIRST = ("General", "Apps", "Files", "Media", "System")
+FIRST = ("General", "EasySpeak-OS", "Apps", "Files", "Media", "System")
 
 
 def order(cards):
@@ -169,12 +172,15 @@ def render(cards, version):
 
 
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         sys.exit(__doc__)
-    md_path, out_path, version = sys.argv[1:]
+    md_path, out_path, version = sys.argv[1:4]
     cards = parse(open(md_path, encoding="utf-8").read())
     if len(cards) < 5 or sum(len(r) for _, r in cards) < 50:
         sys.exit(f"cheat sheet: only {len(cards)} sections found, the doc format may have changed")
+    if len(sys.argv) == 5:
+        extra = json.load(open(sys.argv[4], encoding="utf-8"))
+        cards.append(("EasySpeak-OS", [(r["say"], r["does"]) for r in extra]))
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(render(cards, version))
@@ -183,7 +189,7 @@ def main():
     with open(os.path.join(os.path.dirname(out_path) or ".", "cheatsheet.json"), "w", encoding="utf-8") as f:
         json.dump(sections, f, ensure_ascii=False)
     phrases = [{"phrase": p.lower(), "section": title}
-               for title, rows in cards for say, _ in rows for p in expand(say)]
+               for title, rows in cards for say, _ in rows if not say.startswith("[") for p in expand(say)]
     with open(os.path.join(os.path.dirname(out_path) or ".", "commands.json"), "w", encoding="utf-8") as f:
         json.dump(phrases, f, ensure_ascii=False)
     print(f"cheat sheet: {len(cards)} sections, {sum(len(r) for _, r in cards)} commands -> {out_path}")

@@ -11,7 +11,7 @@ import re
 
 NAME = "easyspeak-os update"
 DESCRIPTION = "Start a system update (EasySpeak-OS)"
-COMMANDS = ["update system - update the system, apps and containers"]
+COMMANDS = ["update system - update the system, apps and boxes (also: install updates, check for updates)"]
 
 UPDATER = "/usr/bin/easyspeak-os-update"
 PHRASES = re.compile(
