@@ -1,0 +1,58 @@
+#!/bin/bash
+# System Update: update the system, Flatpak apps, Distrobox containers and Homebrew now, with a progress window.
+# It starts the updater's manual service. The updater's own polkit rule lets any user at the machine start it,
+# so no password is needed. Without a desktop it runs in the terminal.
+set -u
+SERVICE=uupd-manual.service
+
+staged() {   # is a new system image waiting for a restart?
+  rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; sys.exit(0 if any(d.get("staged") for d in json.load(sys.stdin)["deployments"]) else 1)'
+}
+
+if ! command -v zenity >/dev/null 2>&1 || [ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+  echo "Updating the system, apps and containers. This can take a while."
+  if systemctl start "$SERVICE"; then
+    if staged; then echo "Done. Restart to use the new system."; else echo "Done. Everything is up to date."; fi
+  else
+    echo "The update did not finish. Details: journalctl -u $SERVICE"; exit 1
+  fi
+  exit 0
+fi
+
+# Show each step as the updater reaches it, read from its own log (the "module" field of its JSON log lines).
+# Users who cannot read the system log (not in the wheel group) just see the general message.
+steps() {
+  local last="" m
+  journalctl -f -n 0 -o cat -u "$SERVICE" 2>/dev/null | while IFS= read -r line; do
+    m=$(printf '%s' "$line" | grep -o '"module":"[a-z]*"' | head -n 1 | cut -d'"' -f4)
+    [ -z "$m" ] || [ "$m" = "$last" ] && continue
+    last=$m
+    case "$m" in
+      system)    echo "# Updating the system. This is the longest step." ;;
+      flatpak)   echo "# Updating Flatpak apps." ;;
+      distrobox) echo "# Updating Distrobox containers." ;;
+      brew)      echo "# Updating Homebrew." ;;
+    esac
+  done
+}
+rcfile=$(mktemp)
+(
+  steps & spid=$!
+  sleep 1                                             # let the log reader start first
+  systemctl start "$SERVICE" >/dev/null 2>&1; echo $? > "$rcfile"
+  pkill -P "$spid" 2>/dev/null; kill "$spid" 2>/dev/null
+  echo 100
+) | zenity --progress --pulsate --auto-close --no-cancel --title="System Update" --width=480 \
+      --text="Updating the system, apps and containers. This can take a while." || true
+rc=$(cat "$rcfile" 2>/dev/null || echo 1); rm -f "$rcfile"
+if [ "$rc" -ne 0 ]; then
+  zenity --error --title="System Update" --width=480 \
+    --text="The update did not finish.\n\nDetails are in the system log:  journalctl -u $SERVICE"
+  exit 1
+fi
+if staged; then
+  zenity --question --title="System Update" --ok-label="Restart now" --cancel-label="Later" \
+    --text="Done. Restart to use the new system." && systemctl reboot
+else
+  zenity --info --title="System Update" --text="Done. Everything is up to date."
+fi

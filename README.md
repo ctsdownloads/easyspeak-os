@@ -40,6 +40,7 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 | Packages | firefox, qutebrowser, v4l-utils, wtype, ydotool, xdg-terminal-exec, and the Fedora packages Bluefin adds that are listed in [`build_files/bluefin-packages.txt`](build_files/bluefin-packages.txt) |
 | Updates | Automatic, with Bluefin's updater `uupd`: the system, Flatpaks, Distrobox containers and Homebrew. See [Updating and rolling back](#updating-and-rolling-back) |
 | Homebrew | Set up on first boot, as on Bluefin, for command-line tools (`brew`) |
+| ujust | Bluefin's command runner, for example `ujust update` |
 | Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale and Podman's automatic container updates, as on Bluefin |
 | Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
 | Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in the app grid offers them later. See [Media codecs](#media-codecs) |
@@ -67,7 +68,9 @@ systemctl reboot
 
 Updates are automatic. Bluefin's updater, `uupd`, runs on its own timer and
 updates the system, Flatpaks, Distrobox containers and Homebrew. A new system
-image takes effect at the next reboot. To update by hand:
+image takes effect at the next reboot. To update by hand, open **System Update**
+from the app grid, which shows progress and offers a restart when a new system
+image is ready and needs no password, or run:
 
 ```
 sudo uupd
@@ -114,6 +117,9 @@ Say "Hey Jarvis", wait for the chime, then say a command.
 - **Help.** Say "help" after the wake word and the full command list appears on
   screen. It stays until you speak again, or for 90 seconds. EasySpeak will
   still say "Check the terminal"; ignore that.
+- **Update by voice.** Say "update system" (or "install updates") after the wake word to open
+  **System Update**, the same window as in the app grid. This command comes from EasySpeak-OS,
+  as a plugin added to EasySpeak's plugin folder, and works in English only.
 - **Command cheat sheet.** Open **EasySpeak Commands** from the app grid. The
   everyday commands are open and the long mode sections are folded.
 
@@ -132,6 +138,8 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-codecs-setup`, `-admin`, `-lib.sh` | The two privileged helpers and their shared fixed settings, run through polkit |
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
+| `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
+| `build_files/easyspeak_os_update.py`, `check-easyspeak-plugin.py` | The "update system" voice command, added to EasySpeak's plugin folder, and the build test that it loads |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
@@ -151,6 +159,7 @@ What the build checks:
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
+- GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, or if the RPM Fusion signing key is missing.
 
 The release packages from Fedora also hold Fedora's lists of which services
