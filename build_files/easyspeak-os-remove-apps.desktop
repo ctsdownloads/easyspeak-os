@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Remove Apps
+Comment=Remove apps installed from .rpm or .deb files
+Keywords=rpm;deb;package;uninstall;remove;distrobox;
+Icon=edit-delete-symbolic
+Exec=/usr/bin/easyspeak-os-packages remove
+Categories=System;
+Terminal=false

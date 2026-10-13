@@ -44,6 +44,7 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 | Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale and Podman's automatic container updates, as on Bluefin |
 | Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
 | Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in the app grid offers them later. See [Media codecs](#media-codecs) |
+| Apps from .rpm and .deb files | **Install Package File** puts them in a box (Distrobox) and adds them to the app grid; **Remove Apps** takes them out. See [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files) |
 | Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. The Flathub entry that comes with Fedora, which stays off until you opt in, is removed |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
@@ -120,8 +121,47 @@ Say "Hey Jarvis", wait for the chime, then say a command.
 - **Update by voice.** Say "update system" (or "install updates") after the wake word to open
   **System Update**, the same window as in the app grid. This command comes from EasySpeak-OS,
   as a plugin added to EasySpeak's plugin folder, and works in English only.
+- **Install and remove apps by voice.** Say "install a package" to open
+  **Install Package File**, or "remove an app" to open **Remove Apps**. These also
+  come from EasySpeak-OS as a plugin, in English only.
 - **Command cheat sheet.** Open **EasySpeak Commands** from the app grid. The
   everyday commands are open and the long mode sections are folded.
+
+## Apps from .rpm and .deb files
+
+The system is an image, so packages are not installed into it directly. Open an
+.rpm or .deb file (double-click it, open **Install Package File** from the app
+grid, or say "install a package"), and EasySpeak-OS:
+
+1. Checks what the package contains, without installing anything.
+2. Offers Flathub instead when Flathub has the same app, since Flathub apps
+   update on their own.
+3. Puts .rpm files in a Fedora box and .deb files in an Ubuntu 24.04 box. The
+   box is made the first time it is needed, after a short explanation. Each box
+   is a Distrobox container, kept separate from any boxes of your own.
+4. Adds the app to the app grid. A package with no app gets its commands on your
+   `PATH` (`~/.local/bin`) instead.
+
+System Update keeps the boxes up to date, along with everything else.
+
+What works in a box, and what needs the system itself:
+
+| The package has | What happens |
+|-----------------|--------------|
+| An app, command-line tools, a browser, most closed-source apps | Installed in the box |
+| A hardware rule (udev) that only sets device permissions | The app goes in the box and the rule goes onto the system, with the administrator password. A package that is only a rule (Fedora's `solaar-udev`, for example) just adds the rule |
+| A hardware rule that runs a program | Not added. The app still goes in the box, and the window says the rule will not work |
+| A background service, alongside an app (Syncthing, for example) | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
+| A driver, firmware, printer or scanner driver, login or network plugin, or a background service with no app | Cannot work in a box. An .rpm can be added to the system (administrator password, after a restart, slower system updates, and it does not update by itself). A .deb is refused, with the reason |
+
+Hardware rules and other packages the install pulls in are checked too: if Fedora's
+`solaar` brings in `solaar-udev`, its rule is offered for the system as well.
+
+**Remove Apps** (or "remove an app") lists everything installed this way and
+undoes it: it removes the app from its box, the app grid entry, any hardware
+rule it added, or the layered package. What was installed is recorded in
+`~/.local/share/easyspeak-os/apps.json`. To see what a package needs without
+installing it, run `easyspeak-os-packages check FILE`.
 
 ## How it's built
 
@@ -139,7 +179,10 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
-| `build_files/easyspeak_os_update.py`, `check-easyspeak-plugin.py` | The "update system" voice command, added to EasySpeak's plugin folder, and the build test that it loads |
+| `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package" and "remove an app" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
+| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `gnome-mimeapps.list` | **Install Package File** and **Remove Apps**, and the setting that opens .rpm and .deb files in them |
+| `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
+| `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
@@ -161,6 +204,7 @@ What the build checks:
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
+- The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads three real Fedora packages (an app, a background service and a hardware rule).
 
 The release packages from Fedora also hold Fedora's lists of which services
 start by themselves (systemd presets). The rebrand step copies those lists out
@@ -251,6 +295,12 @@ cannot change it. To rename it:
   RPM Fusion. Rebuild once RPM Fusion catches up. A short gap is still possible
   between builds; then a system update fails on machines with the full codecs.
   Nothing breaks: they stay on their current version until RPM Fusion catches up.
+
+- An app installed from a plain .rpm or .deb file does not update by itself,
+  unless the package adds its own repository (Google Chrome and Visual Studio
+  Code do). To update it, install the newer file.
+- Apps that manage disks or other hardware as root (GParted, for example)
+  install in a box but cannot do their job there.
 
 ## Source code
 

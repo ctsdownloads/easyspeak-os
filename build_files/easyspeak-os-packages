@@ -1,0 +1,827 @@
+#!/usr/bin/python3 -I
+"""Install Package File and Remove Apps, for EasySpeak-OS.
+
+  easyspeak-os-packages install [FILE]   install an .rpm or .deb (no FILE: pick one from Downloads)
+  easyspeak-os-packages remove           remove an app installed this way
+  easyspeak-os-packages check FILE       say what a package needs, without installing anything
+
+The system itself is an image, so apps from .rpm and .deb files go into a box (a Distrobox container):
+.rpm files into a Fedora box, .deb files into an Ubuntu box. Each box is made the first time it is needed,
+and System Update keeps it current. Installed apps are added to the app grid.
+
+Before installing, the file is checked for parts a box cannot provide:
+  - hardware rules (udev) that only set device permissions are copied onto the system, with the
+    administrator password; rules that run programs are not;
+  - drivers, firmware, printer and scanner drivers, login and network plugins and background services
+    without an app need the system itself. An .rpm can be added to the system image instead (with the
+    administrator password, after a restart). A .deb cannot.
+If Flathub has the same app, that is offered first.
+
+What was installed is recorded in ~/.local/share/easyspeak-os/apps.json, so Remove Apps can undo it.
+"""
+
+import fcntl
+import html
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import urllib.request
+from pathlib import Path
+
+HOME = Path.home()
+STATE = HOME / ".local/share/easyspeak-os/apps.json"
+CACHE = HOME / ".cache/easyspeak-os/packages"
+LOG = CACHE / "last.log"
+HWRULES = "/usr/libexec/easyspeak-os-hwrules"
+TITLE = "Install Package File"
+
+
+def fedora_version():
+    try:
+        return subprocess.run(["rpm", "-E", "%fedora"], capture_output=True, text=True).stdout.strip() or "44"
+    except OSError:
+        return "44"
+
+
+BOXES = {
+    "rpm": {"name": "easyspeak-fedora", "label": "Fedora box",
+            "image": f"registry.fedoraproject.org/fedora-toolbox:{fedora_version()}"},
+    "deb": {"name": "easyspeak-ubuntu", "label": "Ubuntu box",
+            "image": "quay.io/toolbx/ubuntu-toolbox:24.04"},
+}
+WHERE = {"easyspeak-fedora": "Fedora box", "easyspeak-ubuntu": "Ubuntu box", "system": "System",
+         "flathub": "Flathub", "rules": "Hardware rule"}
+
+
+# ---------------------------------------------------------------- reading a package
+
+class Package:
+    def __init__(self, path):
+        self.path = Path(path)
+        self.kind = ""            # rpm or deb
+        self.name = self.version = self.arch = self.nevra = ""
+        self.files = []           # normalized paths (/usr/..., no ./)
+        self.texts = {}           # path -> text, for udev rules and desktop files
+        self.depends = ""         # requirements, as one lowercase string
+        self.scripts = ""         # install scripts, as one lowercase string
+
+
+def norm(p):
+    p = "/" + p.lstrip("./").lstrip("/") if p not in (".", "./") else "/"
+    for old, new in (("/lib/", "/usr/lib/"), ("/lib64/", "/usr/lib64/"), ("/bin/", "/usr/bin/"),
+                     ("/sbin/", "/usr/sbin/")):
+        if p.startswith(old):
+            p = new + p[len(old):]
+    return p.rstrip("/") or "/"
+
+
+def wanted_text(p):
+    return (p.endswith(".rules") and "/udev/rules.d/" in p) or p.endswith(".desktop")
+
+
+def read_tar(pkg, fileobj, mode):
+    links = {}
+    with tarfile.open(fileobj=fileobj, mode=mode) as tar:
+        for m in tar:
+            p = norm(m.name)
+            if m.isdir():
+                continue
+            pkg.files.append(p)
+            if m.issym():
+                links[p] = m.linkname
+            elif m.isfile() and wanted_text(p) and m.size < 256 * 1024:
+                pkg.texts[p] = tar.extractfile(m).read().decode("utf-8", "replace")
+    # a launcher or rule that is a link to a file elsewhere in the package (Discord does this)
+    for p, target in links.items():
+        if wanted_text(p):
+            real = target if target.startswith("/") else os.path.normpath(os.path.join(os.path.dirname(p), target))
+            if norm(real) in pkg.texts:
+                pkg.texts[p] = pkg.texts[norm(real)]
+
+
+def read_rpm(pkg):
+    def q(*args):
+        r = subprocess.run(["rpm", "-qp", "--nosignature", "--nodigest", *args, str(pkg.path)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise ValueError(r.stderr.strip() or "rpm could not read it")
+        return r.stdout
+    info = q("--qf", "%{NAME}\n%{VERSION}-%{RELEASE}\n%{ARCH}\n").split("\n")
+    pkg.kind, pkg.name, pkg.version, pkg.arch = "rpm", info[0], info[1], info[2]
+    pkg.nevra = f"{pkg.name}-{pkg.version}.{pkg.arch}"
+    pkg.depends = q("--requires").lower()
+    pkg.scripts = q("--scripts").lower()
+    proc = subprocess.Popen(["rpm2archive", "-n", "-"], stdin=open(pkg.path, "rb"), stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL)
+    read_tar(pkg, proc.stdout, "r|")
+    proc.stdout.close()
+    proc.wait()
+
+
+def read_deb(pkg):
+    data = control = None
+    with open(pkg.path, "rb") as f:
+        if f.read(8) != b"!<arch>\n":
+            raise ValueError("it is not a .deb package")
+        while True:
+            head = f.read(60)
+            if len(head) < 60:
+                break
+            name = head[:16].decode().strip().rstrip("/")
+            size = int(head[48:58].decode().strip())
+            body = f.read(size)
+            if size % 2:
+                f.read(1)
+            if name.startswith("control.tar"):
+                control = body
+            elif name.startswith("data.tar"):
+                data = body
+    if control is None or data is None:
+        raise ValueError("the .deb is incomplete")
+    fields, scripts = {}, []
+    with tarfile.open(fileobj=io.BytesIO(control), mode="r:*") as tar:
+        for m in tar:
+            base = os.path.basename(m.name)
+            if not m.isfile():
+                continue
+            text = tar.extractfile(m).read().decode("utf-8", "replace")
+            if base == "control":
+                for k, v in re.findall(r"^([A-Za-z-]+):[ \t]*(.*(?:\n[ \t].*)*)", text, re.M):
+                    fields[k.lower()] = v
+            elif base in ("preinst", "postinst", "prerm", "postrm"):
+                scripts.append(text)
+    pkg.kind = "deb"
+    pkg.name = fields.get("package", "").strip()
+    pkg.version = fields.get("version", "").strip()
+    pkg.arch = fields.get("architecture", "").strip()
+    pkg.depends = " ".join(fields.get(k, "") for k in ("depends", "pre-depends")).lower()
+    pkg.scripts = "\n".join(scripts).lower()
+    read_tar(pkg, io.BytesIO(data), "r:*")
+    if not pkg.name:
+        raise ValueError("the .deb has no package name")
+
+
+def read_package(path):
+    pkg = Package(path)
+    with open(path, "rb") as f:
+        magic = f.read(8)
+    if magic.startswith(b"\xed\xab\xee\xdb"):
+        read_rpm(pkg)
+    elif magic == b"!<arch>\n":
+        read_deb(pkg)
+    else:
+        raise ValueError("it is not an .rpm or .deb package")
+    return pkg
+
+
+# ---------------------------------------------------------------- what the package needs
+
+def desktop_entry(text):
+    """(visible, name) for a .desktop file."""
+    sect, fields = None, {}
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            sect = line
+        elif sect == "[Desktop Entry]" and "=" in line:
+            k, v = line.split("=", 1)
+            fields.setdefault(k.strip(), v.strip())
+    visible = fields.get("Type", "Application") == "Application" and \
+        fields.get("NoDisplay", "").lower() != "true" and fields.get("Hidden", "").lower() != "true"
+    return visible, fields.get("Name", "")
+
+
+RUNS_PROGRAM = re.compile(r"\bRUN\b(?!\{builtin\})|\bPROGRAM\b|IMPORT\{program\}")   # RUN{builtin} stays in udev
+
+
+def rule_runs_program(text):
+    joined = re.sub(r"\\\n", " ", text)
+    return any(RUNS_PROGRAM.search(l) for l in joined.splitlines() if not l.lstrip().startswith("#"))
+
+
+def starts(p, *prefixes):
+    return any(p.startswith(x) for x in prefixes)
+
+
+def classify(pkg):
+    """What the package has that a box cannot provide, in plain words."""
+    files = pkg.files
+    apps = {}
+    for p in files:
+        if p.startswith("/usr/share/applications/") and p.endswith(".desktop") and p in pkg.texts:
+            visible, name = desktop_entry(pkg.texts[p])
+            if visible:
+                apps[p] = name or os.path.basename(p)[:-8]
+    rules = {p: pkg.texts.get(p, "") for p in files if "/udev/rules.d/" in p and p.endswith(".rules")}
+    safe_rules = {p: t for p, t in rules.items() if t and not rule_runs_program(t)}
+    program_rules = [p for p in rules if p not in safe_rules]
+
+    found = {}
+    def flag(key, test):
+        if any(test(p) for p in files):
+            found[key] = True
+
+    flag("driver", lambda p: starts(p, "/usr/lib/modules/", "/usr/src/akmods/", "/etc/modprobe.d/",
+                                   "/usr/lib/modprobe.d/", "/etc/modules-load.d/", "/usr/lib/modules-load.d/",
+                                   "/etc/dkms/")
+         or re.search(r"\.ko(\.(xz|zst|gz))?$", p) or (p.startswith("/usr/src/") and p.endswith("/dkms.conf")))
+    if re.search(r"(^|[\s,(])(dkms|akmods|kernel-devel|linux-headers[\w.-]*)([\s,()]|$)", pkg.depends):
+        found["driver"] = True
+    flag("firmware", lambda p: p.startswith("/usr/lib/firmware/"))
+    flag("printer", lambda p: starts(p, "/usr/lib/cups/", "/usr/share/cups/model/", "/usr/share/cups/drv/",
+                                    "/usr/share/ppd/"))
+    flag("scanner", lambda p: starts(p, "/etc/sane.d/") or re.match(r"/usr/lib(64)?/(x86_64-linux-gnu/)?sane/", p))
+    flag("login", lambda p: starts(p, "/etc/pam.d/", "/usr/lib/pam.d/", "/etc/security/", "/etc/sudoers.d/",
+                                  "/etc/selinux/", "/usr/share/selinux/")
+         or re.match(r"/usr/lib(64)?/(x86_64-linux-gnu/)?security/", p))
+    flag("network", lambda p: starts(p, "/usr/lib/NetworkManager/", "/usr/lib64/NetworkManager/",
+                                    "/etc/NetworkManager/", "/usr/lib/firewalld/", "/etc/firewalld/"))
+    flag("service", lambda p: (starts(p, "/usr/lib/systemd/system/", "/etc/systemd/system/")
+                               and re.search(r"\.(service|socket|timer|path)$", p))
+         or starts(p, "/etc/init.d/", "/usr/share/dbus-1/system-services/", "/usr/share/dbus-1/system.d/",
+                   "/etc/dbus-1/system.d/"))
+    flag("settings", lambda p: starts(p, "/usr/lib/sysctl.d/", "/etc/sysctl.d/", "/usr/lib/udev/hwdb.d/",
+                                     "/etc/udev/hwdb.d/"))
+    flag("admin", lambda p: starts(p, "/usr/share/polkit-1/", "/etc/polkit-1/"))
+
+    words = {
+        "driver": "a driver (kernel module)",
+        "firmware": "device firmware",
+        "printer": "a printer driver",
+        "scanner": "a scanner driver",
+        "login": "login or security settings",
+        "network": "a network or VPN plugin for the system",
+        "service": "a background service that starts with the computer",
+        "programrules": "a hardware rule that runs a program",
+    }
+    if program_rules:
+        found["programrules"] = True
+    blocking = [words[k] for k in ("driver", "firmware", "printer", "scanner", "login", "network") if k in found]
+    notes = []
+    if "service" in found:
+        (notes if apps else blocking).append(words["service"])
+    if "programrules" in found:
+        (notes if apps else blocking).append(words["programrules"])
+    if "settings" in found:
+        notes.append("system settings (these will not apply)")
+    if "admin" in found:
+        notes.append("parts that need administrator rights (these may not work)")
+
+    docs = ("/usr/share/doc/", "/usr/share/licenses/", "/usr/share/man/", "/usr/share/metainfo/",
+            "/usr/share/appdata/", "/usr/lib/.build-id/")
+    rules_only = bool(safe_rules) and not blocking and \
+        all(p in safe_rules or starts(p, *docs) for p in files)
+    bins = sorted(p for p in files if re.match(r"/usr/bin/[^/]+$", p))[:10]
+    # one app: its own name; several (Syncthing has "Start Syncthing" and "Syncthing Web UI"): the package name
+    title = next(iter(apps.values())) if len(apps) == 1 else pkg.name.capitalize() if apps else pkg.name
+    return {"apps": apps, "bins": bins, "safe_rules": safe_rules, "blocking": blocking, "notes": notes,
+            "rules_only": rules_only, "title": title}
+
+
+# ---------------------------------------------------------------- talking to the person
+
+GUI = bool(shutil.which("zenity")) and bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
+
+
+def zenity(*args, stdin=None):
+    return subprocess.run(["zenity", f"--title={TITLE}", "--width=520", *args], input=stdin,
+                          capture_output=True, text=True)
+
+
+def notify(text):
+    if shutil.which("notify-send"):
+        subprocess.run(["notify-send", f"--app-name={TITLE}", "--icon=system-software-install-symbolic",
+                        TITLE, text], capture_output=True)
+
+
+def say(text, kind="info"):
+    if GUI:
+        zenity(f"--{kind}", "--no-markup", f"--text={text}")
+    else:
+        print(text)
+
+
+def ask(text, ok="Yes", cancel="Cancel", extra=None):
+    """'ok', 'extra' or None."""
+    if GUI:
+        args = ["--question", "--no-markup", f"--text={text}", f"--ok-label={ok}", f"--cancel-label={cancel}"]
+        if extra:
+            args.append(f"--extra-button={extra}")
+        r = zenity(*args)
+        if r.returncode == 0:
+            return "ok"
+        return "extra" if extra and r.stdout.strip() == extra else None
+    print(text)
+    choices = {"1": "ok"} | ({"2": "extra"} if extra else {})
+    print(f"  1) {ok}" + (f"\n  2) {extra}" if extra else "") + f"\n  Enter) {cancel}")
+    try:
+        return choices.get(input("> ").strip())
+    except EOFError:
+        return None
+
+
+def choose(text, columns, rows):
+    """Pick one row; returns its index or None."""
+    if not rows:
+        return None
+    if GUI:
+        args = ["--list", f"--text={text}", "--height=420", "--print-column=1", "--hide-column=1",
+                "--column=n", *[f"--column={c}" for c in columns]]
+        cells = []
+        for i, row in enumerate(rows):
+            cells += [str(i), *row]
+        r = zenity(*args, stdin="\n".join(cells) + "\n")
+        out = r.stdout.strip().split("|")[0]
+        return int(out) if r.returncode == 0 and out.isdigit() else None
+    print(text)
+    for i, row in enumerate(rows, 1):
+        print(f"  {i}) " + "   ".join(row))
+    try:
+        n = input("> ").strip()
+    except EOFError:
+        return None
+    return int(n) - 1 if n.isdigit() and 0 < int(n) <= len(rows) else None
+
+
+def run_steps(text, steps):
+    """Run commands one after another with a progress window. Output goes to the log. True if all worked."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    log = open(LOG, "w")
+    bar = None
+    if GUI:
+        bar = subprocess.Popen(["zenity", f"--title={TITLE}", "--width=520", "--progress", "--pulsate",
+                                "--auto-close", "--no-cancel", f"--text={html.escape(text)}"],
+                               stdin=subprocess.PIPE, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        print(text)
+    ok = True
+    for cmd in steps:
+        log.write("$ " + " ".join(cmd) + "\n")
+        log.flush()
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                    text=True, errors="replace")
+        except OSError as e:
+            log.write(f"{e}\n")
+            ok = False
+            break
+        for line in proc.stdout:
+            log.write(line)
+            clean = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]|\r", "", line).strip()
+            if not clean:
+                continue
+            if bar:
+                try:
+                    bar.stdin.write("# " + html.escape(clean[:90]) + "\n")
+                    bar.stdin.flush()
+                except (BrokenPipeError, OSError):
+                    pass
+            else:
+                print("  " + clean)
+        if proc.wait() != 0:
+            ok = False
+            break
+    log.close()
+    if bar:
+        try:
+            bar.stdin.write("100\n")
+            bar.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+        bar.wait()
+    return ok
+
+
+def failed(what):
+    tail = ""
+    try:
+        lines = [l.rstrip() for l in open(LOG, errors="replace") if l.strip()]
+        tail = "\n".join(lines[-6:])
+    except OSError:
+        pass
+    notify(f"{what} did not work.")
+    say(f"{what} did not work.\n\nLast lines of the log:\n{tail}\n\nFull log: {LOG}", "error")
+
+
+# ---------------------------------------------------------------- records
+
+def load():
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def save(records):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(records, indent=1))
+    tmp.replace(STATE)
+
+
+def remember(entry):
+    records = [r for r in load() if not (r["package"] == entry["package"] and r["where"] == entry["where"])]
+    save(records + [entry])
+
+
+def forget(entry):
+    save([r for r in load() if not (r["package"] == entry["package"] and r["where"] == entry["where"])])
+
+
+# ---------------------------------------------------------------- boxes
+
+def box_exists(name):
+    return subprocess.run(["podman", "container", "exists", name], capture_output=True).returncode == 0
+
+
+def in_box(box, *cmd):
+    return ["distrobox", "enter", "-T", "-n", box, "--", *cmd]
+
+
+def ensure_box(kind):
+    box = BOXES[kind]
+    if box_exists(box["name"]):
+        return True
+    what = ".rpm" if kind == "rpm" else ".deb"
+    distro, article = ("Fedora", "a") if kind == "rpm" else ("Ubuntu", "an")
+    if ask(f"Apps from {what} files go into {article} {distro} box: a separate {distro} system inside yours, "
+           f"just for apps like this. It keeps your main system clean, and System Update keeps it up to date.\n\n"
+           f"Setting it up downloads a few hundred megabytes and takes a few minutes. It happens only once.",
+           ok="Set it up") != "ok":
+        return False
+    ok = run_steps(f"Setting up the {distro} box. This happens only once.", [
+        ["distrobox", "create", "--yes", "--no-entry", "--name", box["name"], "--image", box["image"]],
+        in_box(box["name"], "true"),
+    ])
+    if not ok:
+        failed(f"Setting up the {distro} box")
+    return ok
+
+
+def export(box, info):
+    """Put the package's apps in the app grid, or its commands on the PATH. Returns what was exported."""
+    apps_dir = HOME / ".local/share/applications"
+    done_apps, done_bins = [], []
+    for path in info["apps"]:
+        r = subprocess.run(in_box(box, "distrobox-export", "--app", path, "--export-label", "none"),
+                           capture_output=True, text=True)
+        exported = apps_dir / f"{box}-{os.path.basename(path)}"
+        if r.returncode == 0 and exported.exists():
+            # distrobox names the window class after what it was given; a full path is wrong, so drop it
+            text = exported.read_text()
+            exported.write_text(re.sub(r"(?m)^StartupWMClass=/.*\n?", "", text))
+            done_apps.append(path)
+    if not done_apps:
+        bindir = HOME / ".local/bin"
+        bindir.mkdir(parents=True, exist_ok=True)
+        for b in info["bins"]:
+            r = subprocess.run(in_box(box, "distrobox-export", "--bin", b, "--export-path", str(bindir)),
+                               capture_output=True, text=True)
+            if r.returncode == 0:
+                done_bins.append(b)
+    return done_apps, done_bins
+
+
+def unexport(entry):
+    box = entry["where"]
+    apps_dir = HOME / ".local/share/applications"
+    for path in entry.get("apps", []):
+        if box_exists(box):
+            subprocess.run(in_box(box, "distrobox-export", "--app", path, "--delete"), capture_output=True)
+        (apps_dir / f"{box}-{os.path.basename(path)}").unlink(missing_ok=True)
+    for b in entry.get("bins", []):
+        if box_exists(box):
+            subprocess.run(in_box(box, "distrobox-export", "--bin", b, "--export-path", str(HOME / ".local/bin"),
+                                  "--delete"), capture_output=True)
+        (HOME / ".local/bin" / os.path.basename(b)).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------- hardware rules
+
+def box_rules(box):
+    """Hardware rule files in a box, by file name."""
+    r = subprocess.run(in_box(box, "sh", "-c", "ls /usr/lib/udev/rules.d /etc/udev/rules.d 2>/dev/null"),
+                       capture_output=True, text=True)
+    return {l.strip() for l in r.stdout.splitlines() if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*\.rules", l.strip())}
+
+
+def new_box_rules(box, before, info):
+    """Rules that the install added through other packages it pulled in (Fedora's solaar pulls in
+    solaar-udev, for example), and that the system does not have yet. Added to info like the file's own."""
+    host = {p.name for d in ("/usr/lib/udev/rules.d", "/etc/udev/rules.d") for p in Path(d).glob("*.rules")}
+    own = {os.path.basename(p) for p in info["safe_rules"]}
+    for name in sorted(box_rules(box) - before - host - own):
+        r = subprocess.run(in_box(box, "sh", "-c", f"cat /etc/udev/rules.d/{name} 2>/dev/null || "
+                                  f"cat /usr/lib/udev/rules.d/{name}"), capture_output=True, text=True)
+        if r.returncode != 0 or not r.stdout.strip():
+            continue
+        if rule_runs_program(r.stdout):
+            if "a hardware rule that runs a program" not in info["notes"]:
+                info["notes"].append("a hardware rule that runs a program")
+        else:
+            info["safe_rules"]["/usr/lib/udev/rules.d/" + name] = r.stdout
+
+
+def add_rules(pkg, info):
+    folder = CACHE / "rules" / pkg.name
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
+    paths = []
+    for p, text in info["safe_rules"].items():
+        f = folder / os.path.basename(p)
+        f.write_text(text)
+        paths.append(str(f))
+    r = subprocess.run(["pkexec", HWRULES, "add", pkg.name, *paths], capture_output=True, text=True)
+    return r.returncode == 0, (r.stdout + r.stderr).strip()
+
+
+def remove_rules(name):
+    r = subprocess.run(["pkexec", HWRULES, "remove", name], capture_output=True, text=True)
+    return r.returncode == 0
+
+
+# ---------------------------------------------------------------- Flathub
+
+def flathub_match(pkg, info):
+    """(app id, name) of the same app on Flathub, or None. Quiet if offline."""
+    if not shutil.which("flatpak"):
+        return None
+    want = {re.sub(r"[^a-z0-9]", "", s.lower()) for s in (pkg.name, info["title"]) if s}
+    want.discard("")
+    try:
+        req = urllib.request.Request("https://flathub.org/api/v2/search", method="POST",
+                                     data=json.dumps({"query": info["title"]}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        hits = json.load(urllib.request.urlopen(req, timeout=8)).get("hits", [])
+    except Exception:
+        return None
+    for h in hits[:10]:
+        app_id, name = h.get("app_id", ""), h.get("name", "")
+        last = app_id.rsplit(".", 1)[-1]
+        if re.sub(r"[^a-z0-9]", "", name.lower()) in want or re.sub(r"[^a-z0-9]", "", last.lower()) in want:
+            return app_id, name
+    return None
+
+
+# ---------------------------------------------------------------- install
+
+def plain_list(items):
+    return "\n".join("  - " + i for i in items)
+
+
+def pick_file():
+    found = []
+    for d in (HOME / "Downloads", HOME / "Desktop", HOME):
+        if d.is_dir():
+            found += [p for p in d.iterdir() if p.is_file() and p.suffix.lower() in (".rpm", ".deb")]
+    found = sorted(set(found), key=lambda p: p.stat().st_mtime, reverse=True)[:30]
+    rows = [[p.name, str(p.parent).replace(str(HOME), "~", 1)] for p in found]
+    if not rows:
+        if GUI:
+            r = zenity("--file-selection", "--file-filter=Packages (.rpm, .deb) | *.rpm *.deb")
+            return r.stdout.strip() if r.returncode == 0 else None
+        say("No .rpm or .deb files in Downloads. Give the file's path:  easyspeak-os-packages install FILE")
+        return None
+    i = choose("Which package do you want to install?", ["File", "Folder"], rows)
+    return str(found[i]) if i is not None else None
+
+
+def install(path):
+    if not path:
+        path = pick_file()
+        if not path:
+            return 1
+    path = os.path.abspath(path)
+    try:
+        pkg = read_package(path)
+    except (OSError, ValueError, tarfile.TarError, EOFError) as e:
+        say(f"This file cannot be installed: {e}.", "error")
+        return 1
+    info = classify(pkg)
+    title = info["title"]
+
+    if pkg.kind == "rpm" and subprocess.run(["rpm", "-q", pkg.name], capture_output=True).returncode == 0:
+        say(f"{title} is already part of your system.")
+        return 0
+
+    match = None if info["rules_only"] else flathub_match(pkg, info)
+    if match:
+        app_id, name = match
+        answer = ask(f"{name} is on Flathub, the app store this system uses. Apps from Flathub update on their own "
+                     f"and fit this system best.\n\nInstall {name} from Flathub instead?",
+                     ok="Use Flathub", cancel="Cancel", extra="Use the file")
+        if answer is None:
+            return 1
+        if answer == "ok":
+            if run_steps(f"Installing {name} from Flathub.",
+                         [["flatpak", "install", "-y", "--noninteractive", "flathub", app_id]]):
+                remember({"title": name, "package": app_id, "where": "flathub"})
+                notify(f"{name} is installed.")
+                say(f"{name} is installed. Find it in the app grid.")
+                return 0
+            failed(f"Installing {name}")
+            return 1
+
+    if info["rules_only"]:
+        if ask(f"{title} only adds a hardware rule, which lets your account use a device. It goes onto the system "
+               f"itself, so it needs the administrator password.", ok="Add it") != "ok":
+            return 1
+        ok, out = add_rules(pkg, info)
+        if not ok:
+            say(f"The hardware rule was not added.\n\n{out}", "error")
+            return 1
+        remember({"title": title, "package": pkg.name, "where": "rules", "rules": True})
+        notify(f"{title} is installed.")
+        say(f"{title} is installed. Unplug the device and plug it back in.")
+        return 0
+
+    if info["blocking"]:
+        reasons = plain_list(info["blocking"])
+        if pkg.kind == "deb":
+            say(f"{title} cannot be installed from a .deb on this system. It has:\n{reasons}\n\n"
+                f"These need the system itself, and the system cannot take .deb packages. "
+                f"Look for an .rpm version for Fedora {fedora_version()}, or the app on Flathub.", "warning")
+            return 1
+        if ask(f"{title} has:\n{reasons}\n\nThese need the system itself, so it cannot go in a box. It can be added "
+               f"to the system instead. That needs the administrator password, takes effect after a restart, and "
+               f"makes system updates a little slower. It does not update by itself: to update it, install a newer "
+               f"file. You can remove it later with Remove Apps.",
+               ok="Add to the system") != "ok":
+            return 1
+        return install_system(pkg, title)
+
+    box = BOXES[pkg.kind]
+    text = f"Install {title} in the {box['label']}?"
+    extra = None
+    if info["safe_rules"]:
+        text += "\n\nIt has a hardware rule. That goes onto the system itself, so you will be asked for the " \
+                "administrator password."
+    if info["notes"]:
+        text += "\n\nIn the box, these parts will not work:\n" + plain_list(info["notes"])
+        if pkg.kind == "rpm":
+            text += "\n\nTo have them work, add it to the system instead (administrator password, restart, " \
+                    "slower system updates)."
+            extra = "Add to the system"
+    answer = ask(text, ok="Install", extra=extra)
+    if answer == "extra":
+        return install_system(pkg, title)
+    if answer != "ok":
+        return 1
+    return install_box(pkg, info, title)
+
+
+def staged_copy(pkg):
+    CACHE.mkdir(parents=True, exist_ok=True)
+    dest = CACHE / pkg.path.name
+    if pkg.path.resolve() != dest.resolve():
+        shutil.copyfile(pkg.path, dest)
+    return dest
+
+
+def install_box(pkg, info, title):
+    if not ensure_box(pkg.kind):
+        return 1
+    box = BOXES[pkg.kind]["name"]
+    f = str(staged_copy(pkg))
+    rules_before = box_rules(box)
+    if pkg.kind == "rpm":
+        steps = [in_box(box, "sudo", "dnf", "-y", "install", f)]
+    else:
+        steps = [in_box(box, "sudo", "apt-get", "update"),
+                 in_box(box, "sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", f)]
+    if not run_steps(f"Installing {title} in the {BOXES[pkg.kind]['label']}.", steps):
+        failed(f"Installing {title}")
+        return 1
+    apps, bins = export(box, info)
+    new_box_rules(box, rules_before, info)
+    entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins, "rules": False}
+    remember(entry)
+    extra = ""
+    if info["safe_rules"]:
+        ok, out = add_rules(pkg, info)
+        if ok:
+            entry["rules"] = True
+            remember(entry)
+            extra = "\n\nIts hardware rule is on the system. Unplug the device and plug it back in."
+        else:
+            extra = f"\n\nIts hardware rule was not added, so it may not reach its device.\n{out}"
+    if info["notes"]:
+        extra += "\n\nIn the box, these parts do not work:\n" + plain_list(info["notes"])
+    if apps:
+        where = "Find it in the app grid."
+    elif bins:
+        where = "Run it from a terminal: " + ", ".join(os.path.basename(b) for b in bins)
+    else:
+        where = f"It has no app or command of its own. Use it inside the box: distrobox enter {box}"
+    notify(f"{title} is installed.")
+    say(f"{title} is installed. {where}{extra}")
+    return 0
+
+
+def staged_system():
+    r = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True)
+    try:
+        return any(d.get("staged") for d in json.loads(r.stdout)["deployments"])
+    except (ValueError, KeyError):
+        return False
+
+
+def offer_restart(text):
+    if ask(text, ok="Restart now", cancel="Later") == "ok":
+        subprocess.run(["systemctl", "reboot"])
+
+
+def install_system(pkg, title):
+    f = str(staged_copy(pkg))
+    if not run_steps(f"Adding {title} to the system. This can take a few minutes.",
+                     [["rpm-ostree", "install", "--idempotent", f]]):
+        failed(f"Adding {title} to the system")
+        return 1
+    remember({"title": title, "package": pkg.name, "nevra": pkg.nevra, "where": "system"})
+    notify(f"{title} is added. Restart to use it.")
+    offer_restart(f"{title} is added to the system. Restart to use it.")
+    return 0
+
+
+# ---------------------------------------------------------------- remove
+
+def remove():
+    records = load()
+    if not records:
+        say("Nothing has been installed with Install Package File yet.")
+        return 0
+    i = choose("Which app do you want to remove?", ["App", "Installed in"],
+               [[r["title"], WHERE.get(r["where"], r["where"])] for r in records])
+    if i is None:
+        return 1
+    entry = records[i]
+    title = entry["title"]
+    if ask(f"Remove {title}?", ok="Remove") != "ok":
+        return 1
+    where = entry["where"]
+    if where == "flathub":
+        ok = run_steps(f"Removing {title}.", [["flatpak", "uninstall", "-y", "--noninteractive", entry["package"]]])
+    elif where == "system":
+        ok = run_steps(f"Removing {title} from the system.", [["rpm-ostree", "uninstall", entry["package"]]])
+        if not ok and entry.get("nevra"):
+            ok = run_steps(f"Removing {title} from the system.", [["rpm-ostree", "uninstall", entry["nevra"]]])
+    elif where == "rules":
+        ok = remove_rules(entry["package"])
+    else:
+        unexport(entry)
+        ok = True
+        if box_exists(where):
+            cmd = ["sudo", "dnf", "-y", "remove", entry["package"]] if where == BOXES["rpm"]["name"] else \
+                ["sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y", entry["package"]]
+            ok = run_steps(f"Removing {title}.", [in_box(where, *cmd)])
+        if ok and entry.get("rules"):
+            ok = remove_rules(entry["package"])
+    if not ok:
+        failed(f"Removing {title}")
+        return 1
+    forget(entry)
+    notify(f"{title} is removed.")
+    if where == "system":
+        offer_restart(f"{title} is removed. Restart to finish.")
+    else:
+        say(f"{title} is removed.")
+    return 0
+
+
+# ---------------------------------------------------------------- check (no changes)
+
+def check(path):
+    pkg = read_package(path)
+    info = classify(pkg)
+    print(json.dumps({"kind": pkg.kind, "name": pkg.name, "version": pkg.version, "title": info["title"],
+                      "apps": list(info["apps"]), "bins": info["bins"], "rules": list(info["safe_rules"]),
+                      "rules_only": info["rules_only"], "needs_system": info["blocking"],
+                      "wont_work_in_box": info["notes"]}, indent=1))
+    return 0
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] not in ("install", "remove", "check") or (argv[1] == "check" and len(argv) < 3):
+        print(__doc__.split("\n\n")[1])
+        return 2
+    if argv[1] == "check":
+        return check(argv[2])
+    CACHE.mkdir(parents=True, exist_ok=True)
+    lock = open(CACHE / ".lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        say("Another install or removal is already running. Try again when it is done.")
+        return 1
+    if argv[1] == "install":
+        return install(argv[2] if len(argv) > 2 else None)
+    return remove()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

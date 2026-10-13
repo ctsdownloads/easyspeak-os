@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN" "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>EasySpeak-OS</vendor>
+  <vendor_url>https://github.com/ctsdownloads/easyspeak-os</vendor_url>
+
+  <!-- Install Package File: copy an app's hardware rules onto the system, or remove them. Asks for the
+       administrator password every time. The helper accepts only rules that set device permissions and
+       properties, never ones that run a program, and removes only files it wrote. -->
+  <action id="dev.easyspeak.os.hwrules">
+    <description>Add or remove an app's hardware rules</description>
+    <message>Authentication is required to add or remove an app's hardware rules</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/easyspeak-os-hwrules</annotate>
+  </action>
+</policyconfig>

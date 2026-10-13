@@ -22,6 +22,25 @@ command -v ujust >/dev/null || { echo 'ERROR: ujust is missing'; exit 1; }
 # System Update in the app grid: runs uupd now, with a progress window. uupd's own polkit rule lets it run without a password.
 install -Dm755 /ctx/easyspeak-os-update /usr/bin/easyspeak-os-update
 install -Dm644 /ctx/easyspeak-os-update.desktop /usr/share/applications/easyspeak-os-update.desktop
+# Install Package File and Remove Apps: .rpm and .deb files go into a Fedora or Ubuntu box (Distrobox), made the first
+# time it is needed. Hardware rules that only set permissions go onto the system through a polkit helper
+# (password every time); drivers and other system parts are offered as a layered .rpm, or refused for a .deb.
+install -Dm755 /ctx/easyspeak-os-packages /usr/bin/easyspeak-os-packages
+install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
+install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/dev.easyspeak.os.hwrules.policy
+install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
+install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
+# .rpm and .deb files open in Install Package File (GNOME reads gnome-mimeapps.list before Fedora's mimeapps.list).
+install -Dm644 /ctx/gnome-mimeapps.list /usr/share/applications/gnome-mimeapps.list
+update-desktop-database /usr/share/applications
+for t in application/x-rpm application/vnd.debian.binary-package; do
+  first=$(XDG_CURRENT_DESKTOP=GNOME gio mime "$t" | sed -n 1p)
+  [[ "$first" == *easyspeak-os-install-package.desktop* ]] || { echo "ERROR: $t files do not open in Install Package File"; exit 1; }
+done
+for c in distrobox podman flatpak rpm2archive pkexec zenity; do command -v "$c" >/dev/null || { echo "ERROR: Install Package File needs $c"; exit 1; }; done
+mkdir -p /tmp/pkgtest && (cd /tmp/pkgtest && dnf5 -q download gnome-mines openvpn solaar-udev)
+python3 -I /ctx/check-packages.py /tmp/pkgtest || { echo 'ERROR: Install Package File does not read packages correctly'; exit 1; }
+rm -rf /tmp/pkgtest
 # Services that must be on by default, also after a first boot (which applies these preset rules):
 # EasySpeak-OS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
 printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
@@ -113,13 +132,15 @@ grep -qF "didn't understand" "$core/main.py" || { echo "EasySpeak log line chang
 cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os /usr/share/gnome-shell/extensions/
 install -Dm755 /ctx/system_files/usr/libexec/easyspeak-os-ready-dot-enable /usr/libexec/easyspeak-os-ready-dot-enable
 install -Dm644 /ctx/system_files/etc/xdg/autostart/easyspeak-os-ready-dot.desktop /etc/xdg/autostart/easyspeak-os-ready-dot.desktop
-# Voice command "update system": a plugin file in EasySpeak's own plugin folder; EasySpeak itself is unchanged.
-# Fail the build if a new EasySpeak release would no longer load it the way EasySpeak loads its own plugins.
+# Voice commands "update system", "install a package" and "remove an app": plugin files in EasySpeak's own plugin
+# folder; EasySpeak itself is unchanged. Fail the build if a new EasySpeak release would no longer load them the way
+# EasySpeak loads its own plugins.
 plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
 [ -d "$plugins" ] || { echo "ERROR: EasySpeak's plugin folder was not found"; exit 1; }
 install -Dm644 /ctx/easyspeak_os_update.py "$plugins/easyspeak_os_update.py"
+install -Dm644 /ctx/easyspeak_os_apps.py "$plugins/easyspeak_os_apps.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
-"$py" /ctx/check-easyspeak-plugin.py "$plugins" || { echo 'ERROR: EasySpeak would not load the update plugin'; exit 1; }
+"$py" /ctx/check-easyspeak-plugin.py "$plugins" || { echo 'ERROR: EasySpeak would not load the EasySpeak-OS plugins'; exit 1; }
 
 # Offline cheat sheet of EasySpeak's commands (and the phrase list for the "did you mean" card),
 # from its docs for the installed version. If anything here fails, the image still builds,
