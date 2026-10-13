@@ -4,4 +4,3 @@ Name=Install Package File: after restart
 Comment=Says once whether a package added to the system is ready, and offers to add a printer
 Exec=/usr/bin/easyspeak-os-packages after-restart
 NoDisplay=true
-X-GNOME-Autostart-Phase=Applications

@@ -36,6 +36,11 @@ install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/eas
 install -Dm644 /ctx/easyspeak-os-repair-boxes.desktop /usr/share/applications/easyspeak-os-repair-boxes.desktop
 # At login, once: says whether a package added to the system is ready, and for a printer driver offers to add the printer.
 install -Dm644 /ctx/easyspeak-os-packages-after-restart.desktop /etc/xdg/autostart/easyspeak-os-packages-after-restart.desktop
+# On GNOME, systemd skips an autostart entry that names a GNOME startup phase (it leaves those to gnome-session,
+# which does not start them), so such an entry would silently never run. Fail the build if one of ours has it.
+if grep -l '^X-GNOME-Autostart-Phase=' /etc/xdg/autostart/easyspeak-os-*.desktop 2>/dev/null; then
+  echo "ERROR: the autostart entries above name a GNOME startup phase, so they would never run at login"; exit 1
+fi
 # .rpm and .deb files open in Install Package File (GNOME reads gnome-mimeapps.list before Fedora's mimeapps.list).
 install -Dm644 /ctx/gnome-mimeapps.list /usr/share/applications/gnome-mimeapps.list
 update-desktop-database /usr/share/applications
