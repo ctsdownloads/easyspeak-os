@@ -53,6 +53,21 @@ install -Dm644 /ctx/50-easyspeak-os-codecs.rules /usr/share/polkit-1/rules.d/50-
 install -Dm644 /ctx/rpmfusion-free.repo /usr/share/easyspeak-os/rpmfusion-free.repo
 install -Dm644 /ctx/rpmfusion-free-updates.repo /usr/share/easyspeak-os/rpmfusion-free-updates.repo
 [ -s "/usr/share/distribution-gpg-keys/rpmfusion/RPM-GPG-KEY-rpmfusion-free-fedora-$(rpm -E %fedora)" ] || { echo 'ERROR: the RPM Fusion signing key is missing'; exit 1; }
+# Fail the build if "Everything" would not install on this image, for example right after a move to a new
+# Fedora version, before RPM Fusion has caught up. This is a test run of the same swap the codecs helper makes:
+# nothing is installed, and the RPM Fusion key it imports is removed again.
+( . /ctx/easyspeak-os-codecs-lib.sh   # in a subshell, so its PATH and umask stay out of the rest of the build
+  keys_before=$(rpm -qa gpg-pubkey --qf '%{VERSION}\n')
+  cp /usr/share/easyspeak-os/rpmfusion-free.repo /usr/share/easyspeak-os/rpmfusion-free-updates.repo /etc/yum.repos.d/
+  swap_ok=1
+  dnf5 -y --setopt=tsflags=test --setopt=clean_requirements_on_remove=0 do \
+    --action=remove $(present $FREE) \
+    --action=install --from-repo=rpmfusion-free,rpmfusion-free-updates $FULL || swap_ok=0
+  rm -f /etc/yum.repos.d/rpmfusion-free.repo /etc/yum.repos.d/rpmfusion-free-updates.repo
+  for k in $(rpm -qa gpg-pubkey --qf '%{VERSION}\n'); do
+    grep -qx "$k" <<<"$keys_before" || rpmkeys --delete "$k"
+  done
+  [ "$swap_ok" = 1 ] || { echo "ERROR: RPM Fusion's codecs do not install on Fedora $(rpm -E %fedora) yet, so \"Everything\" would fail for users. Wait for RPM Fusion, then rebuild."; exit 1; } )
 # Kept only so machines that still have the old negativo17 codecs can update until they run  codecs remove .
 install -Dm644 /ctx/RPM-GPG-KEY-negativo17 /usr/share/easyspeak-os/RPM-GPG-KEY-negativo17
 install -Dm644 /ctx/easyspeak-os-codecs-setup.service /usr/lib/systemd/system/easyspeak-os-codecs-setup.service
