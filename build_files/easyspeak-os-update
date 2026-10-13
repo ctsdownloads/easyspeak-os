@@ -37,15 +37,30 @@ fi
 
 # Each step the updater reports ({"msg":"Updating","title":..,"description":..,"overall":..}) moves the bar and
 # shows its name. Users who cannot read the system log see a pulsing bar and the general message instead.
+# Some steps report nothing until they finish (rpm-ostree, on a system with layered packages), so while a step runs
+# the text also says how long it has been going, every few seconds, to show it is still working.
 steps() {
   journalctl -f -n 0 -o cat -u "$SERVICE" 2>/dev/null | python3 -u -c '
-import json, sys
-for line in sys.stdin:
-    try: d = json.loads(line)
-    except ValueError: continue
-    if d.get("msg") == "Updating" and "title" in d:
-        print(int(d.get("overall", 0)))
-        print("# Updating " + d["title"] + ": " + d.get("description", ""))'
+import json, os, select, sys, time
+step, since, buf = "", 0.0, b""
+while True:
+    ready, _, _ = select.select([sys.stdin], [], [], 5)
+    if ready:
+        chunk = os.read(sys.stdin.fileno(), 65536)
+        if not chunk:
+            break
+        buf += chunk
+        *lines, buf = buf.split(b"\n")
+        for line in lines:
+            try: d = json.loads(line)
+            except ValueError: continue
+            if d.get("msg") == "Updating" and "title" in d:
+                step, since = "Updating " + d["title"] + ": " + d.get("description", ""), time.time()
+                print(int(d.get("overall", 0)))
+                print("# " + step)
+    elif step:
+        mins = int(time.time() - since) // 60
+        print("# %s  (still working, %s)" % (step, "%d min" % mins if mins else "under a minute"))'
 }
 pulse=(); can_read_log || pulse=(--pulsate)
 rcfile=$(mktemp)

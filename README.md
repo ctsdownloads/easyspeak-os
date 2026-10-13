@@ -154,6 +154,20 @@ What works in a box, and what needs the system itself:
 | A background service, alongside an app (Syncthing, for example) | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
 | A driver, firmware, printer or scanner driver, login or network plugin, or a background service with no app | Cannot work in a box. An .rpm can be added to the system (administrator password, after a restart, slower system updates, and it does not update by itself). A .deb is refused, with the reason |
 
+**Printer drivers.** Most printers need no driver: they show up by themselves in
+Settings, under Printers. So a printer driver first offers to open Printers and
+try that. If the printer still needs the driver:
+
+- **.rpm:** it is added to the system (administrator password, then a restart).
+  At the next login a window says the driver is ready and opens Printers to add
+  the printer, or says plainly if the driver did not make it onto the system.
+- **.deb:** the system cannot take it. The window names the maker when the
+  package says who it is (HP, Brother, Canon, Epson and others), and explains how
+  to get the .rpm version from the maker's support site.
+
+Anything else added to the system gets the same one-time check at the next
+login.
+
 Hardware rules and other packages the install pulls in are checked too: if Fedora's
 `solaar` brings in `solaar-udev`, its rule is offered for the system as well.
 
@@ -181,6 +195,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package" and "remove an app" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
 | `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `gnome-mimeapps.list` | **Install Package File** and **Remove Apps**, and the setting that opens .rpm and .deb files in them |
+| `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
