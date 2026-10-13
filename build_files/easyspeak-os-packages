@@ -4,6 +4,8 @@
   easyspeak-os-packages install [FILE]   install an .rpm or .deb (no FILE: pick one from Downloads)
   easyspeak-os-packages remove           remove an app installed this way
   easyspeak-os-packages check FILE       say what a package needs, without installing anything
+  easyspeak-os-packages repair           set a broken app box up again and put its apps back
+                                         (--if-broken: only if one does not work; System Update uses this)
   (easyspeak-os-packages after-restart runs at login, once, after something was added to the system)
 
 The system itself is an image, so apps from .rpm and .deb files go into a box (a Distrobox container):
@@ -26,6 +28,10 @@ import html
 import io
 import json
 import os
+import platform
+import signal
+import threading
+import time
 import re
 import shutil
 import subprocess
@@ -351,48 +357,80 @@ def choose(text, columns, rows):
     return int(n) - 1 if n.isdigit() and 0 < int(n) <= len(rows) else None
 
 
-def run_steps(text, steps):
-    """Run commands one after another with a progress window. Output goes to the log. True if all worked."""
+CANCELLED = False      # set by run_steps when the person pressed Cancel
+
+
+def run_steps(text, steps, cancel=False):
+    """Run steps one after another with a progress window, and True if all worked.
+
+    Each step is (label, command) or just a command (then the window text is the label). The window shows the
+    step's plain label, never the command's own output, which goes to the log. While a step runs, the label also
+    says how long it has been going, once a minute. With cancel=True the window has a Cancel button, which stops
+    the running command."""
+    global CANCELLED
+    CANCELLED = False
+    steps = [st if isinstance(st, tuple) else (text, st) for st in steps]
     CACHE.mkdir(parents=True, exist_ok=True)
-    log = open(LOG, "w")
+    if LOG.exists() and LOG.stat().st_size > 2_000_000:     # keep the log from growing without end
+        LOG.write_bytes(LOG.read_bytes()[-500_000:])
+    log = open(LOG, "a")
+    log.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
     bar = None
     if GUI:
-        bar = subprocess.Popen(["zenity", f"--title={TITLE}", "--width=520", "--progress", "--pulsate",
-                                "--auto-close", "--no-cancel", f"--text={html.escape(text)}"],
+        mode = ["--pulsate"] if len(steps) == 1 else []
+        bar = subprocess.Popen(["zenity", f"--title={TITLE}", "--width=520", "--progress", *mode, "--auto-close",
+                                *([] if cancel else ["--no-cancel"]), f"--text={html.escape(text)}"],
                                stdin=subprocess.PIPE, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         print(text)
+
+    def show(*lines):
+        if not bar:
+            return
+        try:
+            bar.stdin.write("".join(l + "\n" for l in lines))
+            bar.stdin.flush()
+        except (BrokenPipeError, OSError):
+            pass
+
     ok = True
-    for cmd in steps:
+    for i, (label, cmd) in enumerate(steps):
+        show(*([str(int(100 * i / len(steps)))] if len(steps) > 1 else []), "# " + html.escape(label))
+        if not bar:
+            print("  " + label)
         log.write("$ " + " ".join(cmd) + "\n")
         log.flush()
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                    text=True, errors="replace")
+            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                    start_new_session=True)
         except OSError as e:
             log.write(f"{e}\n")
             ok = False
             break
-        for line in proc.stdout:
-            log.write(line)
-            clean = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]|\r", "", line).strip()
-            if not clean:
-                continue
-            if bar:
-                try:
-                    bar.stdin.write("# " + html.escape(clean[:90]) + "\n")
-                    bar.stdin.flush()
-                except (BrokenPipeError, OSError):
-                    pass
-            else:
-                print("  " + clean)
-        if proc.wait() != 0:
+        began, shown = time.time(), 0
+        while proc.poll() is None:
+            time.sleep(1)
+            if bar and bar.poll() is not None:          # the window was closed: Cancel
+                if cancel:
+                    CANCELLED = True
+                    try:
+                        os.killpg(proc.pid, signal.SIGTERM)
+                    except OSError:
+                        pass
+                    proc.wait()
+                    break
+                bar = None
+            mins = int(time.time() - began) // 60
+            if mins > shown:
+                shown = mins
+                show("# " + html.escape(f"{label}  ({mins} min so far)"))
+        if CANCELLED or proc.returncode != 0:
             ok = False
             break
     log.close()
-    if bar:
+    if bar and bar.poll() is None:
+        show("100")
         try:
-            bar.stdin.write("100\n")
             bar.stdin.close()
         except (BrokenPipeError, OSError):
             pass
@@ -400,15 +438,59 @@ def run_steps(text, steps):
     return ok
 
 
-def failed(what):
-    tail = ""
+def log_tail(n=4000):
     try:
-        lines = [l.rstrip() for l in open(LOG, errors="replace") if l.strip()]
-        tail = "\n".join(lines[-6:])
+        with open(LOG, errors="replace") as f:
+            text = f.read()
+        return text[text.rfind("\n=== "):][-n:] if "\n=== " in text else text[-n:]
     except OSError:
-        pass
+        return ""
+
+
+def explain(log):
+    """The usual reasons an install fails, in plain words, or ''."""
+    low = log.lower()
+    m = re.search(r"nothing provides ([^\s]+)", low)
+    if m:
+        return (f"It needs {m.group(1)}, which Fedora {fedora_version()} does not have. "
+                f"It may be made for a different Fedora version.")
+    m = re.search(r"depends: ([^\s]+)[^\n]*but (it is not installable|it is not going to be installed|[^\n]*is to be "
+                  r"installed)", low)
+    if m or "unmet dependencies" in low:
+        part = f"{m.group(1)}, which" if m else "parts that"
+        return (f"It needs {part} the Ubuntu box (Ubuntu 24.04) does not have. "
+                f"It may be made for a newer or older Ubuntu.")
+    if "no space left on device" in low:
+        return "The disk is full. Free some space, then try again."
+    if re.search(r"could not resolve|temporary failure resolving|name or service not known|network is unreachable|"
+                 r"connection timed out|curl error|failed to download|cannot download|tls handshake", low):
+        return "It could not reach the internet. Check the connection, then try again."
+    if re.search(r"conflicts with file from package|file [^\n]* conflicts", low):
+        return "It would replace a file that belongs to the system, so it was not added."
+    if re.search(r"different architecture|wrong architecture|incompatible architecture", low):
+        return "It is made for a different kind of processor than this computer has."
+    if re.search(r"not authorized|accessdenied|authentication (failed|dismissed)|request dismissed", low):
+        return "The administrator password was not given, so nothing was changed."
+    if re.search(r"no such container|error: container .* does not exist|cannot find container", low):
+        return "The box is missing or broken."
+    return ""
+
+
+def failed(what, offer=None, reason=""):
+    """Say that something did not work, in plain words when the reason is a usual one. offer: (button, action)."""
+    log = log_tail()
+    reason = reason or explain(log)
+    if not reason:
+        lines = [l for l in log.splitlines() if l.strip() and not l.startswith(("===", "$ "))]
+        reason = "The last lines of the log:\n" + "\n".join(lines[-4:]) if lines else ""
     notify(f"{what} did not work.")
-    say(f"{what} did not work.\n\nLast lines of the log:\n{tail}\n\nFull log: {LOG}", "error")
+    text = f"{what} did not work.\n\n{reason}\n\nThe full details are in {LOG}"
+    if offer:
+        if ask(text, ok=offer[0], cancel="Close") == "ok":
+            return offer[1]()
+        return 1
+    say(text, "error")
+    return 1
 
 
 # ---------------------------------------------------------------- records
@@ -446,24 +528,155 @@ def in_box(box, *cmd):
     return ["distrobox", "enter", "-T", "-n", box, "--", *cmd]
 
 
-def ensure_box(kind):
-    box = BOXES[kind]
-    if box_exists(box["name"]):
-        return True
+def image_size(image):
+    """Download size of a box image in MB: 0 if it is already on this computer, None if it cannot be found out."""
+    if subprocess.run(["podman", "image", "exists", image], capture_output=True).returncode == 0:
+        return 0
+    reg, _, rest = image.partition("/")
+    repo, _, tag = rest.rpartition(":")
+    arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
+    lists = "application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json"
+    single = "application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json"
+    try:
+        headers = {}
+        if reg == "quay.io":
+            url = f"https://quay.io/v2/auth?service=quay.io&scope=repository:{repo}:pull"
+            headers["Authorization"] = "Bearer " + json.load(urllib.request.urlopen(url, timeout=6))["token"]
+
+        def get(ref, accept):
+            req = urllib.request.Request(f"https://{reg}/v2/{repo}/manifests/{ref}",
+                                         headers={**headers, "Accept": accept})
+            return json.load(urllib.request.urlopen(req, timeout=6))
+        man = get(tag, lists + "," + single)
+        if "manifests" in man:
+            digest = next(m["digest"] for m in man["manifests"] if m.get("platform", {}).get("architecture") == arch)
+            man = get(digest, single)
+        return max(1, sum(l["size"] for l in man["layers"]) // 1_000_000)
+    except Exception:
+        return None
+
+
+def box_words(kind):
+    distro = "Fedora" if kind == "rpm" else "Ubuntu"
+    return distro, ("a" if kind == "rpm" else "an"), BOXES[kind]["label"]
+
+
+def box_intro(kind, title):
+    """The first-time explanation, shown before anything is downloaded."""
+    distro, article, label = box_words(kind)
     what = ".rpm" if kind == "rpm" else ".deb"
-    distro, article = ("Fedora", "a") if kind == "rpm" else ("Ubuntu", "an")
-    if ask(f"Apps from {what} files go into {article} {distro} box: a separate {distro} system inside yours, "
-           f"just for apps like this. It keeps your main system clean, and System Update keeps it up to date.\n\n"
-           f"Setting it up downloads a few hundred megabytes and takes a few minutes. It happens only once.",
-           ok="Set it up") != "ok":
+    size = image_size(BOXES[kind]["image"])
+    download = "It is already downloaded, so setting it up takes a minute or two." if size == 0 else \
+        f"Setting it up downloads about {size} MB, once, and takes a few minutes." if size else \
+        "Setting it up downloads a few hundred MB, once, and takes a few minutes."
+    return (f"{title} is {'an' if kind == 'rpm' else 'a'} {what} app. On EasySpeak-OS, apps like this go into the {label}: {article} {distro} "
+            f"system of its own, kept apart from yours.\n\n"
+            f"  - {title} opens from the app grid, like any other app.\n"
+            f"  - It can use the files in your home folder.\n"
+            f"  - Your system itself is not changed, and Remove Apps takes {title} out cleanly.\n"
+            f"  - System Update keeps the box up to date.\n\n"
+            f"The {label} is not set up yet. {download}"), size
+
+
+def setup_box(kind, size=None, again=False):
+    """Make the box, with plain steps and a Cancel button. Cancel or failure leaves no half-made box."""
+    distro, _, label = box_words(kind)
+    box = BOXES[kind]
+    steps = []
+    if size != 0:
+        about = f" (about {size} MB)" if size else ""
+        steps.append((f"Downloading the {label}{about}", ["podman", "pull", box["image"]]))
+    steps += [(f"Creating the {label}",
+               ["distrobox", "create", "--yes", "--no-entry", "--name", box["name"], "--image", box["image"]]),
+              (f"Getting the {label} ready. The first time takes a few minutes.", in_box(box["name"], "true"))]
+    heading = f"Setting up the {label} again." if again else f"Setting up the {label}. This happens only once."
+    if run_steps(heading, steps, cancel=True):
+        return True
+    subprocess.run(["distrobox", "rm", "--force", box["name"]], capture_output=True)
+    if CANCELLED:
+        say(f"Setting up the {label} was stopped. Nothing was installed.")
+    else:
+        failed(f"Setting up the {label}")
+    return False
+
+
+def box_works(name):
+    try:
+        return subprocess.run(in_box(name, "true"), capture_output=True, timeout=300).returncode == 0
+    except subprocess.TimeoutExpired:
         return False
-    ok = run_steps(f"Setting up the {distro} box. This happens only once.", [
-        ["distrobox", "create", "--yes", "--no-entry", "--name", box["name"], "--image", box["image"]],
-        in_box(box["name"], "true"),
-    ])
-    if not ok:
-        failed(f"Setting up the {distro} box")
-    return ok
+
+
+def repair(kind, why="", confirm=True):
+    """Make a broken box again from scratch and put back the apps that were installed in it."""
+    distro, _, label = box_words(kind)
+    box = BOXES[kind]["name"]
+    inside = [r for r in load() if r["where"] == box]
+    names = ", ".join(r["title"] for r in inside) or "none"
+    size = image_size(BOXES[kind]["image"])
+    sz = "" if size == 0 or size is None else f" (it downloads about {size} MB)"
+    if confirm and ask(f"{why or f'The {label} is not working.'}\n\nRepair sets it up again from scratch{sz}, then puts "
+                       f"back the apps that were in it: {names}.\n\nYour own files are not touched. Things installed "
+                       f"inside the box some other way are not put back.", ok="Repair") != "ok":
+        return 1
+    for r in inside:
+        unexport(r)
+    subprocess.run(["distrobox", "rm", "--force", box], capture_output=True)
+    if not setup_box(kind, size, again=True):
+        return 1
+    back, missing = [], []
+    for r in inside:
+        f = r.get("file")
+        if not f or not Path(f).exists():
+            missing.append(r["title"])
+            forget(r)
+            continue
+        try:
+            pkg = read_package(f)
+        except (OSError, ValueError, tarfile.TarError, EOFError):
+            missing.append(r["title"])
+            forget(r)
+            continue
+        if box_install(pkg, classify(pkg), r["title"], quiet=True) == 0:
+            if r.get("rules"):          # its hardware rule is still on the system; keep it on record for Remove Apps
+                remember({**next(x for x in load() if x["package"] == r["package"] and x["where"] == box),
+                          "rules": True})
+            back.append(r["title"])
+        else:
+            missing.append(r["title"])
+    text = f"The {label} is repaired."
+    if back:
+        text += "\n\nPut back: " + ", ".join(back) + "."
+    if missing:
+        text += "\n\nNot put back (open their files again to install them): " + ", ".join(missing) + "."
+    notify(f"The {label} is repaired.")
+    say(text)
+    return 0
+
+
+def repair_command(only_broken=False):
+    """Repair an app box. only_broken (from System Update, when updating boxes failed): look first, and repair only
+    a box that does not work."""
+    kinds = [k for k in BOXES if box_exists(BOXES[k]["name"]) or any(r["where"] == BOXES[k]["name"] for r in load())]
+    if not kinds:
+        say("No app boxes have been set up with Install Package File, so there is nothing to repair here. "
+            "A box you made yourself can be checked with:  distrobox list")
+        return 0
+    if only_broken:
+        broken = [k for k in kinds if not (box_exists(BOXES[k]["name"]) and box_works(BOXES[k]["name"]))]
+        if not broken:
+            say("The app boxes from Install Package File work. The box that did not update is one made some other "
+                "way, for example with Distrobox directly. To see your boxes, run:  distrobox list")
+            return 0
+        kinds = broken
+    if len(kinds) == 1:
+        i = 0
+    else:
+        i = choose("Which box do you want to repair?", ["Box"], [[BOXES[k]["label"]] for k in kinds])
+        if i is None:
+            return 1
+    label = BOXES[kinds[i]]["label"]
+    return repair(kinds[i], why=f"Repair the {label}? Use this if apps in it no longer open or update.")
 
 
 def export(box, info):
@@ -689,6 +902,18 @@ def install(path):
     info = classify(pkg)
     title = info["title"]
 
+    machine = platform.machine()
+    fits = {"x86_64": {"rpm": {"x86_64", "noarch", "i686"}, "deb": {"amd64", "all"}},
+            "aarch64": {"rpm": {"aarch64", "noarch"}, "deb": {"arm64", "all"}}}.get(machine, {})
+    if fits and pkg.arch not in fits[pkg.kind]:
+        if pkg.arch in ("i386", "i686"):
+            say(f"{title} is a 32-bit {'.deb' if pkg.kind == 'deb' else '.rpm'} package, made for older computers. "
+                f"Look for the 64-bit version (it may be called amd64 or x86_64).", "warning")
+        else:
+            say(f"{title} is made for a different kind of processor ({pkg.arch}), not this computer ({machine}). "
+                f"Look for the version for {'amd64 or x86_64' if machine == 'x86_64' else machine}.", "warning")
+        return 1
+
     if pkg.kind == "rpm" and subprocess.run(["rpm", "-q", pkg.name], capture_output=True).returncode == 0:
         say(f"{title} is already part of your system.")
         return 0
@@ -755,7 +980,12 @@ def install(path):
         return install_system(pkg, title, printer)
 
     box = BOXES[pkg.kind]
-    text = f"Install {title} in the {box['label']}?"
+    new_box = not box_exists(box["name"])
+    size = None
+    if new_box:
+        text, size = box_intro(pkg.kind, title)
+    else:
+        text = f"Install {title} in the {box['label']}?"
     extra = None
     if info["safe_rules"]:
         text += "\n\nIt has a hardware rule. That goes onto the system itself, so you will be asked for the " \
@@ -766,12 +996,14 @@ def install(path):
             text += "\n\nTo have them work, add it to the system instead (administrator password, restart, " \
                     "slower system updates)."
             extra = "Add to the system"
-    answer = ask(text, ok="Install", extra=extra)
+    answer = ask(text, ok="Set up and install" if new_box else "Install", extra=extra)
     if answer == "extra":
         return install_system(pkg, title)
     if answer != "ok":
         return 1
-    return install_box(pkg, info, title)
+    if new_box and not setup_box(pkg.kind, size):
+        return 1
+    return box_install(pkg, info, title)
 
 
 def staged_copy(pkg):
@@ -782,25 +1014,38 @@ def staged_copy(pkg):
     return dest
 
 
-def install_box(pkg, info, title):
-    if not ensure_box(pkg.kind):
-        return 1
+def box_install(pkg, info, title, quiet=False):
+    """Install into the box, which exists. quiet: no questions or messages (used by repair)."""
+    label = BOXES[pkg.kind]["label"]
     box = BOXES[pkg.kind]["name"]
     f = str(staged_copy(pkg))
     rules_before = box_rules(box)
     if pkg.kind == "rpm":
-        steps = [in_box(box, "sudo", "dnf", "-y", "install", f)]
+        steps = [(f"Installing {title}", in_box(box, "sudo", "dnf", "-y", "install", f))]
     else:
-        steps = [in_box(box, "sudo", "apt-get", "update"),
-                 in_box(box, "sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", f)]
-    if not run_steps(f"Installing {title} in the {BOXES[pkg.kind]['label']}.", steps):
-        failed(f"Installing {title}")
-        return 1
+        steps = [("Getting Ubuntu's list of packages", in_box(box, "sudo", "apt-get", "update")),
+                 (f"Installing {title}",
+                  in_box(box, "sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", f))]
+    if not run_steps(f"Installing {title} in the {label}.", steps):
+        if quiet:
+            return 1
+        if not box_works(box):
+            def repair_then_install():
+                if repair(pkg.kind, confirm=False) != 0:
+                    return 1
+                return box_install(pkg, info, title)
+            return failed(f"Installing {title}", offer=("Repair the box", repair_then_install),
+                          reason=f"The {label} is not working. Repair sets it up again from scratch, puts back the "
+                                 f"apps that were in it, then installs {title}. Your own files are not touched.")
+        return failed(f"Installing {title}")
     apps, bins = export(box, info)
     new_box_rules(box, rules_before, info)
-    entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins, "rules": False}
+    entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins, "rules": False,
+             "file": f}
     remember(entry)
     extra = ""
+    if quiet:
+        return 0
     if info["safe_rules"]:
         ok, out = add_rules(pkg, info)
         if ok:
@@ -879,7 +1124,7 @@ def remove():
     else:
         unexport(entry)
         ok = True
-        if box_exists(where):
+        if box_exists(where) and box_works(where):
             cmd = ["sudo", "dnf", "-y", "remove", entry["package"]] if where == BOXES["rpm"]["name"] else \
                 ["sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y", entry["package"]]
             ok = run_steps(f"Removing {title}.", [in_box(where, *cmd)])
@@ -911,7 +1156,7 @@ def check(path):
 
 
 def main(argv):
-    if len(argv) < 2 or argv[1] not in ("install", "remove", "check", "after-restart") or \
+    if len(argv) < 2 or argv[1] not in ("install", "remove", "check", "after-restart", "repair") or \
             (argv[1] == "check" and len(argv) < 3):
         print(__doc__.split("\n\n")[1])
         return 2
@@ -928,6 +1173,8 @@ def main(argv):
         return 1
     if argv[1] == "after-restart":
         return after_restart()
+    if argv[1] == "repair":
+        return repair_command(only_broken="--if-broken" in argv)
     if argv[1] == "install":
         return install(argv[2] if len(argv) > 2 else None)
     return remove()

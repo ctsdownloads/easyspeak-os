@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Repair App Boxes
+Comment=Set up a broken app box again and put its apps back
+Keywords=distrobox;box;repair;fix;rpm;deb;
+Icon=applications-utilities-symbolic
+Exec=/usr/bin/easyspeak-os-packages repair
+Categories=System;
+Terminal=false

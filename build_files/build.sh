@@ -30,6 +30,7 @@ install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
 install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/dev.easyspeak.os.hwrules.policy
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
+install -Dm644 /ctx/easyspeak-os-repair-boxes.desktop /usr/share/applications/easyspeak-os-repair-boxes.desktop
 # At login, once: says whether a package added to the system is ready, and for a printer driver offers to add the printer.
 install -Dm644 /ctx/easyspeak-os-packages-after-restart.desktop /etc/xdg/autostart/easyspeak-os-packages-after-restart.desktop
 # .rpm and .deb files open in Install Package File (GNOME reads gnome-mimeapps.list before Fedora's mimeapps.list).
@@ -103,7 +104,18 @@ got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.background pictur
 
 rm -rf /opt
 mkdir /opt
-curl -fsSL --retry 3 --retry-all-errors 'https://api.github.com/repos/ctsdownloads/easyspeak/releases?per_page=100' -o /tmp/releases.json
+# The release list comes from GitHub's API. Anonymous calls are limited to 60 an hour per address, and GitHub's
+# build machines share addresses, so the build uses the repository's own token when it has one (passed in as a
+# build secret, never stored in the image). It is read with tracing off and sent from a file, so it is not logged.
+gh_auth=()
+if [ -s /run/secrets/GITHUB_TOKEN ]; then
+  { set +x; } 2>/dev/null
+  printf 'Authorization: Bearer %s\n' "$(cat /run/secrets/GITHUB_TOKEN)" > /tmp/gh-auth
+  set -x
+  gh_auth=(-H @/tmp/gh-auth)
+fi
+curl -fsSL --retry 3 --retry-all-errors "${gh_auth[@]}" 'https://api.github.com/repos/ctsdownloads/easyspeak/releases?per_page=100' -o /tmp/releases.json
+rm -f /tmp/gh-auth
 pick() {
   jq -r --arg re "$1" '
     [ .[] | select(.draft == false and .prerelease == false)
