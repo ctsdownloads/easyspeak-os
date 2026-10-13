@@ -347,11 +347,12 @@ def choose(text, columns, rows):
     if not rows:
         return None
     if GUI:
+        # column 1 (hidden) is what is printed back; column 2 is the number people see and can say ("number two")
         args = ["--list", f"--text={text}", "--height=420", "--print-column=1", "--hide-column=1",
-                "--column=n", *[f"--column={c}" for c in columns]]
+                "--column=n", "--column=No.", *[f"--column={c}" for c in columns]]
         cells = []
         for i, row in enumerate(rows):
-            cells += [str(i), *row]
+            cells += [str(i), str(i + 1), *row]
         r = zenity(*args, stdin="\n".join(cells) + "\n")
         out = r.stdout.strip().split("|")[0]
         return int(out) if r.returncode == 0 and out.isdigit() else None
@@ -366,6 +367,14 @@ def choose(text, columns, rows):
 
 
 CANCELLED = False      # set by run_steps when the person pressed Cancel
+BUSY = CACHE / ".busy"   # what this run is doing, for a second window that has to wait for it
+
+
+def busy(text):
+    try:
+        BUSY.write_text(text)
+    except OSError:
+        pass
 
 
 def run_steps(text, steps, cancel=False):
@@ -383,6 +392,7 @@ def run_steps(text, steps, cancel=False):
         LOG.write_bytes(LOG.read_bytes()[-500_000:])
     log = open(LOG, "a")
     log.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
+    busy(text)
     bar = None
     if GUI:
         mode = ["--pulsate"] if len(steps) == 1 else []
@@ -563,6 +573,44 @@ def image_size(image):
         return max(1, sum(l["size"] for l in man["layers"]) // 1_000_000)
     except Exception:
         return None
+
+
+def human(mb):
+    """'450 MB' or '1.2 GB'."""
+    return f"{mb / 1000:.1f} GB" if mb >= 1000 else f"{max(1, int(mb))} MB"
+
+
+def box_sizes(names):
+    """Disk space each box uses in MB (its system plus what was installed in it), in one look; {} if not known
+    quickly."""
+    names = [n for n in names if box_exists(n)]
+    if not names:
+        return {}
+    try:
+        r = subprocess.run(["podman", "ps", "-a", "--size", "--format", "json",
+                            *[f"--filter=name=^{n}$" for n in names]], capture_output=True, text=True, timeout=20)
+        out = {}
+        for c in json.loads(r.stdout):
+            name = (c.get("Names") or [""])[0]
+            size = c.get("Size") or {}
+            out[name] = max(size.get("rootFsSize", 0), size.get("rwSize", 0)) // 1_000_000
+        return out
+    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError, TypeError):
+        return {}
+
+
+def box_size(name):
+    return box_sizes([name]).get(name)
+
+
+def delete_box(kind):
+    """Delete an app box and its downloaded system, to free the space. Your own files are not touched."""
+    box = BOXES[kind]
+    ok = run_steps(f"Deleting the {box['label']}.", [["distrobox", "rm", "--force", box["name"]]])
+    if ok:     # the box's system image too, unless something else still uses it
+        subprocess.run(["podman", "image", "rm", box["image"]], capture_output=True)
+        helpers_mark(kind).unlink(missing_ok=True)
+    return ok
 
 
 def box_words(kind):
@@ -856,6 +904,38 @@ def new_box_rules(box, before, info):
                 info["notes"].append("a hardware rule that runs a program")
         else:
             info["safe_rules"]["/usr/lib/udev/rules.d/" + name] = r.stdout
+
+
+# ---------------------------------------------------------------- updates
+
+REPO_DIRS = {"rpm": "/etc/yum.repos.d", "deb": "/etc/apt/sources.list.d"}
+REPO_FILE = re.compile(r"^/etc/(yum\.repos\.d/[^/]+\.repo|apt/sources\.list\.d/[^/]+\.(list|sources))$")
+
+
+def box_repos(box, kind):
+    """Download-source files in a box: name -> contents."""
+    r = subprocess.run(in_box(box, "sh", "-c", f"cd {REPO_DIRS[kind]} 2>/dev/null && for f in *; do "
+                                               f"[ -f \"$f\" ] && printf '\\n==> %s\\n' \"$f\" && cat \"$f\"; done"),
+                       capture_output=True, text=True)
+    out = {}
+    for part in r.stdout.split("\n==> ")[1:]:
+        name, _, text = part.partition("\n")
+        out[name.strip()] = text
+    return out
+
+
+def adds_source(pkg):
+    """Does the package itself carry a download source (a repository) for updates?"""
+    return any(REPO_FILE.match(p) for p in pkg.files)
+
+
+UPDATES_YES = "Updates: System Update keeps it up to date, from its maker's download source."
+UPDATES_NO = ("Updates: System Update cannot update it, because it came from a file. Some apps, like Discord, "
+              "offer their own updates; otherwise, to update it, open a newer file here.")
+UPDATES_FLATHUB = "Updates: System Update keeps it up to date."
+# The system keeps a package added from a file at that file's version, even if the package adds a download source
+UPDATES_SYSTEM = "System Update does not update it, because it was added from a file: to update it, open a newer " \
+                 "file here."
 
 
 def add_rules(pkg, info):
@@ -1212,7 +1292,7 @@ def install(path):
                          [["flatpak", "install", "-y", "--noninteractive", "flathub", app_id]]):
                 remember({"title": name, "package": app_id, "where": "flathub"})
                 notify(f"{name} is installed.")
-                say(f"{name} is installed. Find it in the app grid.")
+                say(f"{name} is installed. Find it in the app grid.\n\n{UPDATES_FLATHUB}")
                 return 0
             failed(f"Installing {name}")
             return 1
@@ -1254,8 +1334,7 @@ def install(path):
             return 1
         if ask(f"{title} has:\n{reasons}\n\nThese need the system itself, so it cannot go in a box. It can be added "
                f"to the system instead. That needs the administrator password, takes effect after a restart, and "
-               f"makes system updates a little slower. It does not update by itself: to update it, install a newer "
-               f"file. You can remove it later with Remove Apps.",
+               f"makes system updates a little slower. {UPDATES_SYSTEM} You can remove it later with Remove Apps.",
                ok="Add to the system") != "ok":
             return 1
         return install_system(pkg, title, printer)
@@ -1303,6 +1382,7 @@ def box_install(pkg, info, title, quiet=False, mode="install"):
     f = str(staged_copy(pkg))
     ensure_helpers(pkg.kind, quiet=quiet)      # boxes made before the helpers were part of the setup
     rules_before = box_rules(box)
+    repos_before = box_repos(box, pkg.kind)
     doing = {"reinstall": "Reinstalling", "update": "Updating", "older": "Installing the older version of"
              }.get(mode, "Installing")
     if pkg.kind == "rpm":
@@ -1328,8 +1408,11 @@ def box_install(pkg, info, title, quiet=False, mode="install"):
     apps, bins = export(box, info)
     new_box_rules(box, rules_before, info)
     old = next((r for r in load() if r["where"] == box and r["package"] == pkg.name), {})
+    # Updates: the package (or its install script, as Chrome's and VS Code's do) added a download source
+    updates = adds_source(pkg) or bool(set(box_repos(box, pkg.kind)) - set(repos_before)) or \
+        bool(old.get("updates"))
     entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins,
-             "rules": bool(old.get("rules")), "file": f, "version": pkg.evr}
+             "rules": bool(old.get("rules")), "file": f, "version": pkg.evr, "updates": updates}
     remember(entry)
     extra = ""
     if quiet:
@@ -1353,7 +1436,7 @@ def box_install(pkg, info, title, quiet=False, mode="install"):
     done = {"reinstall": "is reinstalled", "update": f"is updated to version {plain_version(pkg.evr)}",
             "older": f"is now version {plain_version(pkg.evr)}"}.get(mode, "is installed")
     notify(f"{title} {done}.")
-    say(f"{title} {done}. {where}{extra}")
+    say(f"{title} {done}. {where}{extra}\n\n{UPDATES_YES if updates else UPDATES_NO}")
     return 0
 
 
@@ -1392,7 +1475,7 @@ def install_system(pkg, title, printer=False, update=False):
         "After the restart, you will be told when it is ready."
     done = f"is updated to version {plain_version(pkg.evr)}" if update else "is added to the system"
     notify(f"{title} {done}. Restart to use it.")
-    offer_restart(f"{title} {done}. Restart to use it.\n\n{after}")
+    offer_restart(f"{title} {done}. Restart to use it.\n\n{after}\n\nUpdates: {UPDATES_SYSTEM}")
     return 0
 
 
@@ -1437,8 +1520,23 @@ def remove():
     notify(f"{title} is removed.")
     if where == "system":
         offer_restart(f"{title} is removed. Restart to finish.")
-    else:
-        say(f"{title} is removed.")
+        return 0
+    kind = next((k for k in BOXES if BOXES[k]["name"] == where), None)
+    if kind and box_exists(where) and not any(r["where"] == where for r in load()):
+        label = BOXES[kind]["label"]
+        mb = box_size(where)
+        free = f" and free about {human(mb)} of disk space" if mb else " and free its disk space"
+        if ask(f"{title} is removed.\n\nThe {label} has no apps from Install Package File left. Delete the box{free}?"
+               f"\n\nIt is set up again by itself the next time you install {'an .rpm' if kind == 'rpm' else 'a .deb'} "
+               f"app. Anything installed inside it some other way is deleted too. Your own files are not touched.",
+               ok="Delete the box", cancel="Keep it") == "ok":
+            if delete_box(kind):
+                notify(f"The {label} is deleted.")
+                say(f"The {label} is deleted.")
+            else:
+                failed(f"Deleting the {label}")
+        return 0
+    say(f"{title} is removed.")
     return 0
 
 
@@ -1454,6 +1552,60 @@ def check(path):
     return 0
 
 
+def take_lock(lock, quiet=False):
+    """Only one install, removal or repair at a time. If another is running, say which, wait for it to finish
+    (with Cancel), then go on. True when this run may go on."""
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        pass
+    if quiet:           # the login task: leave it for the next login rather than wait in the background
+        return False
+    if not GUI:
+        print(f"Waiting for the other install or removal to finish ({doing_now()}).")
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return True
+    text = f"Another install or removal is running:\n{doing_now()}\n\nThis waits for it to finish, then goes on."
+    bar = subprocess.Popen([DIALOG, f"--title={TITLE}", "--width=520", "--progress", "--pulsate", "--auto-close",
+                            f"--text={html.escape(text)}"], stdin=subprocess.PIPE, text=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    shown = None
+    while True:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            got = True
+        except OSError:
+            got = False
+        if got or bar.poll() is not None:
+            break
+        now = doing_now()
+        if now != shown:
+            shown = now
+            try:
+                bar.stdin.write("# " + html.escape(f"Another install or removal is running:\n{now}\n\n"
+                                                    f"This waits for it to finish, then goes on.") + "\n")
+                bar.stdin.flush()
+            except (BrokenPipeError, OSError):
+                pass
+        time.sleep(1)
+    if bar.poll() is None:
+        try:
+            bar.stdin.write("100\n")
+            bar.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+        bar.wait()
+    return got
+
+
+def doing_now():
+    try:
+        return BUSY.read_text().strip() or "Install Package File"
+    except OSError:
+        return "Install Package File"
+
+
 def main(argv):
     if len(argv) < 2 or argv[1] not in ("install", "remove", "check", "after-restart", "repair") or \
             (argv[1] == "check" and len(argv) < 3):
@@ -1463,13 +1615,14 @@ def main(argv):
         return check(argv[2])
     if argv[1] == "after-restart" and not pending() and not boxes_missing_helpers() and not launchers_to_fix():
         return 0
+    global TITLE        # each window carries the name of what it is part of
+    TITLE = {"remove": "Remove Apps", "repair": "Repair App Boxes"}.get(argv[1], TITLE)
     CACHE.mkdir(parents=True, exist_ok=True)
     lock = open(CACHE / ".lock", "w")
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        say("Another install or removal is already running. Try again when it is done.")
+    if not take_lock(lock, quiet=argv[1] == "after-restart"):
         return 1
+    busy({"install": "Install Package File is open", "remove": "Remove Apps is open",
+          "repair": "Repair App Boxes is open"}.get(argv[1], "Starting"))
     if argv[1] == "after-restart":
         return after_restart()
     if argv[1] == "repair":

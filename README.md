@@ -71,7 +71,9 @@ Updates are automatic. Bluefin's updater, `uupd`, runs on its own timer and
 updates the system, Flatpaks, Distrobox containers and Homebrew. A new system
 image takes effect at the next reboot. To update by hand, open **System Update**
 from the app grid, which shows progress and offers a restart when a new system
-image is ready and needs no password, or run:
+image is ready and needs no password. If the automatic update is already running
+when you open it, it says so and follows that update to the end instead of
+failing (only one update can run at a time). Or run:
 
 ```
 sudo uupd
@@ -123,13 +125,13 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   as a plugin added to EasySpeak's plugin folder, and works in English only.
 - **Install and remove apps by voice.** Say "install a package" to open
   **Install Package File**, "remove an app" to open **Remove Apps**, or "repair
-  app boxes" to open **Repair App Boxes**. These also
-  come from EasySpeak-OS as a plugin, in English only.
+  app boxes" to open **Repair App Boxes**. These also come from EasySpeak-OS as
+  a plugin, in English only.
 - **Answer EasySpeak-OS windows by voice.** While an EasySpeak-OS window is open
   (Install Package File, Remove Apps, Repair App Boxes, System Update, Install
   Media Codecs), say a button's name to press it: "set up and install", "open
-  it", "restart now", "cancel". In a list, say "number two" or the name on the
-  line. Say "read it" to hear the window and the buttons you can say. The window
+  it", "restart now", "cancel". In a list, say "number two" (each line shows its
+  number) or the name on the line. Say "read it" to hear the window and the buttons you can say. The window
   is never read out by itself: the open microphone would hear it and could press
   one of its buttons. When no such window is open, these words do nothing, so
   they never get in the way of other commands. English only.
@@ -157,6 +159,25 @@ grid, or say "install a package"), and EasySpeak-OS:
    `PATH` (`~/.local/bin`) instead.
 
 System Update keeps the boxes up to date, along with everything else.
+
+**Updates.** After an install, the last window says how the app gets updates:
+
+- "System Update keeps it up to date, from its maker's download source": the
+  package added its maker's download source to the box (Google Chrome and VS Code
+  do), so System Update updates it with the box.
+- "System Update cannot update it, because it came from a file": some apps, like
+  Discord, offer their own updates; otherwise, open a newer file to update it.
+- From Flathub: System Update keeps it up to date.
+- Added to the system: System Update does not update it, because the system keeps
+  a package added from a file at that file's version.
+
+**One at a time.** If another install or removal is running, the window names it
+("Installing Discord in the Ubuntu box"), waits for it to finish, then goes on.
+It has a Cancel button.
+
+**Deleting an empty box.** When you remove the last app from a box, it offers
+to delete the box and says how much space that frees; the box is set up again by
+itself the next time it is needed.
 
 Each box also gets two small desktop parts that apps from these files expect and
 a fresh box lacks: zenity, for progress windows (Discord's first start downloads
@@ -230,7 +251,7 @@ What works in a box, and what needs the system itself:
 | An app, command-line tools, a browser, most closed-source apps | Installed in the box |
 | A hardware rule (udev) that only sets device permissions | The app goes in the box and the rule goes onto the system, with the administrator password. A package that is only a rule (Fedora's `solaar-udev`, for example) just adds the rule |
 | A hardware rule that runs a program | Not added. The app still goes in the box, and the window says the rule will not work |
-| A background service, alongside an app (Syncthing, for example) | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
+| A background service, alongside an app | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
 | A driver, firmware, printer or scanner driver, login or network plugin, or a background service with no app | Cannot work in a box. An .rpm can be added to the system (administrator password, after a restart, slower system updates, and it does not update by itself). A .deb is refused, with the reason |
 
 **Printer drivers.** Most printers need no driver: they show up by themselves in
@@ -272,7 +293,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
-| `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package" and "remove an app" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
+| `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app" and "repair app boxes" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
 | `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps** and **Repair App Boxes**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
 | `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeak-OS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
@@ -304,7 +325,7 @@ What the build checks:
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
-- The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window).
+- The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
 - The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads three real Fedora packages (an app, a background service and a hardware rule).
 
 The release packages from Fedora also hold Fedora's lists of which services
