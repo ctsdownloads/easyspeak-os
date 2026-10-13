@@ -9,50 +9,74 @@ staged() {   # is a new system image waiting for a restart?
   rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; sys.exit(0 if any(d.get("staged") for d in json.load(sys.stdin)["deployments"]) else 1)'
 }
 
+# The updater's own summary of what failed, from this run's log ("1 update module(s) failed: ...").
+failed_parts() {
+  journalctl -u "$SERVICE" --since "$1" -o cat 2>/dev/null | python3 -c '
+import json, sys
+for line in sys.stdin:
+    try: m = json.loads(line).get("msg", "")
+    except ValueError: continue
+    if "module(s) failed:" in m: out = m.split("failed:", 1)[1].strip()
+print(globals().get("out", ""))'
+}
+
+can_read_log() { id -nG | grep -qwE 'wheel|adm|systemd-journal'; }
+
+start=$(date '+%Y-%m-%d %H:%M:%S')
+
 if ! command -v zenity >/dev/null 2>&1 || [ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
   echo "Updating the system, apps and containers. This can take a while."
-  if systemctl start "$SERVICE"; then
-    if staged; then echo "Done. Restart to use the new system."; else echo "Done. Everything is up to date."; fi
-  else
-    echo "The update did not finish. Details: journalctl -u $SERVICE"; exit 1
-  fi
+  systemctl start "$SERVICE"; rc=$?
+  failed=$(failed_parts "$start")
+  if [ "$rc" -ne 0 ] && [ -n "$failed" ]; then echo "Updated, except: $failed"
+  elif [ "$rc" -ne 0 ]; then echo "The update did not finish. Details: journalctl -u $SERVICE"; exit 1
+  else echo "Done."; fi
+  staged && echo "A new system is ready. Restart to use it."
   exit 0
 fi
 
-# Show each step as the updater reaches it, read from its own log (the "module" field of its JSON log lines).
-# Users who cannot read the system log (not in the wheel group) just see the general message.
+# Each step the updater reports ({"msg":"Updating","title":..,"description":..,"overall":..}) moves the bar and
+# shows its name. Users who cannot read the system log see a pulsing bar and the general message instead.
 steps() {
-  local last="" m
-  journalctl -f -n 0 -o cat -u "$SERVICE" 2>/dev/null | while IFS= read -r line; do
-    m=$(printf '%s' "$line" | grep -o '"module":"[a-z]*"' | head -n 1 | cut -d'"' -f4)
-    [ -z "$m" ] || [ "$m" = "$last" ] && continue
-    last=$m
-    case "$m" in
-      system)    echo "# Updating the system. This is the longest step." ;;
-      flatpak)   echo "# Updating Flatpak apps." ;;
-      distrobox) echo "# Updating Distrobox containers." ;;
-      brew)      echo "# Updating Homebrew." ;;
-    esac
-  done
+  journalctl -f -n 0 -o cat -u "$SERVICE" 2>/dev/null | python3 -u -c '
+import json, sys
+for line in sys.stdin:
+    try: d = json.loads(line)
+    except ValueError: continue
+    if d.get("msg") == "Updating" and "title" in d:
+        print(int(d.get("overall", 0)))
+        print("# Updating " + d["title"] + ": " + d.get("description", ""))'
 }
+pulse=(); can_read_log || pulse=(--pulsate)
 rcfile=$(mktemp)
 (
-  steps & spid=$!
-  sleep 1                                             # let the log reader start first
+  if can_read_log; then steps & spid=$!; sleep 1; fi
   systemctl start "$SERVICE" >/dev/null 2>&1; echo $? > "$rcfile"
-  pkill -P "$spid" 2>/dev/null; kill "$spid" 2>/dev/null
+  [ -n "${spid:-}" ] && { pkill -P "$spid" 2>/dev/null; kill "$spid" 2>/dev/null; }
   echo 100
-) | zenity --progress --pulsate --auto-close --no-cancel --title="System Update" --width=480 \
+) | zenity --progress "${pulse[@]}" --auto-close --no-cancel --title="System Update" --width=480 \
       --text="Updating the system, apps and containers. This can take a while." || true
 rc=$(cat "$rcfile" 2>/dev/null || echo 1); rm -f "$rcfile"
-if [ "$rc" -ne 0 ]; then
+
+# The end result also goes out as a desktop notification, so it is seen even if the dialog opens behind other windows.
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send --app-name="System Update" --icon=software-update-available-symbolic "System Update" "$1" || true; }
+
+failed=""; [ "$rc" -ne 0 ] && failed=$(failed_parts "$start")
+if [ "$rc" -ne 0 ] && [ -z "$failed" ]; then
+  notify "The update did not finish."
   zenity --error --title="System Update" --width=480 \
     --text="The update did not finish.\n\nDetails are in the system log:  journalctl -u $SERVICE"
   exit 1
 fi
+note=""; [ -n "$failed" ] && note="Updated, except: $failed\nDetails:  journalctl -u $SERVICE\n\n"
 if staged; then
-  zenity --question --title="System Update" --ok-label="Restart now" --cancel-label="Later" \
-    --text="Done. Restart to use the new system." && systemctl reboot
+  notify "${failed:+Updated, except: $failed. }A new system is ready. Restart to use it."
+  zenity --question --title="System Update" --width=480 --ok-label="Restart now" --cancel-label="Later" \
+    --text="${note}A new system is ready. Restart to use it." && systemctl reboot
+elif [ -n "$failed" ]; then
+  notify "Updated, except: $failed"
+  zenity --warning --title="System Update" --width=480 --text="${note%\\n\\n}"
 else
+  notify "Done. Everything is up to date."
   zenity --info --title="System Update" --text="Done. Everything is up to date."
 fi
