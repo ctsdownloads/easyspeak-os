@@ -152,7 +152,10 @@ grid, or say "install a package"), and EasySpeak-OS:
    made for a different kind of processor (ARM, or 32-bit only) is stopped here,
    with the reason.
 2. Offers Flathub instead when Flathub has the same app, since Flathub apps
-   update on their own.
+   update on their own. It recognizes the app by the app ID the package itself
+   carries (Brave's file names `com.brave.Browser`), or by name. A looser name
+   match ("Brave Web Browser" and "Brave") is only used for apps Flathub has
+   verified as coming from their maker, so a look-alike is never offered.
 3. Puts .rpm files in a Fedora box and .deb files in an Ubuntu 24.04 box. Each
    box is a Distrobox container, kept separate from any boxes of your own.
 4. Adds the app to the app grid. A package with no app gets its commands on your
@@ -170,6 +173,14 @@ System Update keeps the boxes up to date, along with everything else.
 - From Flathub: System Update keeps it up to date.
 - Added to the system: System Update does not update it, because the system keeps
   a package added from a file at that file's version.
+
+**Packages that only add a download source** (Fedora's RPM Fusion setup file,
+Microsoft's `packages-microsoft-prod.deb`): there is no app in the file, so the
+window says so and names the source. It adds the source to the box, then lists
+the apps the source offers (numbered; start typing a name to find one). The app
+you pick is downloaded and installed like any file, and System Update keeps it
+up to date from that source. The source shows in Remove Apps as
+"… (download source)".
 
 **One at a time.** If another install or removal is running, the window names it
 ("Installing Discord in the Ubuntu box"), waits for it to finish, then goes on.
@@ -197,15 +208,17 @@ window opens behind another window.
   through its link to the desktop. If that link goes away (for example when a
   task manager's Force Stop ends it), the app keeps working instead of crashing
   with "write EPIPE" error windows, as Discord did.
-- Right-click the app in the app grid or dash and choose **Quit <app>** to stop
-  it inside the box, even when it is stuck: it is asked to quit, and forced to
-  after 10 seconds. A normal Stop from the desktop is passed on to the app too.
-- **Quitting a box app from the dock takes a while, and that is expected.** After
-  you choose **Quit <app>** in the dock, the app can stay open for several
-  seconds while it is stopped inside the box. During that time GNOME may show its
-  "not responding" window with **Force Quit** and **Wait**. That is normal and
-  nothing is wrong: the app closes on its own a few seconds later, and the window
-  goes away with it. You do not need to press anything.
+- **Two Quit items.** Right-click a box app in the dock or app grid and you see
+  two of them:
+  - **Quit <app name>**, for example **Quit Discord**, is EasySpeak-OS's. It
+    stops the app inside the box. Use this one to really close a box app.
+  - **Quit** on its own (the last item) is GNOME's. It only closes the app's
+    windows. Many apps keep running in the background after it.
+- **Quit <app name> takes a few seconds, and that is expected.** The app is asked
+  to quit, and is forced to after 10 seconds if it has not. A notification says
+  "Quitting <app name>". Meanwhile GNOME may show its "not responding" window
+  with **Force Quit** and **Wait**. Nothing is wrong: the app closes on its own
+  and the window goes away with it. You do not need to press anything.
 - Remove Apps quits a running app before removing it.
 
 App grid entries made before this are switched over once, at the next login.
@@ -257,8 +270,10 @@ What works in a box, and what needs the system itself:
 | An app, command-line tools, a browser, most closed-source apps | Installed in the box |
 | A hardware rule (udev) that only sets device permissions | The app goes in the box and the rule goes onto the system, with the administrator password. A package that is only a rule (Fedora's `solaar-udev`, for example) just adds the rule |
 | A hardware rule that runs a program | Not added. The app still goes in the box, and the window says the rule will not work |
-| A background service, alongside an app | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
-| A driver, firmware, printer or scanner driver, login or network plugin, or a background service with no app | Cannot work in a box. An .rpm can be added to the system (administrator password, after a restart, slower system updates, and it does not update by itself). A .deb is refused, with the reason |
+| An optional background service, alongside an app | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
+| A background service the app needs: one its install switches on itself (Docker Desktop's, for example) | Cannot work in a box, so it is treated like a driver (next line) |
+| An app that runs as administrator (root), such as Timeshift: its own polkit rule or app grid entry starts it as root | Not installed. One window says it has to run as administrator on the system itself, which a box cannot give it, with only an OK button. Nothing is installed |
+| A driver, including driver source it builds when installed (VirtualBox), firmware, printer or scanner driver, login or network plugin, or a background service with no app | Cannot work in a box. An .rpm can be added to the system (administrator password, after a restart, slower system updates, and it does not update by itself). A .deb is refused, with the reason |
 
 **Printer drivers.** Most printers need no driver: they show up by themselves in
 Settings, under Printers. So a printer driver first offers to open Printers and
@@ -332,7 +347,7 @@ What the build checks:
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
 - The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
-- The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads three real Fedora packages (an app, a background service and a hardware rule).
+- The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads four real Fedora packages (an app, a background service, a hardware rule and a download source).
 
 The release packages from Fedora also hold Fedora's lists of which services
 start by themselves (systemd presets). The rebrand step copies those lists out
