@@ -77,6 +77,7 @@ class Package:
         self.depends = ""         # requirements, as one lowercase string
         self.scripts = ""         # install scripts, as one lowercase string
         self.vendor = ""          # rpm Vendor or deb Maintainer, to name the maker
+        self.evr = ""             # version for comparing: rpm epoch:version-release; deb version (epoch included)
 
 
 def norm(p):
@@ -119,8 +120,9 @@ def read_rpm(pkg):
         if r.returncode != 0:
             raise ValueError(r.stderr.strip() or "rpm could not read it")
         return r.stdout
-    info = q("--qf", "%{NAME}\n%{VERSION}-%{RELEASE}\n%{ARCH}\n%{VENDOR}\n").split("\n")
+    info = q("--qf", "%{NAME}\n%{VERSION}-%{RELEASE}\n%{ARCH}\n%{VENDOR}\n%{EPOCHNUM}\n").split("\n")
     pkg.kind, pkg.name, pkg.version, pkg.arch, pkg.vendor = "rpm", info[0], info[1], info[2], info[3]
+    pkg.evr = f"{info[4] or 0}:{pkg.version}"
     pkg.nevra = f"{pkg.name}-{pkg.version}.{pkg.arch}"
     pkg.depends = q("--requires").lower()
     pkg.scripts = q("--scripts").lower()
@@ -168,6 +170,7 @@ def read_deb(pkg):
     pkg.version = fields.get("version", "").strip()
     pkg.arch = fields.get("architecture", "").strip()
     pkg.vendor = fields.get("maintainer", "").strip()
+    pkg.evr = pkg.version
     pkg.depends = " ".join(fields.get(k, "") for k in ("depends", "pre-depends")).lower()
     pkg.scripts = "\n".join(scripts).lower()
     read_tar(pkg, io.BytesIO(data), "r:*")
@@ -961,7 +964,8 @@ def after_restart():
         fix_launcher(f)
     left = []
     for e in pending():
-        if subprocess.run(["rpm", "-q", e["package"]], capture_output=True).returncode == 0:
+        have = host_version(e["package"])
+        if have and (not e.get("version") or have == e["version"]):
             if e.get("printer"):
                 notify(f"The printer driver {e['title']} is ready.")
                 if ask(f"The printer driver {e['title']} is ready.\n\nAdd your printer now? In Printers, choose "
@@ -978,6 +982,149 @@ def after_restart():
                 f"older version. Open the file again to add it.", "warning")
     pending(left)
     return 0
+
+
+# ---------------------------------------------------------------- already installed?
+
+def box_version(kind, name):
+    """Version of a package in its box ('' if not installed there, or no box)."""
+    box = BOXES[kind]["name"]
+    if not box_exists(box):
+        return ""
+    if kind == "rpm":
+        cmd = f"rpm -q --qf '%{{EPOCHNUM}}:%{{VERSION}}-%{{RELEASE}}' {shlex.quote(name)}"
+    else:
+        cmd = f"dpkg-query -W -f='${{db:Status-Status}} ${{Version}}' {shlex.quote(name)}"
+    r = subprocess.run(in_box(box, "sh", "-c", cmd), capture_output=True, text=True)
+    out = r.stdout.strip()
+    if r.returncode != 0 or not out:
+        return ""
+    if kind == "deb":
+        state, _, ver = out.partition(" ")
+        return ver if state == "installed" else ""
+    return out
+
+
+def host_version(name):
+    r = subprocess.run(["rpm", "-q", "--qf", "%{EPOCHNUM}:%{VERSION}-%{RELEASE}", name], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def compare(kind, a, b):
+    """-1, 0 or 1 as version a is older, the same or newer than b."""
+    if a == b:
+        return 0
+    if kind == "rpm":
+        lua = f"%{{lua: print(rpm.vercmp('{a}', '{b}'))}}"
+        r = subprocess.run(["rpm", "--eval", lua], capture_output=True, text=True)
+        try:
+            return max(-1, min(1, int(r.stdout.strip())))
+        except ValueError:
+            return 0
+    box = BOXES["deb"]["name"]
+    for op, res in (("lt", -1), ("gt", 1)):
+        if subprocess.run(in_box(box, "dpkg", "--compare-versions", a, op, b), capture_output=True).returncode == 0:
+            return res
+    return 0
+
+
+def plain_version(v):
+    """Version without the leading epoch and release noise people do not need to see ('0:1.2-3' -> '1.2-3')."""
+    return re.sub(r"^\d+:", "", v)
+
+
+def flatpak_installed(app_id):
+    return bool(app_id) and subprocess.run(["flatpak", "info", app_id], capture_output=True).returncode == 0
+
+
+def norm_name(s):
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def open_app(entry):
+    """Start an installed app the way its app grid entry does."""
+    try:
+        if entry["where"] == "flathub":
+            subprocess.Popen(["flatpak", "run", entry["package"]], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        for a in entry.get("apps", []):
+            f = HOME / ".local/share/applications" / f"{entry['where']}-{os.path.basename(a)}"
+            if f.exists():
+                subprocess.Popen(["gio", "launch", str(f)], start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+    except OSError:
+        pass
+    return False
+
+
+def already_installed(pkg, info, title):
+    """Check whether this app is installed already, and ask what to do. Returns (go_on, mode, exit code):
+    mode is 'install', 'reinstall', 'update' or 'older' when going on."""
+    records = load()
+    ours = BOXES[pkg.kind]["name"]
+
+    # 1. On the system itself
+    hv = host_version(pkg.name) if pkg.kind == "rpm" else ""
+    if hv:
+        mine = next((r for r in records if r["where"] == "system" and r["package"] == pkg.name), None)
+        if not mine:
+            say(f"{title} is already part of your system (version {plain_version(hv)}).")
+            return False, "", 0
+        c = compare("rpm", pkg.evr, hv)
+        if c <= 0:
+            say(f"{title} is already on the system (version {plain_version(hv)}). "
+                f"{'This file is the same version.' if c == 0 else 'This file is an older version.'}")
+            return False, "", 0
+        if ask(f"Update {title} on the system from version {plain_version(hv)} to {plain_version(pkg.evr)}?\n\n"
+               f"This needs the administrator password and takes effect after a restart.", ok="Update") != "ok":
+            return False, "", 1
+        return True, "system-update", 0
+
+    # 2. In its box
+    bv = box_version(pkg.kind, pkg.name)
+    if bv:
+        mine = next((r for r in records if r["where"] == ours and r["package"] == pkg.name),
+                    {"title": title, "where": ours, "apps": list(info["apps"])})
+        c = compare(pkg.kind, pkg.evr, bv)
+        where = BOXES[pkg.kind]["label"]
+        if c == 0:
+            a = ask(f"{title} is already installed in the {where} (version {plain_version(bv)}).",
+                    ok="Open it", extra="Reinstall")
+            if a == "ok":
+                if not open_app(mine):
+                    say(f"{title} has no app grid entry to open. Run it inside the box: distrobox enter {ours}")
+                return False, "", 0
+            return (True, "reinstall", 0) if a == "extra" else (False, "", 1)
+        if c > 0:
+            if ask(f"Update {title} in the {where} from version {plain_version(bv)} to {plain_version(pkg.evr)}?",
+                   ok="Update") != "ok":
+                return False, "", 1
+            return True, "update", 0
+        if ask(f"This file is an older version of {title} ({plain_version(pkg.evr)}) than the one installed in the "
+               f"{where} ({plain_version(bv)}).", ok="Install the older version") != "ok":
+            return False, "", 1
+        return True, "older", 0
+
+    # 3. From Flathub, or 4. in the other box (same app name)
+    want = {norm_name(title), norm_name(pkg.name)}
+    for r in records:
+        if r["where"] == "flathub" and (norm_name(r["title"]) in want) and flatpak_installed(r["package"]):
+            a = ask(f"{r['title']} is already installed from Flathub.", ok="Open it", extra="Install the file too")
+            if a == "ok":
+                open_app(r)
+                return False, "", 0
+            return (True, "install", 0) if a == "extra" else (False, "", 1)
+        if r["where"] in (BOXES["rpm"]["name"], BOXES["deb"]["name"]) and r["where"] != ours and \
+                norm_name(r["title"]) in want:
+            other = WHERE.get(r["where"], r["where"])
+            a = ask(f"{r['title']} is already installed in the {other}.", ok="Open it", extra="Install it here too")
+            if a == "ok":
+                open_app(r)
+                return False, "", 0
+            return (True, "install", 0) if a == "extra" else (False, "", 1)
+    return True, "install", 0
 
 
 # ---------------------------------------------------------------- install
@@ -1029,11 +1176,24 @@ def install(path):
                 f"Look for the version for {'amd64 or x86_64' if machine == 'x86_64' else machine}.", "warning")
         return 1
 
-    if pkg.kind == "rpm" and subprocess.run(["rpm", "-q", pkg.name], capture_output=True).returncode == 0:
-        say(f"{title} is already part of your system.")
-        return 0
+    go_on, mode, code = already_installed(pkg, info, title)
+    if not go_on:
+        return code
+    if mode == "system-update":
+        return install_system(pkg, title, "a printer driver" in info["blocking"], update=True)
+    if mode != "install":
+        return box_install(pkg, info, title, mode=mode)
 
     match = None if info["rules_only"] else flathub_match(pkg, info)
+    if match and flatpak_installed(match[0]):
+        app_id, name = match
+        a = ask(f"{name} is already installed from Flathub.", ok="Open it", extra="Install the file too")
+        if a == "ok":
+            open_app({"where": "flathub", "package": app_id})
+            return 0
+        if a != "extra":
+            return 1
+        match = None
     if match:
         app_id, name = match
         answer = ask(f"{name} is on Flathub, the app store this system uses. Apps from Flathub update on their own "
@@ -1129,20 +1289,25 @@ def staged_copy(pkg):
     return dest
 
 
-def box_install(pkg, info, title, quiet=False):
-    """Install into the box, which exists. quiet: no questions or messages (used by repair)."""
+def box_install(pkg, info, title, quiet=False, mode="install"):
+    """Install into the box, which exists. quiet: no questions or messages (used by repair).
+    mode: install, reinstall (same version again), update (newer file) or older (an older file)."""
     label = BOXES[pkg.kind]["label"]
     box = BOXES[pkg.kind]["name"]
     f = str(staged_copy(pkg))
     ensure_helpers(pkg.kind, quiet=quiet)      # boxes made before the helpers were part of the setup
     rules_before = box_rules(box)
+    doing = {"reinstall": "Reinstalling", "update": "Updating", "older": "Installing the older version of"
+             }.get(mode, "Installing")
     if pkg.kind == "rpm":
-        steps = [(f"Installing {title}", in_box(box, "sudo", "dnf", "-y", "install", f))]
+        verb = {"reinstall": "reinstall", "older": "downgrade"}.get(mode, "install")
+        steps = [(f"{doing} {title}", in_box(box, "sudo", "dnf", "-y", verb, f))]
     else:
+        extra = {"reinstall": ["--reinstall"], "older": ["--allow-downgrades"]}.get(mode, [])
         steps = [("Getting Ubuntu's list of packages", in_box(box, "sudo", "apt-get", "update")),
-                 (f"Installing {title}",
-                  in_box(box, "sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", f))]
-    if not run_steps(f"Installing {title} in the {label}.", steps):
+                 (f"{doing} {title}",
+                  in_box(box, "sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *extra, f))]
+    if not run_steps(f"{doing} {title} in the {label}.", steps):
         if quiet:
             return 1
         if not box_works(box):
@@ -1156,8 +1321,9 @@ def box_install(pkg, info, title, quiet=False):
         return failed(f"Installing {title}")
     apps, bins = export(box, info)
     new_box_rules(box, rules_before, info)
-    entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins, "rules": False,
-             "file": f}
+    old = next((r for r in load() if r["where"] == box and r["package"] == pkg.name), {})
+    entry = {"title": title, "package": pkg.name, "where": box, "apps": apps, "bins": bins,
+             "rules": bool(old.get("rules")), "file": f, "version": pkg.evr}
     remember(entry)
     extra = ""
     if quiet:
@@ -1178,8 +1344,10 @@ def box_install(pkg, info, title, quiet=False):
         where = "Run it from a terminal: " + ", ".join(os.path.basename(b) for b in bins)
     else:
         where = f"It has no app or command of its own. Use it inside the box: distrobox enter {box}"
-    notify(f"{title} is installed.")
-    say(f"{title} is installed. {where}{extra}")
+    done = {"reinstall": "is reinstalled", "update": f"is updated to version {plain_version(pkg.evr)}",
+            "older": f"is now version {plain_version(pkg.evr)}"}.get(mode, "is installed")
+    notify(f"{title} {done}.")
+    say(f"{title} {done}. {where}{extra}")
     return 0
 
 
@@ -1196,21 +1364,29 @@ def offer_restart(text):
         subprocess.run(["systemctl", "reboot"])
 
 
-def install_system(pkg, title, printer=False):
+def install_system(pkg, title, printer=False, update=False):
     f = str(staged_copy(pkg))
-    notify(f"Adding {title} to the system. This can take a few minutes; a progress window shows it.")
-    if not run_steps(f"Adding {title} to the system. This can take a few minutes.",
-                     [["rpm-ostree", "install", "--idempotent", f]]):
-        failed(f"Adding {title} to the system")
+    if update:      # the layered file is swapped for the newer one in one step
+        old = next((r for r in load() if r["where"] == "system" and r["package"] == pkg.name), {})
+        cmd = ["rpm-ostree", "uninstall", old.get("nevra") or pkg.name, "--install", f]
+        what = f"Updating {title} on the system. This can take a few minutes."
+    else:
+        cmd = ["rpm-ostree", "install", "--idempotent", f]
+        what = f"Adding {title} to the system. This can take a few minutes."
+    notify(f"{what.split('.')[0]}. A progress window shows it.")
+    if not run_steps(what, [cmd]):
+        failed(f"{'Updating' if update else 'Adding'} {title} {'on' if update else 'to'} the system")
         return 1
-    remember({"title": title, "package": pkg.name, "nevra": pkg.nevra, "where": "system"})
+    remember({"title": title, "package": pkg.name, "nevra": pkg.nevra, "where": "system", "version": pkg.evr})
     # checked once at the next login: is it really there, and for a printer driver, add the printer
     pending([e for e in pending() if e["package"] != pkg.name] + [{"title": title, "package": pkg.name,
-                                                                  "printer": printer}])
-    after = "After the restart, you will be asked to add your printer." if printer else \
+                                                                  "printer": printer and not update,
+                                                                  "version": pkg.evr}])
+    after = "After the restart, you will be asked to add your printer." if printer and not update else \
         "After the restart, you will be told when it is ready."
-    notify(f"{title} is added. Restart to use it.")
-    offer_restart(f"{title} is added to the system. Restart to use it.\n\n{after}")
+    done = f"is updated to version {plain_version(pkg.evr)}" if update else "is added to the system"
+    notify(f"{title} {done}. Restart to use it.")
+    offer_restart(f"{title} {done}. Restart to use it.\n\n{after}")
     return 0
 
 
