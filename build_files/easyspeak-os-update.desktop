@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=System Update
+Comment=Update the system, Flatpak apps, Distrobox containers and Homebrew
+Icon=software-update-available-symbolic
+Categories=System;
+Keywords=update;upgrade;uupd;
+Exec=/usr/bin/easyspeak-os-update
+Terminal=false

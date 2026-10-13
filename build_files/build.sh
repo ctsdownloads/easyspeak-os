@@ -10,9 +10,18 @@ xargs -a /ctx/bluefin-packages.txt dnf5 -y install
 # remove only GNOME Software's OS-update plugin, as Bluefin does; the Software app itself stays.
 # Update by hand any time:  sudo uupd
 curl -fsSL --retry 3 "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-$(rpm -E %fedora)/ublue-os-packages-fedora-$(rpm -E %fedora).repo" -o /etc/yum.repos.d/ublue-os-packages.repo
-dnf5 -y install uupd ublue-brew
+dnf5 -y install uupd ublue-brew ublue-os-just
 rm -f /etc/yum.repos.d/ublue-os-packages.repo
 dnf5 -y remove gnome-software-rpm-ostree
+# The rpm-ostree plugin is also what switches off GNOME Software's dnf plugin. Without it, the dnf plugin would offer
+# dnf package updates, which cannot apply to an image. Remove that plugin too: GNOME Software then handles Flatpak
+# apps and firmware only, and uupd is the one OS updater.
+rm -f /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so
+ls /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so >/dev/null 2>&1 && { echo "ERROR: GNOME Software's dnf plugin is still installed"; exit 1; }
+command -v ujust >/dev/null || { echo 'ERROR: ujust is missing'; exit 1; }
+# System Update in the app grid: runs uupd now, with a progress window. uupd's own polkit rule lets it run without a password.
+install -Dm755 /ctx/easyspeak-os-update /usr/bin/easyspeak-os-update
+install -Dm644 /ctx/easyspeak-os-update.desktop /usr/share/applications/easyspeak-os-update.desktop
 # Services that must be on by default, also after a first boot (which applies these preset rules):
 # EasySpeak-OS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
 printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
@@ -89,6 +98,13 @@ grep -qF "didn't understand" "$core/main.py" || { echo "EasySpeak log line chang
 cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os /usr/share/gnome-shell/extensions/
 install -Dm755 /ctx/system_files/usr/libexec/easyspeak-os-ready-dot-enable /usr/libexec/easyspeak-os-ready-dot-enable
 install -Dm644 /ctx/system_files/etc/xdg/autostart/easyspeak-os-ready-dot.desktop /etc/xdg/autostart/easyspeak-os-ready-dot.desktop
+# Voice command "update system": a plugin file in EasySpeak's own plugin folder; EasySpeak itself is unchanged.
+# Fail the build if a new EasySpeak release would no longer load it the way EasySpeak loads its own plugins.
+plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
+[ -d "$plugins" ] || { echo "ERROR: EasySpeak's plugin folder was not found"; exit 1; }
+install -Dm644 /ctx/easyspeak_os_update.py "$plugins/easyspeak_os_update.py"
+py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
+"$py" /ctx/check-easyspeak-plugin.py "$plugins" || { echo 'ERROR: EasySpeak would not load the update plugin'; exit 1; }
 
 # Offline cheat sheet of EasySpeak's commands (and the phrase list for the "did you mean" card),
 # from its docs for the installed version. If anything here fails, the image still builds,
