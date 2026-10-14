@@ -50,6 +50,13 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from the app grid |
 
+## System requirements
+
+- **Minimum:** 8 GB RAM. EasySpeak's speech model (Parakeet) alone uses about
+  1.3 GB while it runs, on top of the desktop.
+- **Recommended:** 16 GB RAM, especially if you use apps from .rpm or .deb files,
+  since each app box adds to memory use.
+
 ## Install
 
 You need an existing Fedora Atomic system (Silverblue, Bluefin or similar) and
@@ -124,9 +131,10 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   **System Update**, the same window as in the app grid. This command comes from EasySpeak-OS,
   as a plugin added to EasySpeak's plugin folder, and works in English only.
 - **Install and remove apps by voice.** Say "install a package" to open
-  **Install Package File**, "remove an app" to open **Remove Apps**, or "repair
-  app boxes" to open **Repair App Boxes**. These also come from EasySpeak-OS as
-  a plugin, in English only.
+  **Install Package File**, "remove an app" to open **Remove Apps**, "repair
+  app boxes" to open **Repair App Boxes**, or "start apps at login" to open
+  **Start Apps at Login**. These also come from EasySpeak-OS as a plugin, in
+  English only.
 - **Answer EasySpeak-OS windows by voice.** While an EasySpeak-OS window is open
   (Install Package File, Remove Apps, Repair App Boxes, System Update, Install
   Media Codecs), say a button's name to press it: "set up and install", "open
@@ -136,7 +144,11 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   one of its buttons. When no such window is open, these words do nothing, so
   they never get in the way of other commands. English only.
 - **The EasySpeak-OS commands are in the help.** "help", the cheat sheet and the
-  "did you mean" card include them, in their own EasySpeak-OS section. The list is
+  "did you mean" card include them, in two sections of their own: **EasySpeak-OS**
+  (update system, reading and answering windows) and **Software** (installing,
+  removing and repairing apps, starting apps at login, and the buttons of those
+  windows by name: ok, cancel, install, remove, use Flathub, delete the box and
+  the rest). The list is
   read from the plugins when the image is built, so a new command shows up there
   without anyone remembering to add it.
 - **Command cheat sheet.** Open **EasySpeak Commands** from the app grid. The
@@ -182,13 +194,23 @@ you pick is downloaded and installed like any file, and System Update keeps it
 up to date from that source. The source shows in Remove Apps as
 "… (download source)".
 
+**Start Apps at Login** (in the app grid, or "start apps at login") lists the
+apps from .rpm and .deb files and whether each starts when you log in; choose one
+to switch it. Some apps have their own "open at login" setting (Discord does). In
+a box, that setting would point at a path that only exists inside the box, so at
+login nothing would happen. At login, such an entry is pointed at the box and the
+app is started.
+
 **One at a time.** If another install or removal is running, the window names it
 ("Installing Discord in the Ubuntu box"), waits for it to finish, then goes on.
 It has a Cancel button.
 
-**Deleting an empty box.** When you remove the last app from a box, it offers
-to delete the box and says how much space that frees; the box is set up again by
-itself the next time it is needed.
+**Disk space.** The first-time window says how much disk space the box uses.
+Before a box is set up or an app installed, it checks the free space and, if it
+is too low, says how much is free and how much is needed, with **Try anyway** or
+Cancel. Remove Apps shows how much space each box uses. When you remove the last
+app from a box, it offers to delete the box and says how much space that frees;
+the box is set up again by itself the next time it is needed.
 
 Each box also gets two small desktop parts that apps from these files expect and
 a fresh box lacks: zenity, for progress windows (Discord's first start downloads
@@ -314,8 +336,8 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
-| `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app" and "repair app boxes" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
-| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps** and **Repair App Boxes**, and the setting that opens .rpm and .deb files in them |
+| `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app", "repair app boxes" and "start apps at login" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
+| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `easyspeak-os-login-apps.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps**, **Repair App Boxes** and **Start Apps at Login**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
 | `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeak-OS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
 | `build_files/os-commands.py` | Reads the EasySpeak-OS voice commands from the plugins for the help overlay, the cheat sheet and "did you mean" |

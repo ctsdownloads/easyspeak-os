@@ -3,7 +3,7 @@
 
 usage: make-cheatsheet.py COMMANDS.md OUT.html VERSION [EASYSPEAK-OS.json]
 EASYSPEAK-OS.json lists the EasySpeak-OS voice commands ([{"say": ..., "does": ...}], from os-commands.py); they
-become an "EasySpeak-OS" section, shown with the everyday ones. A "say" in [brackets] describes what to say
+become their own sections ("EasySpeak-OS", "Software"), shown with the everyday ones. A "say" in [brackets] describes what to say
 rather than being the words themselves, so it is shown but never offered by "did you mean".
 Only the Python standard library is used.
 """
@@ -145,7 +145,7 @@ Full docs: https://easyspeak.dev/</footer>
 
 
 # Everyday commands first; anything not listed keeps the document's order after them.
-FIRST = ("General", "EasySpeak-OS", "Apps", "Files", "Media", "System")
+FIRST = ("General", "EasySpeak-OS", "Software", "Apps", "Files", "Media", "System")
 
 
 def order(cards):
@@ -180,7 +180,8 @@ def main():
         sys.exit(f"cheat sheet: only {len(cards)} sections found, the doc format may have changed")
     if len(sys.argv) == 5:
         extra = json.load(open(sys.argv[4], encoding="utf-8"))
-        cards.append(("EasySpeak-OS", [(r["say"], r["does"]) for r in extra]))
+        for title in dict.fromkeys(r.get("section", "EasySpeak-OS") for r in extra):   # in order, each once
+            cards.append((title, [(r["say"], r["does"]) for r in extra if r.get("section", "EasySpeak-OS") == title]))
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(render(cards, version))

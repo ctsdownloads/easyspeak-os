@@ -26,7 +26,7 @@ const CARD_SECONDS = 7;
 const HELP_SECONDS = 90;
 
 // What can be said right after "Hey Jarvis", plus the words that enter a mode.
-const MAIN_SECTIONS = ['General', 'EasySpeak-OS', 'Apps', 'Files', 'Media', 'System'];
+const MAIN_SECTIONS = ['General', 'EasySpeak-OS', 'Software', 'Apps', 'Files', 'Media', 'System'];
 const ENTRY_WORDS = ['grid', 'browser', 'notes', 'start tracking'];
 const DATA_DIRS = [
     `${GLib.get_user_data_dir()}/easyspeak-os`,
