@@ -26,6 +26,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 
 <!-- contents -->
 - [Status](#status)
+- [Who it's for](#who-its-for)
 - [What's in it](#whats-in-it)
 - [System requirements](#system-requirements)
 - [Install](#install)
@@ -71,6 +72,25 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 
 It has been used on the author's own machine only. It is not an official
 Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
+
+## Who it's for
+
+EasySpeak-OS is for people who can see the screen and speak clearly in English,
+but find a keyboard and mouse hard to use, for example because of RSI,
+arthritis, a tremor or limited hand movement.
+
+By voice, they can:
+
+- open common apps
+- browse the web
+- point and click anywhere on the screen
+- dictate text
+- update the system
+- install, remove and repair apps
+
+Setting it up takes someone comfortable with a terminal: the [install](#install)
+and the [first login](#first-login) steps are typed. After that, everyday use is
+by voice.
 
 ## What's in it
 
