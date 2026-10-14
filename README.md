@@ -34,6 +34,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
   - [Verifying the signature](#verifying-the-signature)
   - [First login](#first-login)
 - [Using it](#using-it)
+  - [What works by voice](#what-works-by-voice)
 - [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files)
   - [Installing an app](#installing-an-app)
   - [Apps that go on the system](#apps-that-go-on-the-system)
@@ -79,18 +80,11 @@ EasySpeak-OS is for people who can see the screen and speak clearly in English,
 but find a keyboard and mouse hard to use, for example because of RSI,
 arthritis, a tremor or limited hand movement.
 
-By voice, they can:
+Most everyday things work by voice. Some still need typing, mainly passwords.
+[What works by voice](#what-works-by-voice) lists both.
 
-- open common apps
-- browse the web
-- point and click anywhere on the screen
-- dictate text
-- update the system
-- install, remove and repair apps
-
-Setting it up takes someone comfortable with a terminal: the [install](#install)
-and the [first login](#first-login) steps are typed. After that, everyday use is
-by voice.
+Someone comfortable with a terminal has to set it up: the [install](#install)
+and the [first login](#first-login) steps are typed.
 
 ## What's in it
 
@@ -216,6 +210,31 @@ the dock, or press the Super key twice. The EasySpeak-OS tools are there.
   without anyone remembering to add it.
 - **Command cheat sheet.** Open **EasySpeak Commands** from Show Apps. The
   everyday commands are open and the long mode sections are folded.
+
+### What works by voice
+
+| To | By voice? | How |
+|----|-----------|-----|
+| Open an app | Yes, from a fixed list | "open firefox", "open files", "open settings", "open software", "open calculator", "open editor" and the others in EasySpeak's list. Apps you install yourself are not on it |
+| Browse the web | Yes, in qutebrowser | "browser", then link numbers, "search …", "go to …" and tabs. In Firefox, only with grid mode |
+| Click anything on screen | Yes, but slowly | "grid", numbers to zoom in, then "click" |
+| Type text | Yes | "dictation", into the field that has focus. Click the field first with grid mode or a link number |
+| Volume, brightness, music, folders | Yes | "volume up", "pause", "open downloads" and so on |
+| Install from an .rpm or .deb file in Downloads | Yes | "install a package", "number one" for the file, then say the buttons. If the Software app has the same app, it offers that instead |
+| Install from the Software app (Flathub) | Yes, but slowly | "open software", then grid mode to click the search box, dictation for the name, and grid mode to click Install |
+| Add an app to the system | Partly | The same windows, but the administrator password is typed |
+| Remove an app | Yes, if Install Package File installed it | "remove an app". Apps from the Software app are removed there, with grid mode |
+| Repair app boxes, or choose apps that start at login | Yes | "repair app boxes", "start apps at login" |
+| Update everything (system, Flatpaks, app boxes) | Yes | Automatic, or "update system" |
+| Media codecs | Partly | Answer the window by voice. Outside first-time setup, the administrator password is typed |
+
+**Still typed:**
+
+- the password to log in and to unlock the screen
+- the administrator password, when adding an app to the system or installing
+  codecs later
+- the install and first-login setup
+- Homebrew, and anything else in a terminal
 
 ## Apps from .rpm and .deb files
 
