@@ -1200,6 +1200,7 @@ UPDATES_NO = ("Updates: System Update cannot update it, because it came from a f
               "offer their own updates; otherwise, to update it, open a newer file here.")
 UPDATES_FLATHUB = "Updates: System Update keeps it up to date."
 # The system keeps a package added from a file at that file's version, even if the package adds a download source
+UPDATES_FEDORA = "System Update keeps it up to date, from Fedora."
 UPDATES_SYSTEM = "System Update does not update it, because it was added from a file: to update it, open a newer " \
                  "file here."
 
@@ -1473,6 +1474,10 @@ def already_installed(pkg, info, title):
         mine = next((r for r in records if r["where"] == "system" and r["package"] == pkg.name), None)
         if not mine:
             say(f"{title} is already part of your system (version {plain_version(hv)}).")
+            return False, "", 0
+        if mine.get("from_fedora"):
+            say(f"{title} is already on the system (version {plain_version(hv)}), installed from Fedora. "
+                f"System Update keeps it up to date, so this file is not needed.")
             return False, "", 0
         c = compare("rpm", pkg.evr, hv)
         if c <= 0:
@@ -1891,7 +1896,56 @@ def offer_restart(text):
         subprocess.run(["systemctl", "reboot"])
 
 
+def fedora_package_version(name):
+    """Version of the package `name` in Fedora's own repos (fedora, updates), or '' if Fedora does not have it or
+    it cannot be checked (offline, no dnf). Third-party repos are left out on purpose."""
+    dnf = shutil.which("dnf5") or shutil.which("dnf")
+    if not dnf:
+        return ""
+    out = CACHE / "fedora-query.txt"
+    out.unlink(missing_ok=True)
+    query = (f"{shlex.quote(dnf)} -q repoquery --repo=fedora,updates --latest-limit=1 "
+             f"--arch={platform.machine()},noarch --queryformat='%{{version}}-%{{release}}\\n' "
+             f"{shlex.quote(name)} > {shlex.quote(str(out))}")
+    if not run_steps(f"Checking whether Fedora has {name}.", [["timeout", "180", "sh", "-c", query]]):
+        return ""
+    try:
+        return next((l.strip() for l in out.read_text().splitlines() if l.strip()), "")
+    except OSError:
+        return ""
+
+
+def install_from_fedora(pkg, title, printer, version):
+    """Add the package to the system from Fedora's repos by name, so System Update keeps it up to date."""
+    what = f"Adding {title} to the system from Fedora. This can take a few minutes."
+    notify(f"Adding {title} to the system from Fedora. A progress window shows it.")
+    if not run_steps(what, [["rpm-ostree", "install", "--idempotent", pkg.name]]):
+        failed(f"Adding {title} to the system")
+        return 1
+    remember({"title": title, "package": pkg.name, "where": "system", "from_fedora": True,
+              "version": version})
+    pending([e for e in pending() if e["package"] != pkg.name] + [{"title": title, "package": pkg.name,
+                                                                  "printer": printer}])
+    after = "After the restart, you will be asked to add your printer." if printer else \
+        "After the restart, you will be told when it is ready."
+    notify(f"{title} is added to the system. Restart to use it.")
+    offer_restart(f"{title} is added to the system from Fedora. Restart to use it.\n\n{after}\n\n"
+                  f"Updates: {UPDATES_FEDORA}")
+    return 0
+
+
 def install_system(pkg, title, printer=False, update=False):
+    if not update and pkg.kind == "rpm":
+        version = fedora_package_version(pkg.name)
+        if version:
+            answer = ask(f"Fedora has {title} too (version {plain_version(version)}; your file is version "
+                         f"{plain_version(pkg.evr)}).\n\nInstalled from Fedora, System Update keeps it up to date. "
+                         f"Installed from your file, it never updates by itself.",
+                         ok="Install from Fedora", cancel="Cancel", extra="Use the file")
+            if answer == "ok":
+                return install_from_fedora(pkg, title, printer, version)
+            if answer != "extra":
+                return 1
     f = str(staged_copy(pkg))
     if update:      # the layered file is swapped for the newer one in one step
         old = next((r for r in load() if r["where"] == "system" and r["package"] == pkg.name), {})

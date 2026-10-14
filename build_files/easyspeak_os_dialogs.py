@@ -33,7 +33,7 @@ HELP_SOFTWARE = [
     "ok / cancel / yes / no - press that button in a software window",
     "install / remove / reinstall / update - install, remove or update the app the window shows",
     "set up and install - set up the app box the first time, then install",
-    "use flathub / use the file - choose where to install the app from",
+    "use flathub / install from fedora / use the file - choose where to install the app from",
     "add to the system / try anyway / open it - the other software window buttons",
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
 ]
