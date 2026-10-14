@@ -46,6 +46,9 @@ jobs:
         run: |
           just check
 
+      - name: Check README and help
+        run: python3 build_files/check-docs.py
+
       - name: Image Name
         id: image-name
         run: |
