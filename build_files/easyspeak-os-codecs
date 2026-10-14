@@ -64,7 +64,7 @@ ask() {   # prints web or full, or nothing for "Not now"
   else note="Either choice asks for your administrator password next."; fi
   out=$($DIALOG --question --title="Install Media Codecs" --width=600 \
         --ok-label="Web video only" --extra-button="Everything" --cancel-label="Not now" \
-        --text="Some audio and video formats are covered by patents in some countries. Fedora, and this system, leave them out. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: Cisco's OpenH264 for Firefox, provided under Cisco's own patent license.\n\nEverything: the full ffmpeg, x264 and x265 from RPM Fusion (rpmfusion.org).\n\n$note" 2>/dev/null); rc=$?
+        --text="Some video formats (like most web video) need extra codecs that Fedora, and this system, leave out because of patents in some countries. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: lets Firefox play most web video. A small addition to the system.\n\nEverything: plays all common video and audio, in every app. It replaces some parts of the system, so system updates take a little longer.\n\nNot now: you can open Install Media Codecs from Show Apps any time.\n\nPick by what you need. If you only watch video in Firefox, Web video only is enough.\n\n$note" 2>/dev/null); rc=$?
   if [ "$rc" -eq 0 ]; then say web; elif [ "$out" = "Everything" ]; then say full; fi
 }
 
@@ -73,14 +73,14 @@ install_with_window() {   # $1 = web or full
   run_helper "$1" >"$log" 2>&1 &
   pid=$!
   ( while kill -0 "$pid" 2>/dev/null; do echo; sleep 1; done; echo 100 ) | \
-    zenity --progress --pulsate --auto-close --no-cancel --title="Install Media Codecs" --text="Installing. This can take a few minutes." || true
+    zenity --progress --pulsate --auto-close --no-cancel --title="Install Media Codecs" --text="Installing the codecs. This can take a few minutes." || true
   wait "$pid"; rc=$?
   if [ "$rc" -eq 0 ]; then
     $DIALOG --question --title="Install Media Codecs" --ok-label="Restart now" --cancel-label="Later" \
-      --text="Done. Restart to finish." && systemctl reboot
+      --text="The codecs are installed.\n\nRecommended: Restart now to start using them. Or Later." && systemctl reboot
   else
     $DIALOG --error --title="Install Media Codecs" --width=520 \
-      --text="It did not work, and nothing was changed.\n\n$(sed -n '/^error:/,$p' "$log" | head -n 10 | head -c 900)\n\nThe full text is in the system log:  journalctl -t easyspeak-os-codecs"
+      --text="It didn't work, and nothing was changed.\n\n$(sed -n '/^error:/,$p' "$log" | head -n 10 | head -c 900)\n\nTry again later."
   fi
   rm -f "$log"
 }

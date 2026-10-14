@@ -118,8 +118,8 @@ while True:
 }
 pulse=(); can_read_log || pulse=(--pulsate)
 rcfile=$(mktemp); followfile=$(mktemp)
-text="Updating the system, apps and containers. This can take a while."
-auto_running && text="The automatic update is already running. Following it until it is done. This can take a while."
+text="Updating everything: the system, your apps and the app boxes. This can take a while. You can keep working."
+auto_running && text="The automatic update is already running, so this window follows it until it's done. You can keep working."
 (
   stop_steps() { [ -n "${spid:-}" ] && { pkill -P "$spid" 2>/dev/null; kill "$spid" 2>/dev/null; }; spid=""; }
   if auto_running; then
@@ -134,7 +134,7 @@ auto_running && text="The automatic update is already running. Following it unti
   while kill -0 "$upid" 2>/dev/null; do
     if [ -s "$followfile" ] && [ -z "${switched:-}" ]; then
       switched=1; stop_steps
-      echo "# The automatic update was already running. Following it until it is done."
+      echo "# The automatic update is already running, so this window follows it until it's done. You can keep working."
       can_read_log && { steps "$AUTO" & spid=$!; }
     fi
     sleep 1
@@ -152,24 +152,24 @@ notify() { command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Sys
 
 failed=""; [ "$rc" -ne 0 ] && failed=$(failed_parts "$start")
 if [ "$rc" -ne 0 ] && [ -z "$failed" ]; then
-  notify "The update did not finish."
+  notify "The update didn't finish."
   $DIALOG --error --title="System Update" --width=480 \
-    --text="The update did not finish.\n\nDetails are in the system log:  journalctl -u $SERVICE"
+    --text="The update didn't finish. Nothing is broken: your computer keeps running the version it has.\n\nTry again later."
   exit 1
 fi
-note=""; [ -n "$failed" ] && note="Updated, except: $failed\nDetails:  journalctl -u $SERVICE\n\n"
+note=""; [ -n "$failed" ] && note="Everything updated except: $failed. Nothing is broken. It tries again at the next update.\n\n"
 # Boxes did not update: offer to check the app boxes from Install Package File and repair one that is broken.
 if [[ "$failed" == *Distroboxes* ]] && [ -x /usr/bin/easyspeak-os-packages ]; then
   $DIALOG --question --title="System Update" --width=480 --ok-label="Check the boxes" --cancel-label="Not now" \
-    --text="Some boxes (Distrobox) did not update.\n\nCheck the app boxes from Install Package File, and repair one if it is broken?" \
+    --text="Some app boxes didn't update.\n\nRecommended: Check the boxes. It checks them and repairs one that's broken. Your files aren't touched.\n\nOr Not now." \
     && /usr/bin/easyspeak-os-packages repair --if-broken
 fi
 if staged; then
-  notify "${failed:+Updated, except: $failed. }A new system is ready. Restart to use it."
+  notify "${failed:+Everything updated except: $failed. }A new system is ready. Restart to use it."
   $DIALOG --question --title="System Update" --width=480 --ok-label="Restart now" --cancel-label="Later" \
-    --text="${note}A new system is ready. Restart to use it." && systemctl reboot
+    --text="${note}A new system is ready.\n\nRecommended: Restart now to start using it. Or Later, if you're in the middle of something." && systemctl reboot
 elif [ -n "$failed" ]; then
-  notify "Updated, except: $failed"
+  notify "Everything updated except: $failed"
   $DIALOG --warning --title="System Update" --width=480 --text="${note%\\n\\n}"
 else
   notify "Done. Everything is up to date."
