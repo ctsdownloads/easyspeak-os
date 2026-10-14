@@ -22,6 +22,46 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 [![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#verifying-the-signature)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+## Contents
+
+<!-- contents -->
+- [Status](#status)
+- [What's in it](#whats-in-it)
+- [System requirements](#system-requirements)
+- [Install](#install)
+  - [Updating and rolling back](#updating-and-rolling-back)
+  - [Verifying the signature](#verifying-the-signature)
+  - [First login](#first-login)
+- [Using it](#using-it)
+- [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files)
+  - [Installing an app](#installing-an-app)
+  - [Apps that go on the system](#apps-that-go-on-the-system)
+  - [Install from Fedora](#install-from-fedora)
+  - [Restarting after adding to the system](#restarting-after-adding-to-the-system)
+  - [Updates](#updates)
+  - [Already installed](#already-installed)
+  - [Files that cannot be installed](#files-that-cannot-be-installed)
+  - [Download sources](#download-sources)
+  - [Printer drivers](#printer-drivers)
+  - [Start Apps at Login](#start-apps-at-login)
+  - [Removing apps](#removing-apps)
+  - [Repairing a box](#repairing-a-box)
+  - [Disk space](#disk-space)
+  - [One at a time](#one-at-a-time)
+  - [Progress and notifications](#progress-and-notifications)
+  - [Starting and stopping box apps](#starting-and-stopping-box-apps)
+  - [When something goes wrong](#when-something-goes-wrong)
+- [How it's built](#how-its-built)
+- [Media codecs](#media-codecs)
+  - [Passwords](#passwords)
+- [Boot menu name](#boot-menu-name)
+- [Known limitations](#known-limitations)
+- [Source code](#source-code)
+- [Credits](#credits)
+- [License](#license)
+- [Trademarks](#trademarks)
+<!-- /contents -->
+
 ## Status
 
 > ⚠️ **Pre-alpha.** This is a personal workstation image shared as-is.
@@ -43,12 +83,12 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 | ujust | Bluefin's command runner, for example `ujust update` |
 | Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale and Podman's automatic container updates, as on Bluefin |
 | Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
-| Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in the app grid offers them later. See [Media codecs](#media-codecs) |
-| Apps from .rpm and .deb files | **Install Package File** puts them in a box (Distrobox) and adds them to the app grid; **Remove Apps** takes them out. See [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files) |
+| Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in Show Apps offers them later. See [Media codecs](#media-codecs) |
+| Apps from .rpm and .deb files | **Install Package File** puts them in a box (Distrobox) and adds them to Show Apps; **Remove Apps** takes them out. See [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files) |
 | Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. The Flathub entry that comes with Fedora, which stays off until you opt in, is removed |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
-| Command cheat sheet | An offline page of EasySpeak's commands, opened from the app grid |
+| Command cheat sheet | An offline page of EasySpeak's commands, opened from Show Apps |
 
 ## System requirements
 
@@ -77,7 +117,7 @@ systemctl reboot
 Updates are automatic. Bluefin's updater, `uupd`, runs on its own timer and
 updates the system, Flatpaks, Distrobox containers and Homebrew. A new system
 image takes effect at the next reboot. To update by hand, open **System Update**
-from the app grid, which shows progress and offers a restart when a new system
+from Show Apps, which shows progress and offers a restart when a new system
 image is ready and needs no password. If the automatic update is already running
 when you open it, it says so and follows that update to the end instead of
 failing (only one update can run at a time). Or run:
@@ -117,6 +157,9 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 
 Say "Hey Jarvis", wait for the chime, then say a command.
 
+**Show Apps** is GNOME's list of all apps: the button with nine dots at the end of
+the dock, or press the Super key twice. The EasySpeak-OS tools are there.
+
 - **Ready Dot.** A dot in the top bar. Yellow: go ahead and speak, no wake word
   needed. Orange: EasySpeak is busy hearing, thinking or replying. No dot: it is
   waiting for the wake word.
@@ -128,7 +171,7 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   screen. It stays until you speak again, or for 90 seconds. EasySpeak will
   still say "Check the terminal"; ignore that.
 - **Update by voice.** Say "update system" (or "install updates") after the wake word to open
-  **System Update**, the same window as in the app grid. This command comes from EasySpeak-OS,
+  **System Update**, the same window as in Show Apps. This command comes from EasySpeak-OS,
   as a plugin added to EasySpeak's plugin folder, and works in English only.
 - **Install and remove apps by voice.** Say "install a package" to open
   **Install Package File**, "remove an app" to open **Remove Apps**, "repair
@@ -151,74 +194,228 @@ Say "Hey Jarvis", wait for the chime, then say a command.
   the rest). The list is
   read from the plugins when the image is built, so a new command shows up there
   without anyone remembering to add it.
-- **Command cheat sheet.** Open **EasySpeak Commands** from the app grid. The
+- **Command cheat sheet.** Open **EasySpeak Commands** from Show Apps. The
   everyday commands are open and the long mode sections are folded.
 
 ## Apps from .rpm and .deb files
 
-The system is an image, so packages are not installed into it directly. Open an
-.rpm or .deb file (double-click it, open **Install Package File** from the app
-grid, or say "install a package"), and EasySpeak-OS:
+The system is an image, so apps from .rpm and .deb files are not installed into
+it directly. **Install Package File** puts them in a box, or on the system when
+they need it. Every window says what each button does, and marks the
+recommended one.
 
-1. Checks what the package contains, without installing anything. A package
-   made for a different kind of processor (ARM, or 32-bit only) is stopped here,
-   with the reason.
-2. Offers Flathub instead when Flathub has the same app, since Flathub apps
-   update on their own. It recognizes the app by the app ID the package itself
-   carries (Brave's file names `com.brave.Browser`), or by name. A looser name
-   match ("Brave Web Browser" and "Brave") is only used for apps Flathub has
-   verified as coming from their maker, so a look-alike is never offered.
-3. Puts .rpm files in a Fedora box and .deb files in an Ubuntu 24.04 box. Each
-   box is a Distrobox container, kept separate from any boxes of your own.
-4. Adds the app to the app grid. A package with no app gets its commands on your
-   `PATH` (`~/.local/bin`) instead.
+### Installing an app
 
-System Update keeps the boxes up to date, along with everything else.
+1. Open the file: double-click it, open **Install Package File** from Show Apps
+   and pick it from the list, or say "install a package".
+2. It checks what the file contains, without installing anything. A file it
+   cannot use stops here, with the reason (see
+   [Files that cannot be installed](#files-that-cannot-be-installed)).
+3. If the app is already installed, it says so and asks what to do (see
+   [Already installed](#already-installed)).
+4. If the Software app (Flathub) has the same app, the window says "{app} is in
+   the Software app (Flathub)":
+   - **Use Flathub** (recommended): installs it from Flathub. It updates by itself.
+   - **Use the file**: goes on with your download. It never updates.
+5. The window asks where it goes:
+   - **Set up and install** (recommended), or **Install** once the box is set
+     up: puts it in the box. Your system is not changed, and Remove Apps takes
+     it out cleanly. The first time, the window says how much it downloads and
+     how much disk space the box uses.
+   - **Add to the system**: shown when parts of the app will not work in a box.
+     The window lists them ("In the box, these will not work: …"). Needs your
+     password and a restart.
+6. The last window says where to find it ("Find it in Show Apps.") and how it
+   gets updates (see [Updates](#updates)).
 
-**Updates.** After an install, the last window says how the app gets updates:
+.rpm files go in the Fedora box and .deb files in the Ubuntu 24.04 box. Each box
+is a Distrobox container, kept separate from any boxes of your own. System
+Update keeps the boxes up to date, along with everything else.
 
-- "System Update keeps it up to date, from its maker's download source": the
-  package added its maker's download source to the box (Google Chrome and VS Code
-  do), so System Update updates it with the box.
-- "System Update cannot update it, because it came from a file": some apps, like
-  Discord, offer their own updates; otherwise, open a newer file to update it.
-- From Flathub: System Update keeps it up to date.
-- Added to the system from Fedora: System Update keeps it up to date.
-- Added to the system from the file: System Update does not update it, because the
-  system keeps a package added from a file at that file's version.
+The Software app is matched by the app ID the package itself carries (Brave's
+file names `com.brave.Browser`), or by name. A looser name match ("Brave Web
+Browser" and "Brave") is only used for apps Flathub has verified as coming from
+their maker, so a look-alike is never offered.
 
-**Packages that need the system, and Fedora has them too.** Before adding an .rpm
-to the system, it checks whether Fedora's own repositories have a package with the
-same name. If they do, it shows both versions and offers **Install from Fedora**
-(installed by name, so System Update keeps it up to date) or **Use the file** (it
-never updates by itself). Only Fedora's own repositories are checked, not
+### Apps that go on the system
+
+Some apps cannot work in a box. Then the window says "{app} has to go on the
+system, because it has: …", with **Add to the system** (needs your password and
+a restart; remove it any time with Remove Apps). A .deb cannot go on the system,
+so it is refused, with the reason.
+
+| The package has | What happens |
+|-----------------|--------------|
+| An app, command-line tools, a browser, most closed-source apps | Installed in the box |
+| A device rule (udev) that only sets device permissions | The app goes in the box and the rule goes on the system, with your password. A package that is only a rule (Fedora's `solaar-udev`, for example) shows "{app} only lets your account use a device", with **Add it** |
+| A device rule that runs a program | Not added. The app still goes in the box, and the window says the rule will not work |
+| An optional background service, alongside an app | The app goes in the box and the window says the service will not work there. An .rpm can be added to the system instead |
+| A background service the app needs: one its install switches on itself (Docker Desktop's, for example) | Has to go on the system, like a driver (next line) |
+| An app that runs as administrator (root), such as Timeshift: its own polkit rule or Show Apps entry starts it as root | Not installed. One window, with only an OK button, says "{app} can't be installed. It needs full control of the system to run" |
+| A driver, including driver source it builds when installed (VirtualBox), firmware, printer or scanner driver, login or network plugin, or a background service with no app | Has to go on the system. An .rpm can be added to the system. A .deb is refused, with the reason |
+
+Device rules and other packages the install pulls in are checked too: if
+Fedora's `solaar` brings in `solaar-udev`, its rule is offered for the system as
+well.
+
+### Install from Fedora
+
+Before an .rpm goes on the system, it checks whether Fedora's own repositories
+have it, by the package's name. If they do, the window says "Fedora has {app}":
+
+- **Install from Fedora** (recommended): installed from Fedora, so System Update
+  keeps it up to date.
+- **Use the file**: installs your download. It never updates.
+
+If your file is newer than Fedora's, the window also says "Your file is a newer
+version than Fedora's." Only Fedora's own repositories are checked, not
 third-party ones.
 
-**Packages that only add a download source** (Fedora's RPM Fusion setup file,
-Microsoft's `packages-microsoft-prod.deb`): there is no app in the file, so the
-window says so and names the source. It adds the source to the box, then lists
-the apps the source offers (numbered; start typing a name to find one). The app
-you pick is downloaded and installed like any file, and System Update keeps it
-up to date from that source. The source shows in Remove Apps as
-"… (download source)".
+### Restarting after adding to the system
 
-**Start Apps at Login** (in the app grid, or "start apps at login") lists the
-apps from .rpm and .deb files and whether each starts when you log in; choose one
-to switch it. Some apps have their own "open at login" setting (Discord does). In
-a box, that setting would point at a path that only exists inside the box, so at
-login nothing would happen. At login, such an entry is pointed at the box and the
-app is started.
+Anything added to the system takes effect after a restart. The window says
+"{app} is installed. Restart to start using it." with **Restart now** or
+**Later**. At the next login a message says "{app} is ready. Find it in Show
+Apps.", or that it did not get installed (for example when the computer started
+an older version of the system). A printer driver opens Printers instead (see
+[Printer drivers](#printer-drivers)).
 
-**One at a time.** If another install or removal is running, the window names it
-("Installing Discord in the Ubuntu box"), waits for it to finish, then goes on.
-It has a Cancel button.
+### Updates
 
-**Disk space.** The first-time window says how much disk space the box uses.
-Before a box is set up or an app installed, it checks the free space and, if it
-is too low, says how much is free and how much is needed, with **Try anyway** or
-Cancel. Remove Apps shows how much space each box uses. When you remove the last
-app from a box, it offers to delete the box and says how much space that frees;
-the box is set up again by itself the next time it is needed.
+The last window of every install ends with an Updates line:
+
+| Updates line | Means |
+|--------------|-------|
+| Updates: automatic, with System Update. | It came from Fedora, or the package added its maker's download source to the box (Google Chrome and VS Code do) |
+| Updates: automatic. | It came from the Software app (Flathub) |
+| Updates: none, because it came from a file. To update, install a newer file. (Some apps, like Discord, update themselves.) | An app in a box, installed from a plain file |
+| Updates: none, because it came from a file. To update, install a newer file. | An app added to the system from a file, which the system keeps at that file's version |
+
+### Already installed
+
+Before anything else, it checks whether the app is already there, and asks
+instead of installing again:
+
+| Already there | The window says | Buttons |
+|---------------|-----------------|---------|
+| Part of EasySpeak-OS | "{app} is already part of EasySpeak-OS. Nothing to install." | OK |
+| On the system, from Fedora | "{app} is already installed from Fedora and stays up to date. You don't need this file." | OK |
+| On the system, same or older file | "{app} is already installed. This file is the same version." (or "older than the one installed") | OK |
+| On the system, newer file | "Update {app} to the newer version in this file? Needs your password and a restart." | **Update**, Cancel |
+| In its box, same version | "{app} is already installed." | **Open it**, **Reinstall**, Cancel |
+| In its box, newer file | "Update {app} to the newer version in this file?" | **Update**, Cancel |
+| In its box, older file | "This file is an older version of {app} than the one installed." | **Install the older version**, Cancel |
+| From the Software app (Flathub) | "{app} is already installed from the Software app." | **Open it**, **Install the file too**, Cancel |
+| In the other box | "{app} is already installed from a .deb file." (or ".rpm") | **Open it**, **Install it here too**, Cancel |
+
+### Files that cannot be installed
+
+Each of these windows has one OK button, and nothing is installed:
+
+- A damaged or unfinished download: "This file can't be installed. It may be
+  damaged or not fully downloaded."
+- A 32-bit file: "This is the 32-bit version of {app}, for older computers.
+  Download the 64-bit version instead."
+- A file for a different kind of computer (ARM, for example): "This {app} file
+  is for a different kind of computer."
+- An app that runs as administrator (root), such as Timeshift: "{app} can't be
+  installed. It needs full control of the system to run."
+- A .deb that has to go on the system: "{app} can't be installed from this
+  file", with what it has and where to look instead.
+
+### Download sources
+
+Some files contain no app, only a place to download apps from (Fedora's RPM
+Fusion setup file, Microsoft's `packages-microsoft-prod.deb`). The window says
+"{file} has no app in it. It adds a place to download apps from", names it, and
+offers **Add it** (**Set up and add it** the first time). Then "Which app do you
+want? Start typing its name." lists the apps it offers, numbered. The app you
+pick is installed like any file, and updates automatically from that source.
+The source shows in Remove Apps as "… (download source)".
+
+### Printer drivers
+
+Most printers need no driver: they show up by themselves in Settings, under
+Printers. So a printer driver first says "{app} is a printer driver. Most
+printers work without one.":
+
+- **Open Printers** (recommended): opens Printers to add your printer without a
+  driver.
+- **Install the driver** (.rpm) or **About this driver** (.deb): goes on to the
+  driver.
+
+If the printer still needs the driver:
+
+- **.rpm:** it is added to the system (your password, then a restart), from
+  Fedora when Fedora has the same driver, so it gets updates. At the next login
+  a window says the driver is ready, with **Open Printers** to add the printer,
+  or says plainly if the driver did not get installed.
+- **.deb:** the system cannot take it. The window names the maker when the
+  package says who it is (HP, Brother, Canon, Epson and others), and explains how
+  to get the .rpm version from the maker's support site.
+
+### Start Apps at Login
+
+**Start Apps at Login** (in Show Apps, or "start apps at login") asks "Which app
+should start, or stop starting, when you log in?" and lists the apps from .rpm
+and .deb files, with whether each starts at login. Choose one to switch it. Some
+apps have their own "open at login" setting (Discord does). In a box, that
+setting would point at a path that only exists inside the box, so at login
+nothing would happen. At login, such an entry is pointed at the box and the app
+is started. Apps from the Software app have this setting inside the app.
+
+### Removing apps
+
+**Remove Apps** (in Show Apps, or "remove an app") lists everything installed
+with Install Package File, numbered, with how much space each box uses. Pick one
+and press **Remove**. It removes the app from its box, its Show Apps entry, any
+device rule it added, or the package added to the system (then it offers a
+restart). Remove Apps quits a running app before removing it.
+
+When you remove the last app from a box, the window says "{app} is removed, and
+the Fedora box is now empty":
+
+- **Delete the box**: frees its disk space (the window says how much). It comes
+  back by itself the next time you install an app of that kind. Anything added
+  to the box another way is deleted too. Your files are not touched.
+- **Keep it**: ready for next time.
+
+What was installed is recorded in `~/.local/share/easyspeak-os/apps.json`.
+
+### Repairing a box
+
+If a box stops working, installing into it says "The Fedora box isn't working."
+with **Repair the box**: it rebuilds the box, puts back the apps that were
+installed into it with Install Package File (from the saved copies of their
+files), then installs the new app. **Repair App Boxes** in Show Apps (or "repair
+app boxes") does the same at any time, with **Repair**. When System Update
+cannot update the boxes, it offers to check them and repairs only a box that is
+broken; if the broken one is a box made outside Install Package File, it says
+Repair cannot fix it. Repair does not touch your files, and anything added to a
+box another way is not put back.
+
+### Disk space
+
+The first-time window says how much disk space the box uses. Before a box is set
+up or an app installed, it checks the free space. If it is too low, the window
+says "Not enough free space", how much is needed and how much is free, with
+**Try anyway** (if space runs out, it stops safely and nothing is lost) or
+Cancel. Remove Apps shows how much space each box uses.
+
+### One at a time
+
+If another install or removal is running, the window names it ("Installing
+Discord in the Ubuntu box"), waits for it to finish, then goes on. It has a
+Cancel button.
+
+### Progress and notifications
+
+The progress window shows plain steps (downloading, creating, getting it ready,
+installing) rather than the tools' own output, says how long a long step has
+been going once a minute, and has a **Cancel** button while a box is being set
+up. Cancelling, or a failed setup, leaves no half-made box. Setting up a box and
+adding to the system also send a notification when they start, so you know it
+is working even if the progress window opens behind another window.
 
 Each box also gets two small desktop parts that apps from these files expect and
 a fresh box lacks: zenity, for progress windows (Discord's first start downloads
@@ -227,18 +424,16 @@ window at all), and notify-send, for notifications. They are added while the box
 is set up. A box made before this was added gets them once, quietly, at the next
 login. Opening links is left to Distrobox, which already sends it to your desktop.
 
-Setting up a box and adding a package to the system also send a desktop
-notification when they start, so you know it is working even if the progress
-window opens behind another window.
+### Starting and stopping box apps
 
-**Starting and stopping box apps.** An app's app grid entry starts it through
-`easyspeak-os-box-run`, not straight through Distrobox:
+An app's Show Apps entry starts it through `easyspeak-os-box-run`, not straight
+through Distrobox:
 
 - The app's messages go to `~/.cache/easyspeak-os/logs/<app>.log`, not back
   through its link to the desktop. If that link goes away (for example when a
   task manager's Force Stop ends it), the app keeps working instead of crashing
   with "write EPIPE" error windows, as Discord did.
-- **Two Quit items.** Right-click a box app in the dock or app grid and you see
+- **Two Quit items.** Right-click a box app in the dock or Show Apps and you see
   two of them:
   - **Quit <app name>**, for example **Quit Discord**, is EasySpeak-OS's. It
     stops the app inside the box. Use this one to really close a box app.
@@ -249,85 +444,18 @@ window opens behind another window.
   "Quitting <app name>". Meanwhile GNOME may show its "not responding" window
   with **Force Quit** and **Wait**. Nothing is wrong: the app closes on its own
   and the window goes away with it. You do not need to press anything.
-- Remove Apps quits a running app before removing it.
 
-App grid entries made before this are switched over once, at the next login.
+Show Apps entries made before this are switched over once, at the next login.
 
-**Already installed?** Before anything else, it checks whether the app is
-already there, and asks instead of installing again:
+### When something goes wrong
 
-| Already there | What it says |
-|---------------|--------------|
-| In its box, same version | "already installed (version …)": **Open it**, **Reinstall** or Cancel |
-| In its box, older version | "Update … from version … to …?": **Update** or Cancel |
-| In its box, newer version | "This file is an older version …": **Install the older version** or Cancel |
-| From Flathub (installed any way) | "already installed from Flathub": **Open it**, **Install the file too** or Cancel |
-| In the other box | "already installed in the Fedora box": **Open it**, **Install it here too** or Cancel |
-| On the system (part of it) | "already part of your system" |
-| On the system (added with Install Package File) | Same version: says so. Newer file: offers to update it (administrator password, restart) |
-
-**The first time.** Before anything is downloaded, one window explains what the
-box means for you: the app opens from the app grid like any other, it can use
-the files in your home folder, your system itself is not changed, and Remove
-Apps takes it out cleanly. It gives the real download size (looked up from the
-image, about 375 MB for the Fedora box and 210 MB for the Ubuntu box at the time
-of writing). One button, **Set up and install**, does both. The progress window
-shows plain steps (downloading, creating, getting it ready, installing) rather
-than the tools' own output, says how long a long step has been going once a
-minute, and has a **Cancel** button while the box is being set up. Cancelling,
-or a failed setup, leaves no half-made box.
-
-**When something goes wrong,** the window says why in plain words for the usual
+The window says "{task} did not work." and why, in plain words, for the usual
 reasons: no internet connection, a full disk, a package made for a different
 Fedora or Ubuntu version (naming what it needs), a file that would replace part
 of the system, or the password not given. Otherwise it shows the last lines of
-the log. The full log is in `~/.cache/easyspeak-os/packages/last.log`.
-
-**Repairing a box.** If a box stops working, installing into it offers
-**Repair the box**: the box is set up again from scratch, the apps that were
-installed into it with Install Package File are put back from the saved copies
-of their files, and then the new app is installed. **Repair App Boxes** in the
-app grid (or "repair app boxes") does the same at any time. When System Update
-cannot update the boxes, it offers to check them and repairs only a box that is
-broken; if the broken one is a box of your own, it says so instead. Repair does
-not touch your files, and things installed inside a box some other way are not
-put back.
-
-What works in a box, and what needs the system itself:
-
-| The package has | What happens |
-|-----------------|--------------|
-| An app, command-line tools, a browser, most closed-source apps | Installed in the box |
-| A hardware rule (udev) that only sets device permissions | The app goes in the box and the rule goes onto the system, with the administrator password. A package that is only a rule (Fedora's `solaar-udev`, for example) just adds the rule |
-| A hardware rule that runs a program | Not added. The app still goes in the box, and the window says the rule will not work |
-| An optional background service, alongside an app | The app goes in the box and the window says the service will not start with the computer. An .rpm can be added to the system instead |
-| A background service the app needs: one its install switches on itself (Docker Desktop's, for example) | Cannot work in a box, so it is treated like a driver (next line) |
-| An app that runs as administrator (root), such as Timeshift: its own polkit rule or app grid entry starts it as root | Not installed. One window says it has to run as administrator on the system itself, which a box cannot give it, with only an OK button. Nothing is installed |
-| A driver, including driver source it builds when installed (VirtualBox), firmware, printer or scanner driver, login or network plugin, or a background service with no app | Cannot work in a box. An .rpm can be added to the system (administrator password, after a restart, slower system updates, and it does not update by itself). A .deb is refused, with the reason |
-
-**Printer drivers.** Most printers need no driver: they show up by themselves in
-Settings, under Printers. So a printer driver first offers to open Printers and
-try that. If the printer still needs the driver:
-
-- **.rpm:** it is added to the system (administrator password, then a restart),
-  from Fedora when Fedora has the same driver, so it gets updates.
-  At the next login a window says the driver is ready and opens Printers to add
-  the printer, or says plainly if the driver did not make it onto the system.
-- **.deb:** the system cannot take it. The window names the maker when the
-  package says who it is (HP, Brother, Canon, Epson and others), and explains how
-  to get the .rpm version from the maker's support site.
-
-Anything else added to the system gets the same one-time check at the next
-login.
-
-Hardware rules and other packages the install pulls in are checked too: if Fedora's
-`solaar` brings in `solaar-udev`, its rule is offered for the system as well.
-
-**Remove Apps** (or "remove an app") lists everything installed this way and
-undoes it: it removes the app from its box, the app grid entry, any hardware
-rule it added, or the layered package. What was installed is recorded in
-`~/.local/share/easyspeak-os/apps.json`. To see what a package needs without
-installing it, run `easyspeak-os-packages check FILE`.
+the log. The full log is in `~/.cache/easyspeak-os/packages/last.log`. To see
+what a package needs without installing it, run
+`easyspeak-os-packages check FILE`.
 
 ## How it's built
 
@@ -344,15 +472,16 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-codecs-setup`, `-admin`, `-lib.sh` | The two privileged helpers and their shared fixed settings, run through polkit |
 | `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
-| `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in the app grid, which runs `uupd` and shows each step |
+| `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in Show Apps, which runs `uupd` and shows each step |
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app", "repair app boxes" and "start apps at login" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
 | `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `easyspeak-os-login-apps.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps**, **Repair App Boxes** and **Start Apps at Login**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
 | `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeak-OS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
 | `build_files/os-commands.py` | Reads the EasySpeak-OS voice commands from the plugins for the help overlay, the cheat sheet and "did you mean" |
-| `build_files/easyspeak-os-box-run` | Starts box apps for their app grid entries with their messages in a log file, and stops them (the Quit action) |
+| `build_files/easyspeak-os-box-run` | Starts box apps for their Show Apps entries with their messages in a log file, and stops them (the Quit action) |
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
+| `build_files/check-docs.py` | The build test that the README's table of contents and the help keep up with the software |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
@@ -378,6 +507,7 @@ What the build checks:
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
 - The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
+- The build fails if the README's table of contents does not list every section, in order, with working links, if a link inside the README goes to a section that does not exist, or if a button in the software windows is missing from the help's Software section. So a change that adds a section or a button cannot merge until the README and the help match.
 - The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads four real Fedora packages (an app, a background service, a hardware rule and a download source).
 
 The release packages from Fedora also hold Fedora's lists of which services
@@ -402,7 +532,7 @@ check what is legal where you live. EasySpeak does not need them.
 The first time you log in after this image first boots, a window asks whether
 you want them, with three large buttons: **Web video only**, **Everything** and
 **Not now**. You can open the same window again at any time from **Install
-Media Codecs** in the app grid, or type the commands (`codecs` is the short
+Media Codecs** in Show Apps, or type the commands (`codecs` is the short
 name; `easyspeak-os-codecs` and `install-codecs` also work):
 
     codecs          # explains the options, changes nothing

@@ -30,11 +30,16 @@ COMMANDS = [
 # listed by name in the help's Software section. Pressing them works through the button names above; this list is
 # only for the help.
 HELP_SOFTWARE = [
-    "ok / cancel / yes / no - press that button in a software window",
+    "ok / cancel / yes / no / close - press that button in a software window",
     "install / remove / reinstall / update - install, remove or update the app the window shows",
     "set up and install - set up the app box the first time, then install",
     "use flathub / install from fedora / use the file - choose where to install the app from",
-    "add to the system / try anyway / open it - the other software window buttons",
+    "add to the system - put the app on the system instead of in a box",
+    "open it / install the file too / install it here too / install the older version - when the app is already "
+    "installed",
+    "add it / set up and add it - add a device rule or a download source",
+    "open printers / install the driver / about this driver - when the file is a printer driver",
+    "try anyway / repair / repair the box - when disk space is low or an app box is broken",
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
 ]
 
