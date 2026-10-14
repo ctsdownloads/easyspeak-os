@@ -6,6 +6,7 @@
   easyspeak-os-packages check FILE       say what a package needs, without installing anything
   easyspeak-os-packages repair           set a broken app box up again and put its apps back
                                          (--if-broken: only if one does not work; System Update uses this)
+  easyspeak-os-packages login            choose box apps that start when you log in
   (easyspeak-os-packages after-restart runs at login, once, after something was added to the system)
 
 The system itself is an image, so apps from .rpm and .deb files go into a box (a Distrobox container):
@@ -677,6 +678,37 @@ def box_size(name):
     return box_sizes([name]).get(name)
 
 
+def sizes_line():
+    """'Space used: Fedora box 1.2 GB, Ubuntu box 650 MB.' for the boxes that exist, or ''."""
+    sizes = box_sizes([BOXES[k]["name"] for k in BOXES])
+    parts = [f"{BOXES[k]['label']} {human(sizes[BOXES[k]['name']])}" for k in BOXES if sizes.get(BOXES[k]["name"])]
+    return "Space used: " + ", ".join(parts) + "." if parts else ""
+
+
+def free_mb():
+    where = HOME / ".local/share/containers"
+    try:
+        return shutil.disk_usage(where if where.exists() else HOME).free // 1_000_000
+    except OSError:
+        return None
+
+
+def room_for(what, need_mb):
+    """Warn before starting when the disk is too full for it. True to go on."""
+    free = free_mb()
+    if free is None or free >= need_mb:
+        return True
+    return ask(f"Only {human(free)} of disk space is free. {what} needs about {human(need_mb)}.\n\n"
+               f"Free some space first (empty the Trash, or remove apps you do not use), then try again. "
+               f"If it runs out of space part way, nothing is lost: it stops and says so.",
+               ok="Try anyway", cancel="Cancel") == "ok"
+
+
+def setup_need(size):
+    """Disk space to set up a box: its download unpacks to about three times its size, plus room to work."""
+    return (size or 400) * 3 + 1500
+
+
 def delete_box(kind):
     """Delete an app box and its downloaded system, to free the space. Your own files are not touched."""
     box = BOXES[kind]
@@ -697,9 +729,10 @@ def box_intro(kind, title):
     distro, article, label = box_words(kind)
     what = ".rpm" if kind == "rpm" else ".deb"
     size = image_size(BOXES[kind]["image"])
-    download = "It is already downloaded, so setting it up takes a minute or two." if size == 0 else \
-        f"Setting it up downloads about {size} MB, once, and takes a few minutes." if size else \
-        "Setting it up downloads a few hundred MB, once, and takes a few minutes."
+    disk = f"uses about {human(setup_need(size) - 1500)} of disk space"
+    download = f"It is already downloaded, so setting it up takes a minute or two. The box {disk}." if size == 0 \
+        else f"Setting it up downloads about {size} MB, once, {disk}, and takes a few minutes." if size else \
+        f"Setting it up downloads a few hundred MB, once, {disk}, and takes a few minutes."
     return (f"{title} is {'an' if kind == 'rpm' else 'a'} {what} app. On EasySpeak-OS, apps like this go into the {label}: {article} {distro} "
             f"system of its own, kept apart from yours.\n\n"
             f"  - {title} opens from the app grid, like any other app.\n"
@@ -944,6 +977,7 @@ def unexport(entry):
         if m and os.access(BOX_RUN, os.X_OK):
             subprocess.run([BOX_RUN, "--stop", m.group(1)], capture_output=True,
                            env={**os.environ, "EASYSPEAK_QUIET": "1"})
+    set_login(entry, False)
     for path in entry.get("apps", []):
         if box_exists(box):
             subprocess.run(in_box(box, "distrobox-export", "--app", path, "--delete"), capture_output=True)
@@ -953,6 +987,163 @@ def unexport(entry):
             subprocess.run(in_box(box, "distrobox-export", "--bin", b, "--export-path", str(HOME / ".local/bin"),
                                   "--delete"), capture_output=True)
         (HOME / ".local/bin" / os.path.basename(b)).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------- start at login
+
+AUTOSTART = HOME / ".config/autostart"
+
+
+def launcher(entry, app):
+    return HOME / ".local/share/applications" / f"{entry['where']}-{os.path.basename(app)}"
+
+
+def login_file(entry, app):
+    return AUTOSTART / f"easyspeak-os-{entry['where']}-{os.path.basename(app)}"
+
+
+def starts_at_login(entry):
+    return any(login_file(entry, a).exists() for a in entry.get("apps", []))
+
+
+def set_login(entry, on):
+    """Start a box app when you log in, or stop doing so: a copy of its app grid entry in ~/.config/autostart
+    (it starts the app the same way, through easyspeak-os-box-run). True if it worked."""
+    done = False
+    for a in entry.get("apps", []):
+        f = login_file(entry, a)
+        if not on:
+            f.unlink(missing_ok=True)
+            done = True
+            continue
+        try:
+            text = launcher(entry, a).read_text()
+        except OSError:
+            continue
+        text = re.sub(r"(?m)^(X-GNOME-Autostart-[^=]*|Hidden|NoDisplay)=.*\n?", "", text)
+        head, sep, rest = text.partition("[Desktop Entry]\n")
+        AUTOSTART.mkdir(parents=True, exist_ok=True)
+        f.write_text(head + sep + "X-GNOME-Autostart-enabled=true\n" + rest)
+        done = True
+        break                       # the app's main entry is enough
+    return done
+
+
+def login():
+    """Start Apps at Login: choose box apps that start by themselves when you log in."""
+    apps = [r for r in load() if r["where"].startswith("easyspeak-") and r.get("apps")]
+    if not apps:
+        say("No apps from .rpm or .deb files with an app grid entry are installed yet. Apps from Flathub and the "
+            "system have their own setting for this, usually in the app's settings.")
+        return 0
+    rows = [[r["title"], WHERE.get(r["where"], r["where"]), "Yes" if starts_at_login(r) else "No"] for r in apps]
+    i = choose("Which app do you want to change? Choosing one switches it between starting at login and not.",
+               ["App", "Installed in", "Starts at login"], rows)
+    if i is None:
+        return 1
+    entry = apps[i]
+    on = not starts_at_login(entry)
+    if not set_login(entry, on):
+        failed(f"Changing {entry['title']}", reason=f"{entry['title']} has no app grid entry to start. "
+                                                    f"Install it again to put it back in the app grid.")
+        return 1
+    say(f"{entry['title']} will start when you log in." if on else
+        f"{entry['title']} will no longer start when you log in.")
+    return 0
+
+
+LOGIN_CHECKED = STATE.with_name("login-entries-checked.json")
+
+
+def login_checked(save=None):
+    """Login entries already looked at and not from a box: {path: modified time}, so boxes are not started at
+    every login to look again."""
+    if save is not None:
+        LOGIN_CHECKED.parent.mkdir(parents=True, exist_ok=True)
+        LOGIN_CHECKED.write_text(json.dumps(save))
+        return save
+    try:
+        return json.loads(LOGIN_CHECKED.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def unchecked(f, checked):
+    try:
+        return checked.get(str(f)) != f.stat().st_mtime
+    except OSError:
+        return False
+
+
+def fix_app_login_files():
+    """Some apps have their own "open at login" setting (Discord has). In a box, that setting writes a login entry
+    that starts the app by its path inside the box, which does not exist on the system, so at login nothing
+    happens. At login, point such entries at the box, and start the app this time. Returns how many were fixed."""
+    fixed = 0
+    by_box = {}
+    for r in load():
+        if r["where"].startswith("easyspeak-") and r.get("apps"):
+            by_box.setdefault(r["where"], []).append(r)
+    if not by_box or not AUTOSTART.is_dir():
+        return 0
+    checked = login_checked()
+    for f in sorted(AUTOSTART.glob("*.desktop")):
+        if f.name.startswith("easyspeak-os-") or not unchecked(f, checked):
+            continue
+        try:
+            text = f.read_text()
+        except OSError:
+            continue
+        if BOX_RUN in text or re.search(r"(?m)^(Hidden=true|X-GNOME-Autostart-enabled=false)$", text):
+            continue        # already fixed, or switched off
+        m = re.search(r"(?m)^Exec=(.*)$", text)
+        try:
+            first = shlex.split(m.group(1))[0] if m else ""
+        except (ValueError, IndexError):
+            continue
+        if not first.startswith("/") or os.path.exists(first):
+            continue
+        box = next((b for b in by_box if box_exists(b) and subprocess.run(
+            in_box(b, "test", "-x", first), capture_output=True).returncode == 0), None)
+        if not box:
+            checked[str(f)] = f.stat().st_mtime         # not from a box: do not look again until it changes
+            login_checked(checked)
+            continue
+        new = text.replace(m.group(0), f"Exec={BOX_RUN} {box} {m.group(1).strip()}", 1)
+        f.write_text(new)
+        fixed += 1
+        if not app_running(os.path.basename(first)):
+            subprocess.Popen(["gio", "launch", str(f)], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return fixed
+
+
+def app_running(key):
+    state = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "easyspeak-os-box-apps"
+    for pidf in state.glob(f"{key}.*.pid"):
+        try:
+            os.kill(int(pidf.read_text().strip()), 0)
+            return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def app_login_files_to_fix():
+    """Cheap test for login: are there login entries pointing at a path the system does not have?"""
+    if not AUTOSTART.is_dir() or not any(r["where"].startswith("easyspeak-") for r in load()):
+        return False
+    checked = login_checked()
+    for f in AUTOSTART.glob("*.desktop"):
+        if f.name.startswith("easyspeak-os-") or not unchecked(f, checked):
+            continue
+        try:
+            m = re.search(r"(?m)^Exec=(\S+)", f.read_text())
+        except OSError:
+            continue
+        if m and m.group(1).startswith("/") and BOX_RUN not in m.group(1) and not os.path.exists(m.group(1)):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------- hardware rules
@@ -1172,6 +1363,7 @@ def after_restart():
         ensure_helpers(k, quiet=True)
     for f in launchers_to_fix():           # app grid entries made before easyspeak-os-box-run existed
         fix_launcher(f)
+    fix_app_login_files()
     left = []
     for e in pending():
         have = host_version(e["package"])
@@ -1494,7 +1686,13 @@ def install(path):
         return install_system(pkg, title)
     if answer != "ok":
         return 1
-    if new_box and not setup_box(pkg.kind, size):
+    file_mb = pkg.path.stat().st_size // 1_000_000
+    if new_box:
+        if not room_for(f"Setting up the {box['label']} and installing {title}", setup_need(size) + 3 * file_mb):
+            return 1
+        if not setup_box(pkg.kind, size):
+            return 1
+    elif not room_for(f"Installing {title}", 3 * file_mb + 500):
         return 1
     return box_install(pkg, info, title)
 
@@ -1565,7 +1763,7 @@ def install_source(pkg, info):
     if ask(text, ok="Set up and add it" if new_box else "Add it") != "ok":
         return 1
     if new_box:
-        if not setup_box(pkg.kind, size):
+        if not room_for(f"Setting up the {box['label']}", setup_need(size)) or not setup_box(pkg.kind, size):
             return 1
     have = next((r for r in load() if r["where"] == box["name"] and r["package"] == pkg.name), None)
     if not have and box_install(pkg, info, title, quiet=True) != 0:
@@ -1726,7 +1924,8 @@ def remove():
     if not records:
         say("Nothing has been installed with Install Package File yet.")
         return 0
-    i = choose("Which app do you want to remove?", ["App", "Installed in"],
+    space = sizes_line()
+    i = choose("Which app do you want to remove?" + (f"\n{space}" if space else ""), ["App", "Installed in"],
                [[r["title"], WHERE.get(r["where"], r["where"])] for r in records])
     if i is None:
         return 1
@@ -1854,28 +2053,31 @@ def doing_now():
 
 
 def main(argv):
-    if len(argv) < 2 or argv[1] not in ("install", "remove", "check", "after-restart", "repair") or \
+    if len(argv) < 2 or argv[1] not in ("install", "remove", "check", "after-restart", "repair", "login") or \
             (argv[1] == "check" and len(argv) < 3):
         print(__doc__.split("\n\n")[1])
         return 2
     if argv[1] == "check":
         return check(argv[2])
-    if argv[1] == "after-restart" and not pending() and not boxes_missing_helpers() and not launchers_to_fix():
+    if argv[1] == "after-restart" and not pending() and not boxes_missing_helpers() and not launchers_to_fix() \
+            and not app_login_files_to_fix():
         return 0
     global TITLE        # each window carries the name of what it is part of
-    TITLE = {"remove": "Remove Apps", "repair": "Repair App Boxes"}.get(argv[1], TITLE)
+    TITLE = {"remove": "Remove Apps", "repair": "Repair App Boxes", "login": "Start Apps at Login"}.get(argv[1], TITLE)
     CACHE.mkdir(parents=True, exist_ok=True)
     lock = open(CACHE / ".lock", "w")
     if not take_lock(lock, quiet=argv[1] == "after-restart"):
         return 1
     busy({"install": "Install Package File is open", "remove": "Remove Apps is open",
-          "repair": "Repair App Boxes is open"}.get(argv[1], "Starting"))
+          "repair": "Repair App Boxes is open", "login": "Start Apps at Login is open"}.get(argv[1], "Starting"))
     if argv[1] == "after-restart":
         return after_restart()
     if argv[1] == "repair":
         return repair_command(only_broken="--if-broken" in argv)
     if argv[1] == "install":
         return install(argv[2] if len(argv) > 2 else None)
+    if argv[1] == "login":
+        return login()
     return remove()
 
 
