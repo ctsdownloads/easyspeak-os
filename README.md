@@ -201,8 +201,8 @@ the dock, or press the Super key twice. The EasySpeak-OS tools are there.
 
 The system is an image, so apps from .rpm and .deb files are not installed into
 it directly. **Install Package File** puts them in a box, or on the system when
-they need it. Every window says what each button does, and marks the
-recommended one.
+they need it. Every window that offers a choice says which button is recommended
+and why, then what the other choice gives up.
 
 ### Installing an app
 
@@ -215,16 +215,22 @@ recommended one.
    [Already installed](#already-installed)).
 4. If the Software app (Flathub) has the same app, the window says "{app} is in
    the Software app (Flathub)":
-   - **Use Flathub** (recommended): installs it from Flathub. It updates by itself.
-   - **Use the file**: goes on with your download. It never updates.
-5. The window asks where it goes:
-   - **Set up and install** (recommended), or **Install** once the box is set
-     up: puts it in the box. Your system is not changed, and Remove Apps takes
-     it out cleanly. The first time, the window says how much it downloads and
-     how much disk space the box uses.
-   - **Add to the system**: shown when parts of the app will not work in a box.
-     The window lists them ("In the box, these will not work: …"). Needs your
-     password and a restart.
+   - Recommended: **Use Flathub**. It updates by itself and is made for this
+     kind of system.
+   - Or **Use the file**: installs your download. It never updates.
+5. The window says where it goes, and recommends one:
+   - When the whole app works in a box: **Set up and install** (or **Install**
+     once the box is set up) puts it in a separate box. Your system is not
+     changed, and Remove Apps takes it out cleanly.
+   - When parts of an .rpm app would not work in a box (a background service,
+     for example), the window lists them and recommends **Add to the system**:
+     everything works, with your password and a restart. **Set up and install**
+     is still offered: easier to remove, but those parts will not work.
+   - A .deb cannot go on the system, so if parts would not work in a box, the
+     window says so, suggests looking for an .rpm file or the app in the Software
+     app, and offers **Set up and install** without those parts.
+   - The first time, the window also says how much the box downloads and how
+     much disk space it uses.
 6. The last window says where to find it ("Find it in Show Apps.") and how it
    gets updates (see [Updates](#updates)).
 
@@ -239,9 +245,10 @@ their maker, so a look-alike is never offered.
 
 ### Apps that go on the system
 
-Some apps cannot work in a box. Then the window says "{app} has to go on the
-system, because it has: …", with **Add to the system** (needs your password and
-a restart; remove it any time with Remove Apps). A .deb cannot go on the system,
+Some apps cannot work in a box at all. Then the window says "{app} has to go on
+the system. It has: … These can't work in a box.", with **Add to the system**
+(everything works; needs your password and a restart; remove it any time with
+Remove Apps). A .deb cannot go on the system,
 so it is refused, with the reason.
 
 | The package has | What happens |
@@ -249,7 +256,7 @@ so it is refused, with the reason.
 | An app, command-line tools, a browser, most closed-source apps | Installed in the box |
 | A device rule (udev) that only sets device permissions | The app goes in the box and the rule goes on the system, with your password. A package that is only a rule (Fedora's `solaar-udev`, for example) shows "{app} only lets your account use a device", with **Add it** |
 | A device rule that runs a program | Not added. The app still goes in the box, and the window says the rule will not work |
-| An optional background service, alongside an app | The app goes in the box and the window says the service will not work there. An .rpm can be added to the system instead |
+| An optional background service, alongside an app | For an .rpm, **Add to the system** is recommended, so the service works; the box is still offered without it. A .deb goes in the box without it |
 | A background service the app needs: one its install switches on itself (Docker Desktop's, for example) | Has to go on the system, like a driver (next line) |
 | An app that runs as administrator (root), such as Timeshift: its own polkit rule or Show Apps entry starts it as root | Not installed. One window, with only an OK button, says "{app} can't be installed. It needs full control of the system to run" |
 | A driver, including driver source it builds when installed (VirtualBox), firmware, printer or scanner driver, login or network plugin, or a background service with no app | Has to go on the system. An .rpm can be added to the system. A .deb is refused, with the reason |
@@ -263,19 +270,18 @@ well.
 Before an .rpm goes on the system, it checks whether Fedora's own repositories
 have it, by the package's name. If they do, the window says "Fedora has {app}":
 
-- **Install from Fedora** (recommended): installed from Fedora, so System Update
-  keeps it up to date.
-- **Use the file**: installs your download. It never updates.
+- Recommended: **Install from Fedora**. System Update keeps it up to date.
+- Or **Use the file**: installs your download. It never updates.
 
-If your file is newer than Fedora's, the window also says "Your file is a newer
-version than Fedora's." Only Fedora's own repositories are checked, not
+If your file is newer than Fedora's, the window also says "Your file is newer
+than Fedora's. Use the file only if you need that newer version now." Only Fedora's own repositories are checked, not
 third-party ones.
 
 ### Restarting after adding to the system
 
 Anything added to the system takes effect after a restart. The window says
-"{app} is installed. Restart to start using it." with **Restart now** or
-**Later**. At the next login a message says "{app} is ready. Find it in Show
+"{app} is installed. Restart to start using it." It recommends **Restart now**,
+or **Later** if you are in the middle of something. At the next login a message says "{app} is ready. Find it in Show
 Apps.", or that it did not get installed (for example when the computer started
 an older version of the system). A printer driver opens Printers instead (see
 [Printer drivers](#printer-drivers)).
@@ -302,11 +308,11 @@ instead of installing again:
 | On the system, from Fedora | "{app} is already installed from Fedora and stays up to date. You don't need this file." | OK |
 | On the system, same or older file | "{app} is already installed. This file is the same version." (or "older than the one installed") | OK |
 | On the system, newer file | "Update {app} to the newer version in this file? Needs your password and a restart." | **Update**, Cancel |
-| In its box, same version | "{app} is already installed." | **Open it**, **Reinstall**, Cancel |
+| In its box, same version | "{app} is already installed." Recommended: **Open it**. **Reinstall** is only needed if it isn't working | **Open it**, **Reinstall**, Cancel |
 | In its box, newer file | "Update {app} to the newer version in this file?" | **Update**, Cancel |
-| In its box, older file | "This file is an older version of {app} than the one installed." | **Install the older version**, Cancel |
-| From the Software app (Flathub) | "{app} is already installed from the Software app." | **Open it**, **Install the file too**, Cancel |
-| In the other box | "{app} is already installed from a .deb file." (or ".rpm") | **Open it**, **Install it here too**, Cancel |
+| In its box, older file | "This file is an older version of {app} than the one you have." Only for when the newer one has a problem | **Install the older version**, Cancel |
+| From the Software app (Flathub) | "{app} is already installed from the Software app." Recommended: **Open it**. A second copy never updates | **Open it**, **Install the file too**, Cancel |
+| In the other box | "{app} is already installed from a .deb file." (or ".rpm") Recommended: **Open it**. A second copy never updates | **Open it**, **Install it here too**, Cancel |
 
 ### Files that cannot be installed
 
@@ -339,10 +345,9 @@ Most printers need no driver: they show up by themselves in Settings, under
 Printers. So a printer driver first says "{app} is a printer driver. Most
 printers work without one.":
 
-- **Open Printers** (recommended): opens Printers to add your printer without a
-  driver.
-- **Install the driver** (.rpm) or **About this driver** (.deb): goes on to the
-  driver.
+- Recommended: **Open Printers**, and add your printer there first.
+- Or **Install the driver** (.rpm) or **About this driver** (.deb): only if your
+  printer does not work without it.
 
 If the printer still needs the driver:
 
@@ -375,17 +380,19 @@ restart). Remove Apps quits a running app before removing it.
 When you remove the last app from a box, the window says "{app} is removed, and
 the Fedora box is now empty":
 
-- **Delete the box**: frees its disk space (the window says how much). It comes
-  back by itself the next time you install an app of that kind. Anything added
-  to the box another way is deleted too. Your files are not touched.
-- **Keep it**: ready for next time.
+- Recommended: **Delete the box**. It frees its disk space (the window says how
+  much), and comes back by itself the next time you install an app of that kind.
+  Anything added to the box another way is deleted too. Your files are not
+  touched.
+- Or **Keep it**: saves setup time if you will install another app of that kind
+  soon.
 
 What was installed is recorded in `~/.local/share/easyspeak-os/apps.json`.
 
 ### Repairing a box
 
 If a box stops working, installing into it says "The Fedora box isn't working."
-with **Repair the box**: it rebuilds the box, puts back the apps that were
+and recommends **Repair the box**: it rebuilds the box, puts back the apps that were
 installed into it with Install Package File (from the saved copies of their
 files), then installs the new app. **Repair App Boxes** in Show Apps (or "repair
 app boxes") does the same at any time, with **Repair**. When System Update
@@ -398,9 +405,10 @@ box another way is not put back.
 
 The first-time window says how much disk space the box uses. Before a box is set
 up or an app installed, it checks the free space. If it is too low, the window
-says "Not enough free space", how much is needed and how much is free, with
-**Try anyway** (if space runs out, it stops safely and nothing is lost) or
-Cancel. Remove Apps shows how much space each box uses.
+says "Not enough free space", how much is needed and how much is free. It
+recommends **Cancel**, freeing space (empty the Trash or remove apps you do not
+use) and trying again; **Try anyway** is still there, and if space runs out, it
+stops safely and nothing is lost. Remove Apps shows how much space each box uses.
 
 ### One at a time
 

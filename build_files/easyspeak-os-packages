@@ -698,9 +698,9 @@ def room_for(what, need_mb):
     free = free_mb()
     if free is None or free >= need_mb:
         return True
-    return ask(f"Not enough free space. {what} needs about {human(need_mb)}, and {human(free)} is free.\n\n"
-               f"Empty the Trash or remove apps you don't use, then try again.\n\n"
-               f"Try anyway: if space runs out, it stops safely and nothing is lost.",
+    return ask(f"Not enough free space. This needs about {human(need_mb)}, and {human(free)} is free.\n\n"
+               f"Recommended: Cancel, then empty the Trash or remove apps you don't use, and try again.\n\n"
+               f"Or Try anyway: if space runs out, it stops safely and nothing is lost.",
                ok="Try anyway", cancel="Cancel") == "ok"
 
 
@@ -724,19 +724,14 @@ def box_words(kind):
     return distro, ("a" if kind == "rpm" else "an"), BOXES[kind]["label"]
 
 
-def box_intro(kind, title):
-    """The first-time explanation, shown before anything is downloaded."""
-    distro, article, label = box_words(kind)
-    what = ".rpm" if kind == "rpm" else ".deb"
+def first_time(kind):
+    """What setting up the box takes, said before anything is downloaded, and the download size."""
     size = image_size(BOXES[kind]["image"])
-    disk = f"The box uses about {human(setup_need(size) - 1500)} of disk space."
-    download = f"First time only: sets up the box, which takes a minute or two. {disk}" if size == 0 \
-        else f"First time only: downloads about {size} MB and takes a few minutes. {disk}" if size else \
-        f"First time only: downloads a few hundred MB and takes a few minutes. {disk}"
-    return (f"Install {title}\n\n"
-            f"Set up and install (recommended): puts {title} in the {label}, a separate space for {what} apps. "
-            f"Your system is not changed, and Remove Apps takes it out cleanly.\n\n"
-            f"{download}"), size
+    disk = f"uses about {human(setup_need(size) - 1500)} of disk space"
+    text = f"First time only: sets up the box, which takes a minute or two and {disk}." if size == 0 \
+        else f"First time only: downloads about {size} MB and {disk}." if size else \
+        f"First time only: downloads a few hundred MB and {disk}."
+    return text, size
 
 
 # What apps from .rpm and .deb files expect from a desktop, and a fresh box does not have: zenity (Discord's
@@ -1319,8 +1314,8 @@ def try_driverless(title, kind):
     """Most printers need no driver. Offer to add the printer first. Returns 'printers', 'driver' or None."""
     extra = "Install the driver" if kind == "rpm" else "About this driver"
     answer = ask(f"{title} is a printer driver. Most printers work without one.\n\n"
-                 f"Open Printers (recommended): try adding your printer first.\n\n"
-                 f"{extra}: {'install it now' if kind == 'rpm' else 'see how to get it'}.",
+                 f"Recommended: Open Printers, and add your printer there first.\n\n"
+                 f"Or {extra}: only if your printer doesn't work without it.",
                  ok="Open Printers", extra=extra)
     if answer == "ok":
         open_printers()
@@ -1491,8 +1486,8 @@ def already_installed(pkg, info, title):
                     {"title": title, "where": ours, "apps": list(info["apps"])})
         c = compare(pkg.kind, pkg.evr, bv)
         if c == 0:
-            a = ask(f"{title} is already installed.\n\nOpen it: start it.\n\nReinstall: install it again from this "
-                    f"file.", ok="Open it", extra="Reinstall")
+            a = ask(f"{title} is already installed.\n\nRecommended: Open it.\n\nOr Reinstall: installs it again from "
+                    f"this file. Only needed if it isn't working.", ok="Open it", extra="Reinstall")
             if a == "ok":
                 if not open_app(mine):
                     say(f"{title} has no window to open. It is a tool other apps use.")
@@ -1502,8 +1497,8 @@ def already_installed(pkg, info, title):
             if ask(f"Update {title} to the newer version in this file?", ok="Update") != "ok":
                 return False, "", 1
             return True, "update", 0
-        if ask(f"This file is an older version of {title} than the one installed.\n\nInstall the older version: "
-               f"replaces the one you have.", ok="Install the older version") != "ok":
+        if ask(f"This file is an older version of {title} than the one you have.\n\nInstall the older version: "
+               f"replaces yours. Only do this if the newer one has a problem.", ok="Install the older version") != "ok":
             return False, "", 1
         return True, "older", 0
 
@@ -1511,9 +1506,9 @@ def already_installed(pkg, info, title):
     want = {norm_name(title), norm_name(pkg.name)}
     for r in records:
         if r["where"] == "flathub" and (norm_name(r["title"]) in want) and flatpak_installed(r["package"]):
-            a = ask(f"{r['title']} is already installed from the Software app.\n\nOpen it: start it.\n\n"
-                    f"Install the file too: adds a second copy from your file.", ok="Open it",
-                    extra="Install the file too")
+            a = ask(f"{r['title']} is already installed from the Software app.\n\nRecommended: Open it.\n\n"
+                    f"Or Install the file too: adds a second copy, which never updates. You would have two of the "
+                    f"same app.", ok="Open it", extra="Install the file too")
             if a == "ok":
                 open_app(r)
                 return False, "", 0
@@ -1522,8 +1517,8 @@ def already_installed(pkg, info, title):
                 norm_name(r["title"]) in want:
             other = WHERE.get(r["where"], r["where"])
             a = ask(f"{r['title']} is already installed from {'an .rpm' if 'Fedora' in other else 'a .deb'} file.\n\n"
-                    f"Open it: start it.\n\nInstall it here too: adds a second copy from this file.", ok="Open it",
-                    extra="Install it here too")
+                    f"Recommended: Open it.\n\nOr Install it here too: adds a second copy, which never updates. You "
+                    f"would have two of the same app.", ok="Open it", extra="Install it here too")
             if a == "ok":
                 open_app(r)
                 return False, "", 0
@@ -1601,8 +1596,9 @@ def install(path):
     match = None if info["rules_only"] or pkg.name in SOURCED else flathub_match(pkg, info)
     if match and flatpak_installed(match[0]):
         app_id, name = match
-        a = ask(f"{name} is already installed from the Software app.\n\nOpen it: start it.\n\n"
-                f"Install the file too: adds a second copy from your file.", ok="Open it", extra="Install the file too")
+        a = ask(f"{name} is already installed from the Software app.\n\nRecommended: Open it.\n\n"
+                f"Or Install the file too: adds a second copy, which never updates. You would have two of the same "
+                f"app.", ok="Open it", extra="Install the file too")
         if a == "ok":
             open_app({"where": "flathub", "package": app_id})
             return 0
@@ -1611,8 +1607,9 @@ def install(path):
         match = None
     if match:
         app_id, name = match
-        answer = ask(f"{name} is in the Software app (Flathub).\n\nUse Flathub (recommended): updates by itself."
-                     f"\n\nUse the file: installs your download. It never updates.",
+        answer = ask(f"{name} is in the Software app (Flathub).\n\nRecommended: Use Flathub. It updates by itself "
+                     f"and is made for this kind of system.\n\nOr Use the file: installs your download. It never "
+                     f"updates.",
                      ok="Use Flathub", cancel="Cancel", extra="Use the file")
         if answer is None:
             return 1
@@ -1660,31 +1657,41 @@ def install(path):
                 f"These have to go on the system, and the system only takes .rpm files. "
                 f"Look for {title} as an .rpm for Fedora {fedora_version()}, or in the Software app.", "warning")
             return 1
-        if ask(f"{title} has to go on the system, because it has:\n{reasons}\n\n"
-               f"Add to the system: needs your password and a restart. You can remove it any time with Remove Apps.",
+        if ask(f"{title} has to go on the system. It has:\n{reasons}\nThese can't work in a box.\n\n"
+               f"Add to the system: everything works. Needs your password and a restart. You can remove it any time "
+               f"with Remove Apps.",
                ok="Add to the system") != "ok":
             return 1
         return install_system(pkg, title, printer)
 
     box = BOXES[pkg.kind]
     new_box = not box_exists(box["name"])
-    size = None
+    size, first = None, ""
     if new_box:
-        text, size = box_intro(pkg.kind, title)
-    else:
-        text = f"Install {title}? It goes in the {box['label']} with your other {'.rpm' if pkg.kind == 'rpm' else '.deb'} apps."
-    extra = None
-    if info["safe_rules"]:
-        text += "\n\nIt also has a device rule. That goes on the system, so you will be asked for your password."
-    if info["notes"]:
-        if pkg.kind == "rpm":
-            text += "\n\nAdd to the system: needs your password and a restart."
-            extra = "Add to the system"
-        text += "\n\nIn the box, these will not work:\n" + plain_list(info["notes"])
-    answer = ask(text, ok="Set up and install" if new_box else "Install", extra=extra)
-    if answer == "extra":
-        return install_system(pkg, title)
-    if answer != "ok":
+        first, size = first_time(pkg.kind)
+        first = " " + first
+    setup = "Set up and install" if new_box else "Install"
+    rule = "\n\nIt also has a device rule. That goes on the system, so you will be asked for your password." \
+        if info["safe_rules"] else ""
+    if info["notes"] and pkg.kind == "rpm":
+        # parts of it would not work in a box: the system is the recommended choice
+        answer = ask(f"Install {title}\n\nRecommended: Add to the system. In a box, these parts of {title} won't "
+                     f"work:\n{plain_list(info['notes'])}\nOn the system, everything works. Needs your password and a "
+                     f"restart.\n\nOr {setup}: puts it in a separate box. It's easier to remove, but those parts won't "
+                     f"work.{first}{rule}", ok="Add to the system", extra=setup)
+        if answer == "ok":
+            return install_system(pkg, title)
+        if answer != "extra":
+            return 1
+    elif info["notes"]:
+        # a .deb cannot go on the system: the box is the only choice, said plainly
+        if ask(f"Install {title}\n\nIn a box, these parts of {title} won't work:\n{plain_list(info['notes'])}\n"
+               f"A .deb file can't go on the system. For everything to work, look for {title} as an .rpm file or in "
+               f"the Software app.\n\n{setup}: puts it in a box anyway, without those parts.{first}{rule}",
+               ok=setup) != "ok":
+            return 1
+    elif ask(f"Install {title}\n\n{setup}: puts it in a separate box. Your system isn't changed, and Remove Apps "
+             f"takes it out cleanly.{first}{rule}", ok=setup) != "ok":
         return 1
     file_mb = pkg.path.stat().st_size // 1_000_000
     if new_box:
@@ -1758,8 +1765,8 @@ def install_source(pkg, info):
             f"automatically.")
     size = None
     if new_box:
-        intro, size = box_intro(pkg.kind, "This download source")
-        text += "\n\n" + intro.split("\n\n")[-1]
+        intro, size = first_time(pkg.kind)
+        text += "\n\n" + intro
     if ask(text, ok="Set up and add it" if new_box else "Add it") != "ok":
         return 1
     if new_box:
@@ -1836,8 +1843,8 @@ def box_install(pkg, info, title, quiet=False, mode="install"):
                     return 1
                 return box_install(pkg, info, title)
             return failed(f"Installing {title}", offer=("Repair the box", repair_then_install),
-                          reason=f"The {label} isn't working.\n\nRepair the box: rebuilds it, puts your apps back, "
-                                 f"then installs {title}. Your files aren't touched.")
+                          reason=f"The {label} isn't working.\n\nRecommended: Repair the box. It rebuilds the box, "
+                                 f"puts your apps back, then installs {title}. Your files aren't touched.")
         return failed(f"Installing {title}")
     apps, bins = export(box, info)
     new_box_rules(box, rules_before, info)
@@ -1884,7 +1891,11 @@ def staged_system():
         return False
 
 
-def offer_restart(text):
+def offer_restart(text, rest=""):
+    """text: what happened, then the recommendation; rest: what comes after the restart."""
+    text += "\n\nRecommended: Restart now. Or Later, if you're in the middle of something."
+    if rest:
+        text += "\n\n" + rest
     if ask(text, ok="Restart now", cancel="Later") == "ok":
         subprocess.run(["systemctl", "reboot"])
 
@@ -1920,10 +1931,9 @@ def install_from_fedora(pkg, title, printer, version):
     pending([e for e in pending() if e["package"] != pkg.name] + [{"title": title, "package": pkg.name,
                                                                   "printer": printer}])
     after = "After the restart, you will be asked to add your printer." if printer else \
-        "After the restart, you will get a message when it is ready."
+        "After the restart, you'll get a message when it's ready."
     notify(f"{title} is installed. Restart to use it.")
-    offer_restart(f"{title} is installed. Restart to start using it.\n\n{after}\n\n"
-                  f"Updates: {UPDATES_FEDORA}")
+    offer_restart(f"{title} is installed. Restart to start using it.", f"{after}\n\nUpdates: {UPDATES_FEDORA}")
     return 0
 
 
@@ -1931,9 +1941,10 @@ def install_system(pkg, title, printer=False, update=False):
     if not update and pkg.kind == "rpm":
         version = fedora_package_version(pkg.name)
         if version:
-            newer = "\n\nYour file is a newer version than Fedora's." if compare("rpm", pkg.evr, version) > 0 else ""
-            answer = ask(f"Fedora has {title}.\n\nInstall from Fedora (recommended): System Update keeps it up to "
-                         f"date.\n\nUse the file: installs your download. It never updates.{newer}",
+            newer = "\n\nYour file is newer than Fedora's. Use the file only if you need that newer version now." \
+                if compare("rpm", pkg.evr, version) > 0 else ""
+            answer = ask(f"Fedora has {title}.\n\nRecommended: Install from Fedora. System Update keeps it up to "
+                         f"date.\n\nOr Use the file: installs your download. It never updates.{newer}",
                          ok="Install from Fedora", cancel="Cancel", extra="Use the file")
             if answer == "ok":
                 return install_from_fedora(pkg, title, printer, version)
@@ -1957,13 +1968,13 @@ def install_system(pkg, title, printer=False, update=False):
                                                                   "printer": printer and not update,
                                                                   "version": pkg.evr}])
     after = "After the restart, you will be asked to add your printer." if printer and not update else \
-        "After the restart, you will get a message when it is ready."
+        "After the restart, you'll get a message when it's ready."
     if update:
         notify(f"{title} is updated. Restart to use the new version.")
         offer_restart(f"{title} is updated. Restart to use the new version.")
     else:
         notify(f"{title} is installed. Restart to use it.")
-        offer_restart(f"{title} is installed. Restart to start using it.\n\n{after}\n\nUpdates: {UPDATES_SYSTEM}")
+        offer_restart(f"{title} is installed. Restart to start using it.", f"{after}\n\nUpdates: {UPDATES_SYSTEM}")
     return 0
 
 
@@ -2017,10 +2028,11 @@ def remove():
         label = BOXES[kind]["label"]
         mb = box_size(where)
         free = f"frees about {human(mb)}" if mb else "frees its disk space"
+        a = 'an .rpm' if kind == 'rpm' else 'a .deb'
         if ask(f"{title} is removed, and the {label} is now empty.\n\n"
-               f"Delete the box: {free}. It comes back by itself next time you install "
-               f"{'an .rpm' if kind == 'rpm' else 'a .deb'} app. Anything added to the box another way is deleted "
-               f"too. Your files are not touched.\n\nKeep it: ready for next time.",
+               f"Recommended: Delete the box. It {free}, and comes back by itself the next time you install {a} app. "
+               f"Anything added to the box another way is deleted too. Your files are not touched.\n\n"
+               f"Or Keep it: saves setup time if you'll install another {a.split()[1]} app soon.",
                ok="Delete the box", cancel="Keep it") == "ok":
             if delete_box(kind):
                 notify(f"The {label} is deleted.")
