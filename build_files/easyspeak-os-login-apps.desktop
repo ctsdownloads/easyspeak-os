@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Start Apps at Login
+Comment=Choose apps from .rpm or .deb files that start when you log in
+Keywords=autostart;startup;login;distrobox;box;rpm;deb;
+Icon=preferences-system-symbolic
+Exec=/usr/bin/easyspeak-os-packages login
+Categories=System;
+Terminal=false

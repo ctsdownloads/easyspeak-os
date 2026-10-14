@@ -37,6 +37,7 @@ install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
 install -Dm644 /ctx/easyspeak-os-repair-boxes.desktop /usr/share/applications/easyspeak-os-repair-boxes.desktop
+install -Dm644 /ctx/easyspeak-os-login-apps.desktop /usr/share/applications/easyspeak-os-login-apps.desktop
 # At login, once: says whether a package added to the system is ready, and for a printer driver offers to add the printer.
 install -Dm644 /ctx/easyspeak-os-packages-after-restart.desktop /etc/xdg/autostart/easyspeak-os-packages-after-restart.desktop
 # On GNOME, systemd skips an autostart entry that names a GNOME startup phase (it leaves those to gnome-session,
@@ -157,8 +158,8 @@ grep -qF "didn't understand" "$core/main.py" || { echo "EasySpeak log line chang
 cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os /usr/share/gnome-shell/extensions/
 install -Dm755 /ctx/system_files/usr/libexec/easyspeak-os-ready-dot-enable /usr/libexec/easyspeak-os-ready-dot-enable
 install -Dm644 /ctx/system_files/etc/xdg/autostart/easyspeak-os-ready-dot.desktop /etc/xdg/autostart/easyspeak-os-ready-dot.desktop
-# Voice commands "update system", "install a package", "remove an app", "repair app boxes" and the
-# EasySpeak-OS windows: plugin files in EasySpeak's own plugin
+# Voice commands "update system", "install a package", "remove an app", "repair app boxes", "start apps at login" and
+# the EasySpeak-OS windows: plugin files in EasySpeak's own plugin
 # folder; EasySpeak itself is unchanged. Fail the build if a new EasySpeak release would no longer load them the way
 # EasySpeak loads its own plugins.
 plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)

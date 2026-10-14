@@ -26,8 +26,9 @@ TESTS = {
                             ["open browser", "install a package"]),
     "easyspeak_os_apps": ({"install a package": "install", "install an app from a file": "install",
                            "uninstall an app": "remove", "remove a program": "remove",
-                           "repair app boxes": "repair", "fix the box": "repair"},
-                          ["install updates", "open browser", "update system", "remove word"]),
+                           "repair app boxes": "repair", "fix the box": "repair",
+                           "start apps at login": "login", "apps at startup": "login"},
+                          ["install updates", "open browser", "update system", "remove word", "log out"]),
 }
 for name, (takes, leaves) in TESTS.items():
     module = importlib.import_module(f"plugins.{name}")
