@@ -183,8 +183,16 @@ System Update keeps the boxes up to date, along with everything else.
 - "System Update cannot update it, because it came from a file": some apps, like
   Discord, offer their own updates; otherwise, open a newer file to update it.
 - From Flathub: System Update keeps it up to date.
-- Added to the system: System Update does not update it, because the system keeps
-  a package added from a file at that file's version.
+- Added to the system from Fedora: System Update keeps it up to date.
+- Added to the system from the file: System Update does not update it, because the
+  system keeps a package added from a file at that file's version.
+
+**Packages that need the system, and Fedora has them too.** Before adding an .rpm
+to the system, it checks whether Fedora's own repositories have a package with the
+same name. If they do, it shows both versions and offers **Install from Fedora**
+(installed by name, so System Update keeps it up to date) or **Use the file** (it
+never updates by itself). Only Fedora's own repositories are checked, not
+third-party ones.
 
 **Packages that only add a download source** (Fedora's RPM Fusion setup file,
 Microsoft's `packages-microsoft-prod.deb`): there is no app in the file, so the
@@ -301,7 +309,8 @@ What works in a box, and what needs the system itself:
 Settings, under Printers. So a printer driver first offers to open Printers and
 try that. If the printer still needs the driver:
 
-- **.rpm:** it is added to the system (administrator password, then a restart).
+- **.rpm:** it is added to the system (administrator password, then a restart),
+  from Fedora when Fedora has the same driver, so it gets updates.
   At the next login a window says the driver is ready and opens Printers to add
   the printer, or says plainly if the driver did not make it onto the system.
 - **.deb:** the system cannot take it. The window names the maker when the
