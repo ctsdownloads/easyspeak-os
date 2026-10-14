@@ -14,8 +14,8 @@ kvers=(/usr/lib/modules/*/)
 [ "${#kvers[@]}" -eq 1 ] || { echo "ERROR: expected exactly one kernel, found ${#kvers[@]}"; exit 1; }
 KVER=$(basename "${kvers[0]}")
 IMG=/usr/lib/modules/$KVER/initramfs.img
-[ -f "$IMG" ] || { echo "ERROR: $IMG not found"; exit 1; }
-mode=$(stat -c %a "$IMG")
+# A kernel update during the build arrives without an initramfs; dracut below makes it.
+if [ -f "$IMG" ]; then mode=$(stat -c %a "$IMG"); else mode=600; echo "no initramfs yet for $KVER (kernel updated during the build), making one"; fi
 
 # Blank logos. The generic-logos package would otherwise show its hot-dog mascot.
 python3 - <<'PY'
