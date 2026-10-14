@@ -32,7 +32,7 @@ jobs:
           (cd output && sha256sum easyspeak-os-live.iso | tee easyspeak-os-live.iso.sha256)
 
       - name: Upload the ISO
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: easyspeak-os-live-iso
           path: output/
