@@ -52,7 +52,7 @@ for t in application/x-rpm application/vnd.debian.binary-package; do
   first=$(XDG_CURRENT_DESKTOP=GNOME gio mime "$t" | sed -n 1p)
   [[ "$first" == *easyspeak-os-install-package.desktop* ]] || { echo "ERROR: $t files do not open in Install Package File"; exit 1; }
 done
-for c in distrobox podman flatpak rpm2archive pkexec zenity; do command -v "$c" >/dev/null || { echo "ERROR: Install Package File needs $c"; exit 1; }; done
+for c in distrobox podman flatpak rpm2archive pkexec zenity dnf5; do command -v "$c" >/dev/null || { echo "ERROR: Install Package File needs $c"; exit 1; }; done
 mkdir -p /tmp/pkgtest && (cd /tmp/pkgtest && dnf5 -q download gnome-mines openvpn solaar-udev fedora-repos-archive)
 python3 -I /ctx/check-packages.py /tmp/pkgtest || { echo 'ERROR: Install Package File does not read packages correctly'; exit 1; }
 rm -rf /tmp/pkgtest
