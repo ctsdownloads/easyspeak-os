@@ -43,7 +43,7 @@ chmod "$mode" "$IMG"
 
 # Safety checks: everything needed to unlock an encrypted disk and boot an ostree system.
 mods=$(lsinitrd -m "$IMG")
-for m in ostree crypt plymouth dm lvm systemd-cryptsetup kernel-modules; do
+for m in ostree crypt plymouth dm lvm systemd-cryptsetup kernel-modules tpm2-tss; do
   grep -qx "$m" <<< "$mods" || { echo "ERROR: the new initramfs lacks dracut module: $m"; exit 1; }
 done
 

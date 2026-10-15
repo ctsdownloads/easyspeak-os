@@ -34,6 +34,13 @@ install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
 # when its link to the desktop goes away), and a right-click Quit stops the app inside the box.
 install -Dm755 /ctx/easyspeak-os-box-run /usr/libexec/easyspeak-os-box-run
 install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/dev.easyspeak.os.hwrules.policy
+# System Tools: firmware, automatic disk unlock (TPM), free space, BIOS settings and automatic updates in windows,
+# with a root helper for the two jobs that change the system (polkit: administrator password).
+install -Dm755 /ctx/easyspeak-os-tools /usr/bin/easyspeak-os-tools
+install -Dm755 /ctx/easyspeak-os-tools-admin /usr/libexec/easyspeak-os-tools-admin
+install -Dm644 /ctx/dev.easyspeak.os.tools.policy /usr/share/polkit-1/actions/dev.easyspeak.os.tools.policy
+install -Dm644 /ctx/easyspeak-os-tools.desktop /usr/share/applications/easyspeak-os-tools.desktop
+for c in fwupdmgr systemd-cryptenroll cryptsetup flatpak podman; do command -v "$c" >/dev/null || { echo "ERROR: System Tools needs $c"; exit 1; }; done
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
 install -Dm644 /ctx/easyspeak-os-repair-boxes.desktop /usr/share/applications/easyspeak-os-repair-boxes.desktop
@@ -66,6 +73,10 @@ rpm -q gnome-software-rpm-ostree >/dev/null 2>&1 && { echo "ERROR: a second OS u
 if [ "$(rpm -q --qf '%{VERSION}' tuned)" != "2.27.0" ]; then dnf5 -y downgrade tuned-2.27.0-1.fc44 tuned-ppd-2.27.0-1.fc44; fi
 [ "$(rpm -q --qf '%{VERSION}' tuned)" = 2.27.0 ] && [ "$(rpm -q --qf '%{VERSION}' tuned-ppd)" = 2.27.0 ] || { echo "ERROR: tuned does not match Bluefin's 2.27.0"; exit 1; }
 bash /ctx/rebrand.sh
+# System Tools' "Unlock disk automatically" lets the TPM unlock the disk at startup: the boot image needs the TPM
+# support for that (what Universal Blue's ublue-os-luks adds). initramfs.sh checks it is in the new boot image.
+dnf5 -y install tpm2-tss
+printf 'add_dracutmodules+=" tpm2-tss "\n' > /usr/lib/dracut/dracut.conf.d/90-easyspeak-os-tpm.conf
 bash /ctx/initramfs.sh
 install -Dm755 /ctx/easyspeak-os-boot-label /usr/bin/easyspeak-os-boot-label
 install -Dm644 /ctx/NOTICE /usr/share/doc/easyspeak-os/NOTICE
@@ -166,6 +177,7 @@ plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
 [ -d "$plugins" ] || { echo "ERROR: EasySpeak's plugin folder was not found"; exit 1; }
 install -Dm644 /ctx/easyspeak_os_update.py "$plugins/easyspeak_os_update.py"
 install -Dm644 /ctx/easyspeak_os_apps.py "$plugins/easyspeak_os_apps.py"
+install -Dm644 /ctx/easyspeak_os_tools.py "$plugins/easyspeak_os_tools.py"
 install -Dm644 /ctx/easyspeak_os_dialogs.py "$plugins/easyspeak_os_dialogs.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
 "$py" /ctx/check-easyspeak-plugin.py "$plugins" /usr/bin/easyspeak-os-dialog || { echo 'ERROR: EasySpeak would not load the EasySpeak-OS plugins'; exit 1; }

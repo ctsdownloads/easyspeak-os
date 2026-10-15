@@ -26,7 +26,8 @@ COMMANDS = [
     "number one / number two - pick that line in an EasySpeak-OS list window",
 ]
 
-# The buttons of the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login),
+# The buttons of the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login,
+# System Tools),
 # listed by name in the help's Software section. Pressing them works through the button names above; this list is
 # only for the help.
 HELP_SOFTWARE = [
@@ -41,6 +42,8 @@ HELP_SOFTWARE = [
     "open printers / install the driver / about this driver - when the file is a printer driver",
     "try anyway / repair / repair the box - when disk space is low or an app box is broken",
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
+    "turn on / turn off / turn on anyway / free up space / keep it on / keep them on / keep them off - the System "
+    "Tools buttons",
 ]
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")

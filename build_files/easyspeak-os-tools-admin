@@ -1,0 +1,86 @@
+#!/usr/bin/python3 -I
+"""The System Tools jobs that change the system. Runs as root through polkit (administrator password).
+
+  easyspeak-os-tools-admin updates on|off
+      Turn the automatic updater's daily timer (uupd.timer) on or off, as `ujust toggle-updates` does.
+  easyspeak-os-tools-admin disk-unlock on|off      (the disk password on standard input)
+      Let the TPM unlock the encrypted system disk at startup, or stop it, as `ujust setup-luks-tpm-unlock` does:
+      systemd-cryptenroll, bound to PCRs 7 and 14 (the Secure Boot state). Only the disk named on the kernel
+      command line (rd.luks.uuid) is touched. The password is checked first: a wrong one changes nothing and
+      exits 3. The password is never written anywhere.
+
+Nothing else is accepted.
+"""
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+DISK_UNLOCK_ON = Path("/var/lib/easyspeak-os/disk-unlock-on")
+UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
+
+
+def fail(msg, code=1):
+    print(msg)
+    sys.exit(code)
+
+
+def disk():
+    for a in Path("/proc/cmdline").read_text().split():
+        if a.startswith("rd.luks.uuid="):
+            v = a.split("=", 1)[1]
+            v = v[5:] if v.startswith("luks-") else v
+            if UUID.match(v) and Path(f"/dev/disk/by-uuid/{v}").exists():
+                return f"/dev/disk/by-uuid/{v}"
+            fail("The encrypted disk named at startup was not found.")
+    fail("The system disk is not encrypted.")
+
+
+def updates(state):
+    cmd = ["systemctl", "enable", "--now", "uupd.timer"] if state == "on" else \
+        ["systemctl", "disable", "--now", "uupd.timer"]
+    sys.exit(subprocess.run(cmd).returncode)
+
+
+def disk_unlock(state):
+    dev = disk()
+    pw = sys.stdin.read(4096)
+    if not pw:
+        fail("No disk password was given.")
+    # A wrong password changes nothing: check it before anything else.
+    if subprocess.run(["cryptsetup", "open", "--test-passphrase", "--key-file=-", dev], input=pw.encode(),
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+        fail("That is not the disk password.", 3)
+    env = {"PATH": "/usr/sbin:/usr/bin", "PASSWORD": pw}
+    if state == "on":
+        if not Path("/dev/tpmrm0").exists():
+            fail("This computer has no TPM.")
+        # Enrolls the TPM, then wipes any older TPM enrollment (the new one is kept).
+        cmd = ["systemd-cryptenroll", "--wipe-slot=tpm2", "--tpm2-device=auto", "--tpm2-pcrs=7+14", dev]
+    else:
+        cmd = ["systemd-cryptenroll", "--wipe-slot=tpm2", dev]
+    r = subprocess.run(cmd, env=env, stdin=subprocess.DEVNULL)
+    if r.returncode != 0:
+        fail("systemd-cryptenroll did not finish.")
+    if state == "on":
+        DISK_UNLOCK_ON.parent.mkdir(parents=True, exist_ok=True)
+        DISK_UNLOCK_ON.write_text("TPM2 unlock enrolled by System Tools\n")
+    else:
+        DISK_UNLOCK_ON.unlink(missing_ok=True)
+    print("done")
+
+
+def main(argv):
+    if os.geteuid() != 0:
+        fail("This helper runs as root, through polkit.")
+    if len(argv) == 3 and argv[1] == "updates" and argv[2] in ("on", "off"):
+        updates(argv[2])
+    elif len(argv) == 3 and argv[1] == "disk-unlock" and argv[2] in ("on", "off"):
+        disk_unlock(argv[2])
+    else:
+        fail(__doc__, 2)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

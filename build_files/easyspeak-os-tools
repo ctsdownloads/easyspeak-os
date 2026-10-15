@@ -1,0 +1,378 @@
+#!/usr/bin/python3 -I
+"""System Tools: a few system jobs in plain windows, by voice or from Show Apps.
+
+  easyspeak-os-tools                 the list of tools
+  easyspeak-os-tools firmware        update firmware
+  easyspeak-os-tools disk-unlock     unlock the disk automatically at startup (TPM)
+  easyspeak-os-tools free-space      free up disk space
+  easyspeak-os-tools bios            restart into the BIOS settings
+  easyspeak-os-tools updates         turn automatic updates on or off
+
+Each tool does what one of Universal Blue's ujust commands does, but asks in windows instead of in a terminal.
+Jobs that change the system run through easyspeak-os-tools-admin, which asks for the administrator password.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+TITLE = "System Tools"
+DIALOG = "/usr/bin/easyspeak-os-dialog" if os.access("/usr/bin/easyspeak-os-dialog", os.X_OK) else "zenity"
+ADMIN = "/usr/libexec/easyspeak-os-tools-admin"
+CACHE = Path.home() / ".cache" / "easyspeak-os"
+LOG = CACHE / "tools.log"
+DISK_UNLOCK_ON = Path("/var/lib/easyspeak-os/disk-unlock-on")
+GUI = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")) and shutil.which("zenity")
+
+
+# ---------------------------------------------------------------- windows
+
+def zenity(*args, stdin=None, title=TITLE):
+    return subprocess.run([DIALOG, f"--title={title}", "--width=520", *args], input=stdin,
+                          capture_output=True, text=True)
+
+
+def notify(text):
+    if shutil.which("notify-send"):
+        subprocess.run(["notify-send", f"--app-name={TITLE}", "--icon=applications-system-symbolic", TITLE, text],
+                       capture_output=True)
+
+
+def say(text, kind="info", title=TITLE):
+    if GUI:
+        zenity(f"--{kind}", "--no-markup", f"--text={text}", title=title)
+    else:
+        print(text)
+
+
+def ask(text, ok="Yes", cancel="Cancel", extra=None, title=TITLE):
+    """'ok', 'extra' or None."""
+    if GUI:
+        args = ["--question", "--no-markup", f"--text={text}", f"--ok-label={ok}", f"--cancel-label={cancel}"]
+        if extra:
+            args.append(f"--extra-button={extra}")
+        r = zenity(*args, title=title)
+        if r.returncode == 0:
+            return "ok"
+        return "extra" if extra and r.stdout.strip() == extra else None
+    print(text)
+    print(f"  1) {ok}" + (f"\n  2) {extra}" if extra else "") + f"\n  Enter) {cancel}")
+    try:
+        return {"1": "ok", "2": "extra" if extra else None}.get(input("> ").strip())
+    except EOFError:
+        return None
+
+
+def choose(text, columns, rows):
+    """Pick one row; its index or None. Each line shows its number, so "number two" can be said by sight."""
+    if GUI:
+        args = ["--list", f"--text={text}", "--height=380", "--print-column=1", "--hide-column=1",
+                "--column=n", "--column=No.", *[f"--column={c}" for c in columns]]
+        cells = []
+        for i, row in enumerate(rows):
+            cells += [str(i), str(i + 1), *row]
+        r = zenity(*args, stdin="\n".join(cells) + "\n")
+        out = r.stdout.strip().split("|")[0]
+        return int(out) if r.returncode == 0 and out.isdigit() else None
+    print(text)
+    for i, row in enumerate(rows, 1):
+        print(f"  {i}) " + "   ".join(row))
+    try:
+        n = input("> ").strip()
+    except EOFError:
+        return None
+    return int(n) - 1 if n.isdigit() and 0 < int(n) <= len(rows) else None
+
+
+def password(text):
+    """The disk password, typed. None when cancelled."""
+    if GUI:
+        r = subprocess.run(["zenity", f"--title={TITLE}", "--password", f"--text={text}"],
+                           capture_output=True, text=True)
+        return r.stdout.rstrip("\n") if r.returncode == 0 and r.stdout.strip() else None
+    import getpass
+    try:
+        return getpass.getpass(text + " ") or None
+    except EOFError:
+        return None
+
+
+def run(text, cmd, stdin=None, title=TITLE):
+    """Run one command with a progress window; its exit code. Its output goes to the log, not the window."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    with open(LOG, "a") as log:
+        log.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n$ {' '.join(cmd)}\n")
+        log.flush()
+        bar = None
+        if GUI:
+            bar = subprocess.Popen(["zenity", f"--title={title}", "--progress", "--pulsate", "--auto-close",
+                                    "--no-cancel", "--width=480", f"--text={text}"], stdin=subprocess.PIPE, text=True)
+        else:
+            print(text)
+        try:
+            rc = subprocess.run(cmd, input=stdin, stdout=log, stderr=subprocess.STDOUT, text=True).returncode
+        except OSError as e:
+            log.write(f"{e}\n")
+            rc = 127
+        if bar:
+            try:
+                bar.stdin.write("100\n")
+                bar.stdin.close()
+            except BrokenPipeError:
+                pass
+            bar.wait()
+    return rc
+
+
+def output(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def offer_restart(text):
+    if ask(text + "\n\nRecommended: Restart now. Or Later, if you're in the middle of something.",
+           ok="Restart now", cancel="Later") == "ok":
+        subprocess.run(["systemctl", "reboot"])
+
+
+def human(mb):
+    return f"{mb / 1000:.1f} GB" if mb >= 1000 else f"{mb} MB"
+
+
+def free_mb():
+    try:
+        st = os.statvfs(str(Path.home()))
+        return st.f_bavail * st.f_frsize // 1_000_000
+    except OSError:
+        return None
+
+
+# ---------------------------------------------------------------- state
+
+def luks_uuid():
+    """The encrypted system disk's UUID, from the kernel command line, or None when the disk is not encrypted."""
+    try:
+        args = Path("/proc/cmdline").read_text().split()
+    except OSError:
+        return None
+    for a in args:
+        if a.startswith("rd.luks.uuid="):
+            v = a.split("=", 1)[1]
+            return v[5:] if v.startswith("luks-") else v
+    return None
+
+
+def has_tpm():
+    return Path("/dev/tpmrm0").exists()
+
+
+def secure_boot_on():
+    """True, False, or None when it cannot be told."""
+    for f in Path("/sys/firmware/efi/efivars").glob("SecureBoot-*"):
+        try:
+            data = f.read_bytes()
+            return len(data) >= 5 and data[4] == 1
+        except OSError:
+            return None
+    return None
+
+
+def updates_on():
+    r = output(["systemctl", "is-enabled", "uupd.timer"])
+    return bool(r) and r.stdout.strip() == "enabled"
+
+
+# ---------------------------------------------------------------- tools
+
+def firmware():
+    w = "Update firmware"
+    if run("Checking for firmware updates.", ["fwupdmgr", "refresh", "--force", "--no-remote-check",
+                                               "--no-metadata-check", "--no-unreported-check"], title=w) not in (0, 2):
+        say("Couldn't check for firmware updates. Check your internet connection and try again.", "warning", title=w)
+        return 1
+    r = output(["fwupdmgr", "get-updates", "--json", "--no-unreported-check", "--no-metadata-check"])
+    if not r or r.returncode not in (0, 2):     # 2: no updates
+        say("Couldn't check for firmware updates. Try again later.", "warning", title=w)
+        return 1
+    devices = []
+    if r.returncode == 0:
+        try:
+            for d in json.loads(r.stdout).get("Devices", []):
+                rel = (d.get("Releases") or [{}])[0]
+                devices.append(f"  - {d.get('Name', 'A device')}: {d.get('Version', '?')} to {rel.get('Version', '?')}")
+        except (ValueError, AttributeError):
+            devices = []
+    if not devices:
+        say("Your computer's firmware is up to date.", title=w)
+        return 0
+    note = ""
+    if DISK_UNLOCK_ON.exists():
+        note = ("\n\nUnlock disk automatically is on. After some firmware updates, the computer asks for the disk "
+                "password once. Then turn Unlock disk automatically on again in System Tools.")
+    if ask("Firmware updates are available for:\n" + "\n".join(devices) + "\n\nFirmware is the software built into "
+           "the computer's own parts, like the BIOS.\n\nRecommended: Update. Keep the computer plugged in. Some "
+           "updates finish while the computer restarts." + note, ok="Update", title=w) != "ok":
+        return 1
+    rc = run("Updating firmware. Keep the computer plugged in.",
+             ["fwupdmgr", "update", "--assume-yes", "--no-reboot-check", "--no-remote-check", "--no-metadata-check",
+              "--no-unreported-check"], title=w)
+    if rc == 2:     # nothing to do after all
+        say("Your computer's firmware is up to date.", title=w)
+        return 0
+    if rc != 0:
+        say("The firmware update didn't finish. Try again later.", "warning", title=w)
+        return 1
+    notify("Firmware updated.")
+    offer_restart("Firmware updated. Some updates finish while the computer restarts.")
+    return 0
+
+
+def disk_unlock():
+    w = "Unlock disk automatically"
+    uuid = luks_uuid()
+    if not uuid:
+        say("Your disk isn't encrypted, so there's no disk password to skip. Nothing to do.", title=w)
+        return 0
+    if not has_tpm():
+        say("This computer has no security chip (TPM) that can do this, so the disk password stays.", title=w)
+        return 0
+    if DISK_UNLOCK_ON.exists():
+        if ask("Unlock disk automatically is on: the disk unlocks by itself when the computer starts.\n\n"
+               "Turn off: you type the disk password at every start again.", ok="Turn off", cancel="Keep it on",
+               title=w) != "ok":
+            return 1
+        pw = password("Type the disk password (the one you type when the computer starts):")
+        if not pw:
+            return 1
+        rc = run("Turning off automatic disk unlock.", ["pkexec", ADMIN, "disk-unlock", "off"], stdin=pw, title=w)
+        return done_disk(rc, "Unlock disk automatically is off. From your next start, the computer asks for the "
+                             "disk password again.", w)
+    if secure_boot_on() is False:
+        a = ask("Right now you type the disk password every time the computer starts.\n\nSecure Boot is off on this "
+                "computer, so this would be less safe: someone could change how the computer starts and still get the "
+                "disk unlocked.\n\nRecommended: Cancel, then turn Secure Boot on in the BIOS settings first (Restart "
+                "into BIOS settings, in System Tools).\n\nOr Turn on anyway.", ok="Turn on anyway", title=w)
+    else:
+        a = ask("Right now you type the disk password every time the computer starts.\n\nRecommended: Turn on. The "
+                "computer's security chip unlocks the disk for you. If the disk is ever taken out of this computer, or "
+                "its startup settings change, it asks for the password as before.\n\nNeeds the disk password one "
+                "last time, then a restart.", ok="Turn on", title=w)
+    if a != "ok":
+        return 1
+    pw = password("Type the disk password (the one you type when the computer starts):")
+    if not pw:
+        return 1
+    rc = run("Turning on automatic disk unlock.", ["pkexec", ADMIN, "disk-unlock", "on"], stdin=pw, title=w)
+    if rc == 0:
+        offer_restart("It's on. From your next restart, the disk unlocks by itself.")
+        return 0
+    return done_disk(rc, "", w)
+
+
+def done_disk(rc, text, w):
+    if rc == 0:
+        say(text, title=w)
+        return 0
+    if rc == 3:
+        say("That isn't the disk password, so nothing was changed. Try again.", "warning", title=w)
+    elif rc in (126, 127):
+        say("The administrator password wasn't given, so nothing was changed.", "warning", title=w)
+    else:
+        say(f"It didn't work, and nothing was changed. Try again later.\n\nThe details are in {LOG}", "warning",
+            title=w)
+    return 1
+
+
+def free_space():
+    w = "Free up disk space"
+    before = free_mb()
+    now = f"{human(before)} is free now.\n\n" if before is not None else ""
+    if ask(f"{now}This removes things the computer no longer needs: unused app parts, old system update files, and "
+           f"unused container images. Your files and your apps aren't touched.", ok="Free up space", title=w) != "ok":
+        return 1
+    steps = [("Removing unused container images.", ["podman", "image", "prune", "-af"]),
+             ("Removing unused app parts.", ["flatpak", "uninstall", "--unused", "-y", "--noninteractive"]),
+             ("Removing old system update files.", ["rpm-ostree", "cleanup", "-bm"])]
+    brew = "/home/linuxbrew/.linuxbrew/bin/brew"
+    if os.access(brew, os.X_OK):
+        steps += [("Removing unused command-line tools.", [brew, "autoremove"]),
+                  ("Removing old command-line tool downloads.", [brew, "cleanup"])]
+    for text, cmd in steps:
+        if shutil.which(cmd[0]) or cmd[0].startswith("/"):
+            run(text, cmd, title=w)
+    after = free_mb()
+    if before is not None and after is not None:
+        freed = max(after - before, 0)
+        say(f"Done. {human(freed)} freed. {human(after)} is free now.", title=w)
+    else:
+        say("Done.", title=w)
+    return 0
+
+
+def bios():
+    w = "Restart into BIOS settings"
+    if not Path("/sys/firmware/efi").is_dir():
+        say("This computer can't open its BIOS settings from here. Press the BIOS key while it starts (often F2, "
+            "F10, F12 or Delete).", title=w)
+        return 0
+    if ask("The computer restarts and opens its BIOS settings screen. Save your work first.\n\nThe BIOS settings are "
+           "used with the keyboard. When you're done, choose Save and Exit, or Exit, to start the computer again.",
+           ok="Restart now", title=w) != "ok":
+        return 1
+    r = output(["systemctl", "reboot", "--firmware-setup"])
+    if not r or r.returncode != 0:
+        say("This computer can't open its BIOS settings from here. Press the BIOS key while it starts (often F2, "
+            "F10, F12 or Delete).", title=w)
+        return 1
+    return 0
+
+
+def updates():
+    w = "Automatic updates"
+    if updates_on():
+        if ask("Automatic updates are on: everything updates by itself every day at 4 am.\n\nRecommended: Keep them "
+               "on. Updates fix security problems.\n\nOr Turn off: nothing updates until you run System Update "
+               "yourself.", ok="Turn off", cancel="Keep them on", title=w) != "ok":
+            return 1
+        rc = run("Turning off automatic updates.", ["pkexec", ADMIN, "updates", "off"], title=w)
+        text = "Automatic updates are off. Run System Update yourself to update."
+    else:
+        if ask("Automatic updates are off: nothing updates until you run System Update yourself.\n\nRecommended: "
+               "Turn on. Everything then updates by itself every day at 4 am, and updates fix security problems.",
+               ok="Turn on", cancel="Keep them off", title=w) != "ok":
+            return 1
+        rc = run("Turning on automatic updates.", ["pkexec", ADMIN, "updates", "on"], title=w)
+        text = "Automatic updates are on."
+    if rc == 0:
+        say(text, title=w)
+        return 0
+    say("The administrator password wasn't given, so nothing was changed." if rc in (126, 127) else
+        f"It didn't work, and nothing was changed.\n\nThe details are in {LOG}", "warning", title=w)
+    return 1
+
+
+TOOLS = [("firmware", "Update firmware", "Updates for the computer's own parts, like the BIOS", firmware),
+         ("disk-unlock", "Unlock disk automatically", "Skip the disk password at startup", disk_unlock),
+         ("free-space", "Free up disk space", "Remove things the computer no longer needs", free_space),
+         ("bios", "Restart into BIOS settings", "Open the computer's BIOS settings screen", bios),
+         ("updates", "Automatic updates", "Turn them on or off", updates)]
+
+
+def main(argv):
+    if len(argv) > 1:
+        for key, _, _, fn in TOOLS:
+            if argv[1] == key:
+                return fn()
+        print(__doc__)
+        return 2
+    i = choose("Which tool do you want?", ["Tool", "What it does"], [[name, about] for _, name, about, _ in TOOLS])
+    return TOOLS[i][3]() if i is not None else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

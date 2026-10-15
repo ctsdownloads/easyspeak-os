@@ -54,6 +54,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
   - [Progress and notifications](#progress-and-notifications)
   - [Starting and stopping box apps](#starting-and-stopping-box-apps)
   - [When something goes wrong](#when-something-goes-wrong)
+- [System Tools](#system-tools)
 - [How it's built](#how-its-built)
 - [Media codecs](#media-codecs)
   - [Passwords](#passwords)
@@ -117,6 +118,7 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from Show Apps |
+| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, and turn automatic updates on or off, in plain windows. See [System Tools](#system-tools) |
 
 ## System requirements
 
@@ -263,13 +265,15 @@ break the system, and they update by themselves.
 | Remove an app | Yes, if Install Package File installed it | "remove an app". Apps from the Software app are removed there, with grid mode |
 | Repair app boxes, or choose apps that start at login | Yes | "repair app boxes", "start apps at login" |
 | Update everything (system, Flatpaks, app boxes) | Yes | Automatic, or "update system" |
+| System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
 | Media codecs | Partly | Answer the window by voice. Outside first-time setup, the administrator password is typed |
 
 **Still typed:**
 
 - the password to log in and to unlock the screen
-- the administrator password, when adding an app to the system or installing
-  codecs later
+- the administrator password, when adding an app to the system, installing
+  codecs later, or changing a System Tools setting
+- the disk password, once, when turning Unlock disk automatically on or off
 - the install and first-login setup
 - Homebrew, and anything else in a terminal
 
@@ -555,6 +559,38 @@ the log. The full log is in `~/.cache/easyspeak-os/packages/last.log`. To see
 what a package needs without installing it, run
 `easyspeak-os-packages check FILE`.
 
+## System Tools
+
+**System Tools** (in Show Apps, or say "system tools") is a short list of system
+jobs, each in plain windows that say what will happen and what's recommended.
+They're the useful ones from Universal Blue's `ujust` commands, without a
+terminal. Say a line's number to pick a tool, then say its buttons.
+
+| Tool | What it does |
+|------|--------------|
+| Update firmware | Checks for updates to the software built into the computer's own parts, like the BIOS, and installs them. Keep the computer plugged in. Some updates finish during the next restart |
+| Unlock disk automatically | If the disk was encrypted at install, the computer's security chip (TPM) can unlock it at startup, so the disk password isn't typed every time. See below |
+| Free up disk space | Removes unused app parts, old system update files and unused container images, and says how much space it freed. Your files and apps aren't touched |
+| Restart into BIOS settings | Restarts the computer straight into its BIOS settings screen. The BIOS settings are used with the keyboard |
+| Automatic updates | Turns the daily automatic updates on or off. Keeping them on is recommended, because updates fix security problems |
+
+**Unlock disk automatically.** When the disk is encrypted, the computer asks for
+the disk password at every start, before the login password. Turning this on
+lets the computer's security chip unlock the disk instead:
+
+- It needs the disk to have been encrypted when the system was installed, and a
+  security chip (TPM 2.0). Intel computers from 11th generation on, and Framework
+  laptops with an up-to-date BIOS, have one. Secure Boot should be on; if it's
+  off, the window says so and recommends turning it on first.
+- Turning it on asks for the disk password one last time, and the administrator
+  password, then a restart.
+- If the disk is taken out of the computer, or the computer's startup settings
+  change (a BIOS or firmware update, Secure Boot switched off), the chip refuses
+  and the disk password is asked for as before. Nobody is locked out. After such
+  a change, turn it on again in System Tools.
+- Turning it off is in the same place, and the disk password is asked for at
+  every start again.
+
 ## How it's built
 
 [GitHub Actions](.github/workflows/build.yml) builds and signs the image on
@@ -580,6 +616,8 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
 | `build_files/check-docs.py` | The build test that the README's table of contents and the help keep up with the software |
+| `build_files/easyspeak-os-tools`, `easyspeak-os-tools.desktop`, `easyspeak_os_tools.py` | **System Tools** in Show Apps, and the "system tools" voice command |
+| `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates and automatic disk unlock on or off, and its polkit policy (administrator password) |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
@@ -601,11 +639,11 @@ What the build checks:
   good one stays. Signing runs after the push, so a failed signing step leaves
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
-- The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk.
+- The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk, including with the security chip (TPM).
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
 - The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
-- The build fails if the README's table of contents does not list every section, in order, with working links, if a link inside the README goes to a section that does not exist, or if a button in the software windows is missing from the help's Software section. So a change that adds a section or a button cannot merge until the README and the help match.
+- The build fails if the README's table of contents does not list every section, in order, with working links, if a link inside the README goes to a section that does not exist, or if a button in the software windows or System Tools is missing from the help's Software section. So a change that adds a section or a button cannot merge until the README and the help match.
 - The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads four real Fedora packages (an app, a background service, a hardware rule and a download source).
 
 The release packages from Fedora also hold Fedora's lists of which services

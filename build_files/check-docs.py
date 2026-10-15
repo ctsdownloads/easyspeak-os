@@ -4,8 +4,8 @@
 1. The README's table of contents (between <!-- contents --> and <!-- /contents -->) lists every section and
    sub-section, in order, with the same words, and each link goes to its section.
 2. Every link to a section inside the README (#...) goes to a section that exists.
-3. Every button in the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login)
-   is named in the help's Software section, so it can be found by voice.
+3. Every button in the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login,
+   System Tools) is named in the help's Software section, so it can be found by voice.
 
 Run from the repository root:  python3 build_files/check-docs.py
 """
@@ -75,8 +75,8 @@ for line in readme:
             errors.append(f"README.md links to a section that does not exist: #{a}")
 
 # ---------------------------------------------------------------- help: every window button
-src = (ROOT / "build_files" / "easyspeak-os-packages").read_text()
-tree = ast.parse(src)
+TOOLS = ["easyspeak-os-packages", "easyspeak-os-tools"]
+trees = [ast.parse((ROOT / "build_files" / t).read_text()) for t in TOOLS]
 
 
 def strings(node, names):
@@ -91,7 +91,7 @@ def strings(node, names):
 
 
 buttons = {"Yes", "Cancel"}          # ask()'s own defaults
-for fn in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
+for fn in (n for tree in trees for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
     names = {}
     for n in ast.walk(fn):
         if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):

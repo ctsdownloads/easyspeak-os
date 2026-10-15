@@ -12,7 +12,7 @@ from pathlib import Path
 plugins = Path(sys.argv[1])
 sys.path.insert(0, str(plugins.parent))           # what EasySpeak's load_plugins() does
 rows = []
-ORDER = ["easyspeak_os_update", "easyspeak_os_apps", "easyspeak_os_dialogs"]   # how they are listed; others after
+ORDER = ["easyspeak_os_update", "easyspeak_os_tools", "easyspeak_os_apps", "easyspeak_os_dialogs"]   # how they are listed; others after
 files = sorted(plugins.glob("easyspeak_os_*.py"), key=lambda f: (ORDER.index(f.stem) if f.stem in ORDER else 99, f.stem))
 for f in files:
     module = importlib.import_module(f"plugins.{f.stem}")
