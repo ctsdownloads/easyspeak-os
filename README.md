@@ -323,7 +323,8 @@ touched. See [Repairing a box](#repairing-a-box).
    - The first time, the window also says how much the box downloads and how
      much disk space it uses.
 6. The last window says where to find it ("Find it in Show Apps.") and how it
-   gets updates (see [Updates](#updates)).
+   gets updates (see [Updates](#updates)). Its own icon shows in Show Apps
+   straight away.
 
 .rpm files go in the Fedora box and .deb files in the Ubuntu 24.04 box. Each box
 is a Distrobox container, kept separate from any boxes of your own. System
