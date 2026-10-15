@@ -623,6 +623,23 @@ def apps_step(w):
         "your helper.", title=w)
 
 
+def voice_ready(wait=180):
+    """Wait until EasySpeak has loaded, so the checklist's buttons can be said from its first window. EasySpeak's
+    EasySpeak-OS dialogs plugin leaves a note with EasySpeak's process number once its speech model and plugins are
+    loaded (easyspeak-ready, in $XDG_RUNTIME_DIR/easyspeak-os). At most `wait` seconds, then open anyway: the
+    buttons can always be clicked."""
+    note = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "easyspeak-os" / "easyspeak-ready"
+    end = time.time() + wait
+    while time.time() < end:
+        try:
+            os.kill(int(note.read_text().strip()), 0)
+            time.sleep(3)           # it loads its plugins a moment before it starts listening
+            return True
+        except (OSError, ValueError):
+            time.sleep(2)
+    return False
+
+
 def setup_checklist(first_login=False):
     w = "Setup checklist"
     if first_login:
@@ -630,7 +647,9 @@ def setup_checklist(first_login=False):
         # were set up before this checklist existed, so it doesn't open for them.
         if not GUI or SETUP_SHOWN.exists() or CODECS_ASKED.exists():
             return 0
-    a = ask("Welcome. A few things to set up, one at a time:\n\n"
+        voice_ready()
+    a = ask("Welcome. A few things to set up, one at a time. Answer each window by saying a button's name, like "
+            "\"Start\".\n\n"
             "1. Check the microphone\n2. Media codecs, for web video\n3. Skip the disk password at startup\n"
             "4. How to get apps\n\nEach can be skipped.\n\nRecommended: Start. Or Later: this opens again at the "
             "next login. Or Don't show again: say \"setup checklist\" to open it any time.",

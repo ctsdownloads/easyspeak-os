@@ -57,6 +57,22 @@ folder.mkdir(parents=True, exist_ok=True)
 assert dialogs.handle("open browser", Core()) is None, "dialogs plugin takes words that are not a button"
 assert dialogs.handle("set up and install", Core()) is True, "dialogs plugin does not press a button by name"
 assert (folder / f"{os.getpid()}.answer").read_text() == "ok", "dialogs plugin pressed the wrong button"
+# Apostrophes and "do not" don't matter; "next" goes on only when the main button just moves forward.
+(folder / f"{os.getpid()}.answer").unlink()
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 1, "text": "Welcome.", "rows": [],
+    "buttons": [{"say": "Start", "does": "ok"}, {"say": "Later", "does": "cancel"},
+                {"say": "Don't show again", "does": "extra:Don't show again"}]}))
+assert dialogs.handle("do not show again", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "extra:Don't show again", "'do not show again' not pressed"
+(folder / f"{os.getpid()}.answer").unlink()
+assert dialogs.handle("next", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "ok", "'next' does not press Start"
+(folder / f"{os.getpid()}.answer").unlink()
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 1, "text": "Turn off?", "rows": [],
+    "buttons": [{"say": "Turn off", "does": "ok"}, {"say": "Keep it on", "does": "cancel"}]}))
+assert dialogs.handle("next", Core()) is None, "'next' pressed a button that changes something"
 # A list window from easyspeak-os-dialog: its lines are named by their name, not by the visible number column
 dialog = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 if dialog:

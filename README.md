@@ -194,9 +194,10 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 
 ### First login
 
-- **The setup checklist** opens by itself about 20 seconds after a new user's
-  first login. It goes through four steps, one window each, and any can be
-  skipped:
+- **The setup checklist** opens by itself at a new user's first login, as soon
+  as EasySpeak has finished loading, so its buttons can be said from the first
+  window (if EasySpeak isn't running, it opens after 3 minutes anyway). It goes
+  through four steps, one window each, and any can be skipped:
   1. **Check the microphone:** say "testing, testing" and it says whether the
      computer heard you. If not, it offers **Open sound settings** to choose the
      microphone, then **Test again**. It records with PipeWire, alongside
@@ -272,7 +273,11 @@ break the system, and they update by themselves.
   (Install Package File, Remove Apps, Repair App Boxes, System Update, Install
   Media Codecs), say a button's name to press it: "set up and install", "open
   it", "restart now", "cancel". In a list, say "number two" (each line shows its
-  number) or the name on the line. Say "read it" to hear the window and the buttons you can say. The window
+  number) or the name on the line. Say "read it" to hear the window and the buttons you can say.
+  Apostrophes don't matter ("dont show again" and "do not show again" both press
+  **Don't show again**). "Next" or "continue" presses the main button when it
+  only moves forward (Start, Next, Test, OK), never one that changes or removes
+  something, like Turn off. The window
   is never read out by itself: the open microphone would hear it and could press
   one of its buttons. When no such window is open, these words do nothing, so
   they never get in the way of other commands. English only.
