@@ -57,6 +57,7 @@ HELP_SOFTWARE = [
     "start / later / don't show again / next / skip / restart now - the setup checklist: go through it, skip a "
     "step, and restart at the end if the codecs were installed",
     "test / test again / open sound settings / set it up - the setup checklist's microphone and disk unlock steps",
+    "open software / open install package file - the setup checklist's getting apps step: see where apps come from",
 ]
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")

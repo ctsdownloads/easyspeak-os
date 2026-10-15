@@ -209,7 +209,9 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
      System Tools. Only shown if the disk is encrypted, the computer has a
      security chip and it isn't on already. It needs the disk password, so it's
      a step for the helper.
-  4. **How to get apps:** where apps come from, in a few lines.
+  4. **How to get apps:** where apps come from, with **Open Software** and
+     **Open Install Package File** to see each one for real. The window comes
+     back after each, until **Next**.
 
   Nothing in the middle of the checklist restarts the computer, so no step is
   lost. If the codecs were installed, the last window says they work after a
