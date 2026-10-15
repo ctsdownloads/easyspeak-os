@@ -9,8 +9,15 @@
       command line (rd.luks.uuid) is touched. The password is checked first: a wrong one changes nothing and
       exits 3. The password is never written anywhere.
 
+  easyspeak-os-tools-admin disk-unlock check
+      Make the note System Tools keeps (/var/lib/easyspeak-os/disk-unlock-on) match the disk: present only when the
+      disk really has a TPM enrollment (a systemd-tpm2 token in its LUKS header). Run at every start by
+      easyspeak-os-disk-unlock-check.service, so a note left behind after the enrollment went away (or the other
+      way round) can't make System Tools or the setup checklist skip turning it on. Needs no password.
+
 Nothing else is accepted.
 """
+import json
 import os
 import re
 import subprocess
@@ -35,6 +42,43 @@ def disk():
                 return f"/dev/disk/by-uuid/{v}"
             fail("The encrypted disk named at startup was not found.")
     fail("The system disk is not encrypted.")
+
+
+def tpm_enrolled(dev):
+    """Does the disk's LUKS header hold a TPM enrollment? None when the header can't be read."""
+    r = subprocess.run(["cryptsetup", "luksDump", "--dump-json-metadata", dev], capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    try:
+        tokens = json.loads(r.stdout).get("tokens", {})
+    except ValueError:
+        return None
+    return any(t.get("type") == "systemd-tpm2" for t in tokens.values())
+
+
+def mark(on):
+    if on:
+        DISK_UNLOCK_ON.parent.mkdir(parents=True, exist_ok=True)
+        DISK_UNLOCK_ON.write_text("TPM2 unlock enrolled (checked against the disk)\n")
+    else:
+        DISK_UNLOCK_ON.unlink(missing_ok=True)
+
+
+def disk_unlock_check():
+    dev = None
+    for a in Path("/proc/cmdline").read_text().split():
+        if a.startswith("rd.luks.uuid="):
+            v = a.split("=", 1)[1]
+            v = v[5:] if v.startswith("luks-") else v
+            if UUID.match(v) and Path(f"/dev/disk/by-uuid/{v}").exists():
+                dev = f"/dev/disk/by-uuid/{v}"
+    if dev is None:             # no encrypted system disk: nothing to unlock
+        mark(False)
+        return
+    on = tpm_enrolled(dev)
+    if on is not None:          # leave the note alone if the header couldn't be read
+        mark(on)
+    print("on" if on else "off" if on is not None else "unknown")
 
 
 def updates(state):
@@ -63,11 +107,13 @@ def disk_unlock(state):
     r = subprocess.run(cmd, env=env, stdin=subprocess.DEVNULL)
     if r.returncode != 0:
         fail("systemd-cryptenroll did not finish.")
-    if state == "on":
-        DISK_UNLOCK_ON.parent.mkdir(parents=True, exist_ok=True)
-        DISK_UNLOCK_ON.write_text("TPM2 unlock enrolled by System Tools\n")
-    else:
-        DISK_UNLOCK_ON.unlink(missing_ok=True)
+    # Check the disk itself, not the command's exit code alone, and keep the note in step with it.
+    on = tpm_enrolled(dev)
+    mark(bool(on))
+    if on is None:
+        fail("The disk's settings couldn't be read back to check.")
+    if on != (state == "on"):
+        fail("The disk didn't take the change.")
     print("done")
 
 
@@ -76,6 +122,8 @@ def main(argv):
         fail("This helper runs as root, through polkit.")
     if len(argv) == 3 and argv[1] == "updates" and argv[2] in ("on", "off"):
         updates(argv[2])
+    elif len(argv) == 3 and argv[1] == "disk-unlock" and argv[2] == "check":
+        disk_unlock_check()
     elif len(argv) == 3 and argv[1] == "disk-unlock" and argv[2] in ("on", "off"):
         disk_unlock(argv[2])
     else:

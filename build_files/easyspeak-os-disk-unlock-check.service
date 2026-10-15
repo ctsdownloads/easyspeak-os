@@ -1,0 +1,10 @@
+[Unit]
+Description=Check whether the disk is set to unlock automatically, for System Tools
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/easyspeak-os-tools-admin disk-unlock check
+
+[Install]
+WantedBy=multi-user.target

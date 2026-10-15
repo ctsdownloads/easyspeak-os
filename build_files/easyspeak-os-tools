@@ -249,7 +249,7 @@ def firmware():
     return 0
 
 
-def disk_unlock():
+def disk_unlock(in_checklist=False):
     w = "Unlock disk automatically"
     uuid = luks_uuid()
     if not uuid:
@@ -286,7 +286,10 @@ def disk_unlock():
         return 1
     rc = run("Turning on automatic disk unlock.", ["pkexec", ADMIN, "disk-unlock", "on"], stdin=pw, title=w)
     if rc == 0:
-        offer_restart("It's on. From your next restart, the disk unlocks by itself.")
+        if in_checklist:    # the checklist offers the restart at its end, so its last steps aren't lost
+            say("It's on. From your next restart, the disk unlocks by itself.", title=w)
+        else:
+            offer_restart("It's on. From your next restart, the disk unlocks by itself.")
         return 0
     return done_disk(rc, "", w)
 
@@ -597,7 +600,8 @@ def codecs_step(w):
         return
     STATE.mkdir(parents=True, exist_ok=True)
     CODECS_ASKED.touch()
-    subprocess.run(["/usr/bin/easyspeak-os-codecs", "gui"])
+    # --no-restart: the codecs window doesn't offer its own restart; the checklist offers it at its end.
+    subprocess.run(["/usr/bin/easyspeak-os-codecs", "gui", "--no-restart"])
 
 
 def disk_step(w):
@@ -607,7 +611,7 @@ def disk_step(w):
            "the disk instead.\n\nThis needs the disk password and the administrator password, so it's one for "
            "your helper.\n\nRecommended: Set it up. Or Skip: it's in System Tools any time.",
            ok="Set it up", cancel="Skip", title=w) == "ok":
-        disk_unlock()
+        disk_unlock(in_checklist=True)
 
 
 def apps_step(w):
@@ -636,9 +640,27 @@ def setup_checklist(first_login=False):
         SETUP_SHOWN.touch()
     if a != "ok":
         return 1
+    disk_before = DISK_UNLOCK_ON.exists()
+    waiting_before = any(d.get("staged") for d in (deployments() or []))
     for step in (mic_step, codecs_step, disk_step, apps_step):
         step(w)
-    say("Setup is done. Say \"setup checklist\" to open it again.", title=w)
+    # One restart at the end, for what needs it: the media codecs (a new system version waiting for a restart)
+    # and automatic disk unlock (used from the next start).
+    disk_now = DISK_UNLOCK_ON.exists() and not disk_before
+    waiting = any(d.get("staged") for d in (deployments() or []))
+    later = []
+    if waiting and not waiting_before:
+        later.append("The media codecs start working after a restart.")
+    elif waiting:
+        later.append("A system update is also waiting for a restart.")
+    if disk_now:
+        later.append("From your next restart, the disk unlocks by itself.")
+    text = "Setup is done. " + " ".join(later) + ("\n\n" if later else "") + \
+        "Say \"setup checklist\" to open it again."
+    if waiting:
+        offer_restart(text)
+    else:
+        say(text, title=w)
     return 0
 
 
