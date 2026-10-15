@@ -72,9 +72,38 @@ run_update() {
   follow_auto
 }
 
+# The battery's charge when the computer runs on battery and it is below the automatic update's own limit (uupd's
+# bat-min-percent, 20 unless /etc/uupd/config.json says otherwise); nothing otherwise. The automatic update skips
+# itself then; an update started by hand is only warned about, since a computer that dies mid-update loses it.
+low_battery() {
+  python3 -I - <<'PY'
+import json
+from pathlib import Path
+limit = 20
+try:
+    limit = int(json.loads(Path("/etc/uupd/config.json").read_text())["checks"]["hardware"]["bat-min-percent"])
+except (OSError, ValueError, KeyError, TypeError):
+    pass
+ps = Path("/sys/class/power_supply")
+def read(d, f):
+    try: return (d / f).read_text().strip()
+    except OSError: return ""
+supplies = list(ps.iterdir()) if ps.is_dir() else []
+if any(read(d, "type") in ("Mains", "USB") and read(d, "online") == "1" for d in supplies):
+    raise SystemExit
+levels = [int(read(d, "capacity")) for d in supplies
+          if read(d, "type") == "Battery" and read(d, "scope") != "Device" and read(d, "capacity").isdigit()
+          and read(d, "status") == "Discharging"]
+if levels and min(levels) < limit:
+    print(min(levels))
+PY
+}
+
 start=$(date '+%Y-%m-%d %H:%M:%S')
+battery=""; auto_running || battery=$(low_battery)
 
 if ! command -v zenity >/dev/null 2>&1 || [ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+  [ -n "$battery" ] && echo "The battery is at ${battery}%. Plug the computer in: if it runs out during the update, the update is lost."
   echo "Updating the system, apps and containers. This can take a while."
   auto_running && echo "The automatic update is already running. Following it until it is done."
   run_update "$start"; rc=$?
@@ -226,6 +255,12 @@ while True:
             shown = mins
             print("# %s  (still working, %d min so far)" % (step, mins))'
 }
+
+if [ -n "$battery" ]; then
+  $DIALOG --question --title="System Update" --width=480 --ok-label="Update anyway" --cancel-label="Not now" \
+    --text="The battery is at ${battery}% and the computer isn't plugged in. If the battery runs out during the update, the update is lost and has to start again.\n\nRecommended: Not now. Plug the computer in, then start System Update again.\n\nOr Update anyway." \
+    || exit 0
+fi
 
 rcfile=$(mktemp); followfile=$(mktemp)
 text="Updating everything: the system, your apps and the app boxes. This can take a while. You can keep working."

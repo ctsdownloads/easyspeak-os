@@ -27,7 +27,7 @@ COMMANDS = [
 ]
 
 # The buttons of the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login,
-# System Tools),
+# System Tools, System Update),
 # listed by name in the help's Software section. Pressing them works through the button names above; this list is
 # only for the help.
 HELP_SOFTWARE = [
@@ -44,6 +44,10 @@ HELP_SOFTWARE = [
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
     "turn on / turn off / turn on anyway / free up space / keep it on / keep them on / keep them off - the System "
     "Tools buttons",
+    "undo the update / don't use it / keep it / save details / show the file - undo the last update, or save "
+    "problem details for your helper, in System Tools",
+    "update anyway / not now / check the boxes - System Update's questions: a low battery, or app boxes that "
+    "didn't update",
 ]
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")

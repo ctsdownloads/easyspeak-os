@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=System Tools
-Comment=Update firmware, unlock the disk automatically, free up disk space, open the BIOS settings, and turn automatic updates on or off
+Comment=Update firmware, unlock the disk automatically, free up disk space, open the BIOS settings, turn automatic updates on or off, undo the last update, and save problem details
 Icon=applications-system-symbolic
 Categories=System;Settings;
-Keywords=firmware;bios;uefi;tpm;disk;unlock;space;clean;updates;ujust;
+Keywords=firmware;bios;uefi;tpm;disk;unlock;space;clean;updates;ujust;rollback;undo;logs;problem;report;
 Exec=/usr/bin/easyspeak-os-tools
 Terminal=false

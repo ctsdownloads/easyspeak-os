@@ -7,6 +7,8 @@
   easyspeak-os-tools free-space      free up disk space
   easyspeak-os-tools bios            restart into the BIOS settings
   easyspeak-os-tools updates         turn automatic updates on or off
+  easyspeak-os-tools undo-update     go back to the system version from before the last update
+  easyspeak-os-tools problem-details save the computer's recent error messages to a file, for your helper
 
 Each tool does what one of Universal Blue's ujust commands does, but asks in windows instead of in a terminal.
 Jobs that change the system run through easyspeak-os-tools-admin, which asks for the administrator password.
@@ -100,30 +102,38 @@ def password(text):
         return None
 
 
+def busy(text, title=TITLE):
+    """Show a moving progress window with this text (or print it without a desktop). Close it with done(bar)."""
+    if not GUI:
+        print(text)
+        return None
+    return subprocess.Popen(["zenity", f"--title={title}", "--progress", "--pulsate", "--auto-close", "--no-cancel",
+                             "--width=480", f"--text={text}"], stdin=subprocess.PIPE, text=True)
+
+
+def done(bar):
+    if bar:
+        try:
+            bar.stdin.write("100\n")
+            bar.stdin.close()
+        except BrokenPipeError:
+            pass
+        bar.wait()
+
+
 def run(text, cmd, stdin=None, title=TITLE):
     """Run one command with a progress window; its exit code. Its output goes to the log, not the window."""
     CACHE.mkdir(parents=True, exist_ok=True)
     with open(LOG, "a") as log:
         log.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n$ {' '.join(cmd)}\n")
         log.flush()
-        bar = None
-        if GUI:
-            bar = subprocess.Popen(["zenity", f"--title={title}", "--progress", "--pulsate", "--auto-close",
-                                    "--no-cancel", "--width=480", f"--text={text}"], stdin=subprocess.PIPE, text=True)
-        else:
-            print(text)
+        bar = busy(text, title)
         try:
             rc = subprocess.run(cmd, input=stdin, stdout=log, stderr=subprocess.STDOUT, text=True).returncode
         except OSError as e:
             log.write(f"{e}\n")
             rc = 127
-        if bar:
-            try:
-                bar.stdin.write("100\n")
-                bar.stdin.close()
-            except BrokenPipeError:
-                pass
-            bar.wait()
+        done(bar)
     return rc
 
 
@@ -356,11 +366,159 @@ def updates():
     return 1
 
 
+def deployments():
+    """The system versions on disk, newest first (rpm-ostree status --json), or None."""
+    r = output(["rpm-ostree", "status", "--json"])
+    if not r or r.returncode != 0:
+        return None
+    try:
+        return json.loads(r.stdout)["deployments"]
+    except (ValueError, KeyError):
+        return None
+
+
+def when(d):
+    """A version's date in plain words ("Oct 14"), from its build time."""
+    try:
+        return time.strftime("%b %-d", time.localtime(int(d["timestamp"])))
+    except (KeyError, ValueError, TypeError):
+        return "an earlier date"
+
+
+def undo_update():
+    w = "Undo the last update"
+    ds = deployments()
+    if ds is None:
+        say("Couldn't read which system versions are on this computer. Try again later.", "warning", title=w)
+        return 1
+    booted = next((d for d in ds if d.get("booted")), None)
+    staged = next((d for d in ds if d.get("staged")), None)
+    later = ("\n\nThe next automatic update puts the newest version back. If the problem comes back, turn off "
+             "Automatic updates in System Tools and tell your helper.")
+    if staged:
+        # An update is downloaded but not in use yet: the version running now is not the new one.
+        if ask(f"An update from {when(staged)} is waiting. It starts at your next restart. The version you're using "
+               f"now is from {when(booted) if booted else 'before it'}.\n\nIf you don't want it: Don't use it. Your "
+               f"computer keeps the version it has now.\n\nOr Keep it." + later,
+               ok="Don't use it", cancel="Keep it", title=w) != "ok":
+            return 1
+        rc = run("Removing the waiting update.", ["rpm-ostree", "cleanup", "-p"], title=w)
+        if rc != 0:
+            say(f"It didn't work, and nothing was changed.\n\nThe details are in {LOG}", "warning", title=w)
+            return 1
+        say("Done. Your computer keeps the version it has now.", title=w)
+        return 0
+    if booted is not None and ds and ds[0] is not booted:
+        if int(ds[0].get("timestamp", 0)) <= int(booted.get("timestamp", 0)):
+            # An earlier undo: the older version is set to start next time.
+            offer_restart(f"It's already set: the version from {when(ds[0])} starts at your next restart.")
+        else:
+            # Started from the boot menu on the older version: the newer one is still the one that starts.
+            say(f"You're using the version from {when(booted)}, picked when the computer started. At your next "
+                f"restart the newer version, from {when(ds[0])}, starts again.\n\nTo stay on this one, pick it again "
+                f"when the computer starts, and tell your helper.", title=w)
+        return 0
+    older = next((d for d in ds if not d.get("booted") and not d.get("staged")), None)
+    if older is None:
+        say("There's no earlier version on this computer to go back to. Only the version you're using now is kept.",
+            title=w)
+        return 0
+    if ask(f"The version you're using now is from {when(booted) if booted else 'the last update'}. The one from "
+           f"before it, from {when(older)}, is still on this computer.\n\nIf something stopped working after the last "
+           f"update: Undo the update. The version from {when(older)} starts at your next restart. Your files and "
+           f"your apps aren't touched.\n\nOr Cancel." + later, ok="Undo the update", title=w) != "ok":
+        return 1
+    rc = run("Setting the earlier version to start next time.", ["rpm-ostree", "rollback"], title=w)
+    if rc != 0:
+        say("The administrator password wasn't given, so nothing was changed." if rc in (126, 127) else
+            f"It didn't work, and nothing was changed.\n\nThe details are in {LOG}", "warning", title=w)
+        return 1
+    offer_restart(f"Done. The version from {when(older)} starts at your next restart.")
+    return 0
+
+
+def documents():
+    r = output(["xdg-user-dir", "DOCUMENTS"])
+    d = Path(r.stdout.strip()) if r and r.returncode == 0 and r.stdout.strip() else Path.home() / "Documents"
+    return d if d != Path.home() else Path.home() / "Documents"
+
+
+# What goes in the problem details file: (heading, command, how many of its last lines to keep).
+# The same information as ujust's logs-this-boot, logs-last-boot and device-info, kept to the useful part: errors
+# and warnings, not every message, so the file stays small enough to email.
+DETAILS = [
+    ("System version", ["rpm-ostree", "status"], 60),
+    ("Computer", ["fpaste", "--sysinfo", "--printonly"], 200),
+    ("Warnings and errors since this start", ["journalctl", "--no-hostname", "--no-pager", "-b", "0", "-p",
+                                              "warning"], 1500),
+    ("Errors during the start before this one", ["journalctl", "--no-hostname", "--no-pager", "-b", "-1", "-p",
+                                                 "err"], 500),
+    ("Updates, last 3 days", ["journalctl", "--no-hostname", "--no-pager", "-o", "cat", "--since", "-3d",
+                              "-u", "uupd.service", "-u", "uupd-manual.service", "-p", "info"], 300),
+    ("Flatpak apps", ["flatpak", "list", "--columns=application,version,origin"], 300),
+    ("App boxes", ["podman", "ps", "-a", "--format", "{{.Names}}  {{.Image}}  {{.Status}}"], 50),
+]
+
+
+def tail(text, n):
+    lines = text.splitlines()
+    cut = len(lines) - n
+    return ("(... %d earlier lines left out ...)\n" % cut if cut > 0 else "") + "\n".join(lines[-n:])
+
+
+def problem_details():
+    w = "Save problem details"
+    folder = documents()
+    name = f"problem-details-{time.strftime('%Y-%m-%d-%H%M')}.txt"
+    if ask(f"This saves the computer's recent error messages, its system version and the list of your apps to one "
+           f"file, {name}, in your Documents folder. What your apps showed or opened isn't in it.\n\nThen email "
+           f"that file to your helper. They can see what went wrong without being here.\n\nNothing is sent "
+           f"anywhere by itself.",
+           ok="Save details", title=w) != "ok":
+        return 1
+    bar = busy("Collecting the problem details.", w)
+    parts = [f"Problem details from EasySpeak-OS, {time.strftime('%Y-%m-%d %H:%M')}"]
+    for heading, cmd, n in DETAILS:
+        r = output(cmd) if shutil.which(cmd[0]) else None
+        text = (r.stdout + r.stderr).strip() if r else "(not available)"
+        parts.append(f"\n===== {heading} =====\n{tail(text, n) or '(nothing)'}")
+    # The logs of Install Package File and System Tools. Box apps' own logs (in logs/) stay out: they hold whatever
+    # the app printed, such as web addresses and file names.
+    for f in sorted(CACHE.glob("*.log")):
+        try:
+            parts.append(f"\n===== {f.name} =====\n{tail(f.read_text(errors='replace'), 200)}")
+        except OSError:
+            pass
+    path = folder / name
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(parts) + "\n")
+        ok = True
+    except OSError:
+        ok = False
+    done(bar)
+    if not ok:
+        say(f"Couldn't save the file in {folder}. Check that there's free disk space and try again.", "warning",
+            title=w)
+        return 1
+    if ask(f"Saved: {name}, in your Documents folder.\n\nEmail it to your helper: attach it like any other file.\n\n"
+           f"Recommended: Show the file, to see where it is. Or Close.", ok="Show the file", cancel="Close",
+           title=w) == "ok":
+        if shutil.which("nautilus"):
+            subprocess.Popen(["nautilus", "--select", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["xdg-open", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return 0
+
+
 TOOLS = [("firmware", "Update firmware", "Updates for the computer's own parts, like the BIOS", firmware),
          ("disk-unlock", "Unlock disk automatically", "Skip the disk password at startup", disk_unlock),
          ("free-space", "Free up disk space", "Remove things the computer no longer needs", free_space),
          ("bios", "Restart into BIOS settings", "Open the computer's BIOS settings screen", bios),
-         ("updates", "Automatic updates", "Turn them on or off", updates)]
+         ("updates", "Automatic updates", "Turn them on or off", updates),
+         ("undo-update", "Undo the last update", "Go back to the version from before the last update", undo_update),
+         ("problem-details", "Save problem details", "A file of recent errors to email to your helper",
+          problem_details)]
 
 
 def main(argv):
