@@ -4,8 +4,8 @@
   <vendor>EasySpeak-OS</vendor>
   <vendor_url>https://github.com/ctsdownloads/easyspeak-os</vendor_url>
 
-  <!-- System Tools: turn automatic updates on or off, and turn automatic disk unlock (TPM) on or off. Asks for the
-       administrator password, remembered for a few minutes. The helper accepts only those four jobs. -->
+  <!-- System Tools: turn automatic updates off (or on), and check automatic disk unlock. Asks for the administrator
+       password, remembered for a few minutes. -->
   <action id="dev.easyspeak.os.tools">
     <description>Change automatic updates or automatic disk unlock</description>
     <message>Authentication is required to change automatic updates or automatic disk unlock</message>
@@ -15,5 +15,21 @@
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/easyspeak-os-tools-admin</annotate>
+  </action>
+
+  <!-- The System Tools jobs no program could do harm with: turn automatic updates on, turn automatic disk unlock on
+       or off (the helper checks the disk password first), remove leftover update files and unused Flatpak runtimes.
+       By default this asks for the administrator password too; 50-easyspeak-os-tools.rules lets the administrator
+       (wheel) account, sitting at the machine, skip it. -->
+  <action id="dev.easyspeak.os.tools.safe">
+    <description>Turn on automatic updates or automatic disk unlock, or free up disk space</description>
+    <message>Authentication is required to change a System Tools setting</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/easyspeak-os-tools-safe</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 </policyconfig>

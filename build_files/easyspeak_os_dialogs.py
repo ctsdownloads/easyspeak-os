@@ -48,7 +48,7 @@ HELP_SOFTWARE = [
     "try anyway / repair / repair the box - when disk space is low or an app box is broken",
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
     "turn on / turn off / turn on anyway / free up space / keep it on / keep them on / keep them off - the System "
-    "Tools buttons",
+    "Tools buttons (turning updates on, disk unlock and freeing up space need no administrator password)",
     "undo the update / use the newer version / don't use it / keep it / save details / show the file - undo the "
     "last update or go back to the newer one, or save "
     "problem details for your helper, in System Tools",

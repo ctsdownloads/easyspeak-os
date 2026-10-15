@@ -1,0 +1,11 @@
+// No password ONLY for: the administrator (wheel) account, at the machine (local, active session), for the one
+// System Tools action whose helper (easyspeak-os-tools-safe) can only turn automatic updates on, turn automatic
+// disk unlock on or off after checking the disk password, or remove leftover update files and unused Flatpak
+// runtimes. Nothing a program running as the user could do harm with. Every other System Tools job, such as
+// turning automatic updates off, keeps the administrator password.
+polkit.addRule(function(action, subject) {
+    if (action.id == "dev.easyspeak.os.tools.safe" &&
+        subject.local && subject.active && subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});

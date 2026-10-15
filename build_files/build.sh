@@ -39,6 +39,12 @@ install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/
 install -Dm755 /ctx/easyspeak-os-tools /usr/bin/easyspeak-os-tools
 install -Dm755 /ctx/easyspeak-os-tools-admin /usr/libexec/easyspeak-os-tools-admin
 install -Dm644 /ctx/dev.easyspeak.os.tools.policy /usr/share/polkit-1/actions/dev.easyspeak.os.tools.policy
+# The System Tools jobs no program could do harm with run without a password for an administrator at the computer.
+install -Dm755 /ctx/easyspeak-os-tools-safe /usr/libexec/easyspeak-os-tools-safe
+install -Dm644 /ctx/50-easyspeak-os-tools.rules /usr/share/polkit-1/rules.d/50-easyspeak-os-tools.rules
+python3 -c 'import xml.dom.minidom,sys; [xml.dom.minidom.parse(f) for f in sys.argv[1:]]' \
+  /ctx/dev.easyspeak.os.tools.policy /ctx/dev.easyspeak.os.codecs.policy \
+  || { echo "ERROR: a System Tools or codecs polkit policy is not valid XML"; exit 1; }
 # At every start, the note that says automatic disk unlock is on is made to match the disk itself.
 install -Dm644 /ctx/easyspeak-os-disk-unlock-check.service /usr/lib/systemd/system/easyspeak-os-disk-unlock-check.service
 systemctl enable easyspeak-os-disk-unlock-check.service
