@@ -40,7 +40,17 @@ install -Dm755 /ctx/easyspeak-os-tools /usr/bin/easyspeak-os-tools
 install -Dm755 /ctx/easyspeak-os-tools-admin /usr/libexec/easyspeak-os-tools-admin
 install -Dm644 /ctx/dev.easyspeak.os.tools.policy /usr/share/polkit-1/actions/dev.easyspeak.os.tools.policy
 install -Dm644 /ctx/easyspeak-os-tools.desktop /usr/share/applications/easyspeak-os-tools.desktop
-for c in fwupdmgr systemd-cryptenroll cryptsetup flatpak podman; do command -v "$c" >/dev/null || { echo "ERROR: System Tools needs $c"; exit 1; }; done
+# The setup checklist (System Tools' "Setup checklist") opens once at a new user's first login. It also asks the
+# media codecs question, so Install Media Codecs no longer has a first-login window of its own.
+install -Dm644 /ctx/easyspeak-os-setup-checklist.desktop /etc/xdg/autostart/easyspeak-os-setup-checklist.desktop
+rm -f /etc/xdg/autostart/easyspeak-os-codecs-prompt.desktop
+# The list of changes (written by the build workflow from the commit titles) goes into the image, so System Update
+# can say what a new version changes. A local build without it gets an empty list.
+install -Dm644 /dev/null /usr/share/easyspeak-os/changes.txt
+[ -f /ctx/changes.txt ] && install -Dm644 /ctx/changes.txt /usr/share/easyspeak-os/changes.txt
+# The setup checklist's microphone test records with pw-record (PipeWire's recorder, in pipewire-utils).
+rpm -q pipewire-utils >/dev/null || dnf5 -y install pipewire-utils
+for c in fwupdmgr systemd-cryptenroll cryptsetup flatpak podman pw-record gnome-control-center; do command -v "$c" >/dev/null || { echo "ERROR: System Tools needs $c"; exit 1; }; done
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
 install -Dm644 /ctx/easyspeak-os-repair-boxes.desktop /usr/share/applications/easyspeak-os-repair-boxes.desktop
@@ -87,7 +97,6 @@ install -Dm755 /ctx/easyspeak-os-codecs /usr/bin/easyspeak-os-codecs
 ln -sf easyspeak-os-codecs /usr/bin/codecs
 ln -sf easyspeak-os-codecs /usr/bin/install-codecs
 install -Dm644 /ctx/easyspeak-os-codecs.desktop /usr/share/applications/easyspeak-os-codecs.desktop
-install -Dm644 /ctx/easyspeak-os-codecs-prompt.desktop /etc/xdg/autostart/easyspeak-os-codecs-prompt.desktop
 install -Dm644 /ctx/easyspeak-os-codecs-lib.sh /usr/libexec/easyspeak-os-codecs-lib.sh
 install -Dm755 /ctx/easyspeak-os-codecs-setup /usr/libexec/easyspeak-os-codecs-setup
 install -Dm755 /ctx/easyspeak-os-codecs-admin /usr/libexec/easyspeak-os-codecs-admin
@@ -121,9 +130,12 @@ systemctl enable easyspeak-os-flathub.service easyspeak-os-codecs-setup.service
 install -Dm644 /ctx/branding/wallpaper.png /usr/share/backgrounds/easyspeak-os/wallpaper.png
 install -Dm644 /ctx/branding/easyspeak-os.xml /usr/share/gnome-background-properties/easyspeak-os.xml
 install -Dm644 /ctx/branding/zz-easyspeak-os-background.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-background.gschema.override
+install -Dm644 /ctx/zz-easyspeak-os-windows.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-windows.gschema.override
 glib-compile-schemas /usr/share/glib-2.0/schemas 2>&1 | grep -v 'deprecated' || true
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.background picture-uri)
 [ "$got" = "'file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'" ] || { echo "ERROR: the default wallpaper is $got, not the EasySpeak-OS one"; exit 1; }
+got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.wm.preferences button-layout)
+[ "$got" = "'appmenu:minimize,maximize,close'" ] || { echo "ERROR: windows have no minimize button by default ($got)"; exit 1; }
 
 rm -rf /opt
 mkdir /opt

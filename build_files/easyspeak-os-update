@@ -292,6 +292,41 @@ auto_running && text="The automatic update is already running, so this window fo
 rc=$(cat "$rcfile" 2>/dev/null || echo 1); rm -f "$rcfile"
 [ -s "$followfile" ] && SERVICE=$AUTO; rm -f "$followfile"
 
+# What the new version changes, in the words of its changes' titles: the image carries the list of the last changes
+# (/usr/share/easyspeak-os/changes.txt, "date<TAB>title" per line). The new version's list is read from where it
+# waits on disk, and the changes the running version already has are left out, as are changes to the README and the
+# build alone. At most 8 lines, then "and N more".
+whats_new() {
+  rpm-ostree status --json 2>/dev/null | python3 -I -c '
+import json, re, sys, time
+from pathlib import Path
+try:
+    ds = json.load(sys.stdin)["deployments"]
+    new = next(d for d in ds if d.get("staged"))
+    now = next(d for d in ds if d.get("booted"))
+    f = Path("/ostree/deploy/%s/deploy/%s.%s/usr/share/easyspeak-os/changes.txt" % (new["osname"], new["checksum"],
+                                                                                     new["serial"]))
+    lines = f.read_text().splitlines()
+except (ValueError, KeyError, StopIteration, OSError):
+    sys.exit()
+try:
+    have = set(Path("/usr/share/easyspeak-os/changes.txt").read_text().splitlines())
+except OSError:
+    have = set()
+since = time.strftime("%Y-%m-%d", time.gmtime(int(now.get("timestamp", 0))))
+out = []
+for line in lines:
+    date, _, title = line.partition("\t")
+    if line in have or date < since or re.match(r"(README|Build)\b", title):
+        continue
+    title = re.sub(r"\s*\(#\d+\)$", "", title)
+    out.append("- " + title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+if out:
+    more = len(out) - 8
+    print("What is new:\n" + "\n".join(out[:8]) + ("\n- and %d more" % more if more > 0 else ""))
+'
+}
+
 # The end result also goes out as a desktop notification, so it is seen even if the dialog opens behind other windows.
 notify() { command -v notify-send >/dev/null 2>&1 && notify-send --app-name="System Update" --icon=software-update-available-symbolic "System Update" "$1" || true; }
 
@@ -311,8 +346,9 @@ if [[ "$failed" == *Distroboxes* ]] && [ -x /usr/bin/easyspeak-os-packages ]; th
 fi
 if staged; then
   notify "${failed:+Everything updated except: $failed. }A new system is ready. Restart to use it."
-  $DIALOG --question --title="System Update" --width=480 --ok-label="Restart now" --cancel-label="Later" \
-    --text="${note}A new system is ready.\n\nRecommended: Restart now to start using it. Or Later, if you're in the middle of something." && systemctl reboot
+  new=$(whats_new); [ -n "$new" ] && new="\n\n$new"
+  $DIALOG --question --title="System Update" --width=560 --ok-label="Restart now" --cancel-label="Later" \
+    --text="${note}A new system is ready.$new\n\nRecommended: Restart now to start using it. Or Later, if you're in the middle of something." && systemctl reboot
 elif [ -n "$failed" ]; then
   notify "Everything updated except: $failed"
   $DIALOG --warning --title="System Update" --width=480 --text="${note%\\n\\n}"

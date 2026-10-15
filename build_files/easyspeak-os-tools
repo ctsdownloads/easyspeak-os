@@ -9,16 +9,20 @@
   easyspeak-os-tools updates         turn automatic updates on or off
   easyspeak-os-tools undo-update     go back to the system version from before the last update
   easyspeak-os-tools problem-details save the computer's recent error messages to a file, for your helper
+  easyspeak-os-tools setup           the setup checklist: microphone, media codecs, disk unlock, getting apps
+  easyspeak-os-tools setup --first-login   the same, once, at a new user's first login
 
 Each tool does what one of Universal Blue's ujust commands does, but asks in windows instead of in a terminal.
 Jobs that change the system run through easyspeak-os-tools-admin, which asks for the administrator password.
 """
+import array
 import json
 import os
 import shutil
 import subprocess
 import sys
 import time
+import wave
 from pathlib import Path
 
 TITLE = "System Tools"
@@ -27,6 +31,9 @@ ADMIN = "/usr/libexec/easyspeak-os-tools-admin"
 CACHE = Path.home() / ".cache" / "easyspeak-os"
 LOG = CACHE / "tools.log"
 DISK_UNLOCK_ON = Path("/var/lib/easyspeak-os/disk-unlock-on")
+STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "easyspeak-os"
+SETUP_SHOWN = STATE / "setup-shown"      # the setup checklist has opened at login once
+CODECS_ASKED = STATE / "codecs-asked"    # set by Install Media Codecs' own first-login question (older systems)
 GUI = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")) and shutil.which("zenity")
 
 
@@ -423,6 +430,20 @@ def undo_update():
         say("There's no earlier version on this computer to go back to. Only the version you're using now is kept.",
             title=w)
         return 0
+    if booted is not None and int(older.get("timestamp", 0)) > int(booted.get("timestamp", 0)):
+        # After an undo: the other version on disk is the newer one.
+        if ask(f"You're using an earlier version, from {when(booted)}, after an undo. The newer one, from "
+               f"{when(older)}, is still on this computer.\n\nIf the problem is fixed or you want it back: Use the "
+               f"newer version. It starts at your next restart.\n\nOr Cancel: the next update brings back the "
+               f"newest version anyway.", ok="Use the newer version", title=w) != "ok":
+            return 1
+        rc = run("Setting the newer version to start next time.", ["rpm-ostree", "rollback"], title=w)
+        if rc != 0:
+            say("The administrator password wasn't given, so nothing was changed." if rc in (126, 127) else
+                f"It didn't work, and nothing was changed.\n\nThe details are in {LOG}", "warning", title=w)
+            return 1
+        offer_restart(f"Done. The version from {when(older)} starts at your next restart.")
+        return 0
     if ask(f"The version you're using now is from {when(booted) if booted else 'the last update'}. The one from "
            f"before it, from {when(older)}, is still on this computer.\n\nIf something stopped working after the last "
            f"update: Undo the update. The version from {when(older)} starts at your next restart. Your files and "
@@ -511,6 +532,116 @@ def problem_details():
     return 0
 
 
+# ---------------------------------------------------------------- setup checklist
+
+def mic_heard():
+    """Record 4 seconds from the microphone (pw-record, PipeWire's recorder, which shares the microphone with
+    EasySpeak). True if it heard a voice-loud sound, False if only near silence, None if it could not record."""
+    if not shutil.which("pw-record"):
+        return None
+    CACHE.mkdir(parents=True, exist_ok=True)
+    f = CACHE / "mic-test.wav"
+    f.unlink(missing_ok=True)
+    try:
+        p = subprocess.Popen(["pw-record", "--rate", "16000", "--channels", "1", "--format", "s16", str(f)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(4)
+        p.terminate()
+        p.wait(timeout=5)
+        with wave.open(str(f)) as w:
+            samples = array.array("h", w.readframes(w.getnframes()))
+    except (OSError, wave.Error, EOFError, subprocess.TimeoutExpired):
+        return None
+    finally:
+        f.unlink(missing_ok=True)
+    if not samples:
+        return None
+    return max(abs(x) for x in samples) > 1500       # about a fortieth of full scale: a voice, not room noise
+
+
+def mic_step(w):
+    while True:
+        if ask("Check that the computer hears you.\n\nRecommended: Test. Then, when the next window says so, say "
+               "\"testing, testing\" out loud.\n\nOr Skip.", ok="Test", cancel="Skip", title=w) != "ok":
+            return
+        bar = busy("Listening. Say \"testing, testing\" now.", w)
+        heard = mic_heard()
+        done(bar)
+        if heard:
+            say("The microphone works: the computer heard you.", title=w)
+            return
+        why = ("Couldn't use the microphone." if heard is None else "The computer didn't hear anything.")
+        a = ask(f"{why}\n\nRecommended: Open sound settings, and under Input choose the microphone you use and "
+                f"check its volume. Then Test again.\n\nOr Skip.", ok="Test again", cancel="Skip",
+                extra="Open sound settings", title=w)
+        if a == "extra":
+            subprocess.Popen(["gnome-control-center", "sound"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if ask("Choose the microphone under Input, then come back here.\n\nRecommended: Test again. Or Skip.",
+                   ok="Test again", cancel="Skip", title=w) != "ok":
+                return
+        elif a != "ok":
+            return
+
+
+def codecs_added():
+    return any(subprocess.run(["rpm", "-q", "--quiet", p]).returncode == 0
+               for p in ("x264-libs", "mozilla-openh264")) if shutil.which("rpm") else False
+
+
+def codecs_step(w):
+    if codecs_added():
+        return
+    if ask("Some video formats, like most web video, need media codecs that aren't part of the system. The next "
+           "window explains the choices.\n\nRecommended: Next. Or Skip: Install Media Codecs is in Show Apps any "
+           "time.", ok="Next", cancel="Skip", title=w) != "ok":
+        return
+    STATE.mkdir(parents=True, exist_ok=True)
+    CODECS_ASKED.touch()
+    subprocess.run(["/usr/bin/easyspeak-os-codecs", "gui"])
+
+
+def disk_step(w):
+    if not luks_uuid() or not has_tpm() or DISK_UNLOCK_ON.exists():
+        return          # nothing to unlock, nothing to unlock it with, or already on
+    if ask("This computer asks for the disk password every time it starts. The computer's security chip can unlock "
+           "the disk instead.\n\nThis needs the disk password and the administrator password, so it's one for "
+           "your helper.\n\nRecommended: Set it up. Or Skip: it's in System Tools any time.",
+           ok="Set it up", cancel="Skip", title=w) == "ok":
+        disk_unlock()
+
+
+def apps_step(w):
+    say("Getting apps:\n\n"
+        "- Most apps: open Software, find the app and install it.\n"
+        "- An app that comes as a file (.rpm or .deb): open the file, and Install Package File installs it.\n"
+        "- Removing those apps: Remove Apps, in Show Apps.\n\n"
+        "Say \"system tools\" for the rest: updates, disk space, undoing an update, and saving problem details for "
+        "your helper.", title=w)
+
+
+def setup_checklist(first_login=False):
+    w = "Setup checklist"
+    if first_login:
+        # Once per user, at the first login. Users who already had Install Media Codecs' own first-login question
+        # were set up before this checklist existed, so it doesn't open for them.
+        if not GUI or SETUP_SHOWN.exists() or CODECS_ASKED.exists():
+            return 0
+    a = ask("Welcome. A few things to set up, one at a time:\n\n"
+            "1. Check the microphone\n2. Media codecs, for web video\n3. Skip the disk password at startup\n"
+            "4. How to get apps\n\nEach can be skipped.\n\nRecommended: Start. Or Later: this opens again at the "
+            "next login. Or Don't show again: say \"setup checklist\" to open it any time.",
+            ok="Start", cancel="Later", extra="Don't show again" if first_login else None, title=w)
+    if first_login and a in ("ok", "extra"):
+        STATE.mkdir(parents=True, exist_ok=True)
+        SETUP_SHOWN.touch()
+    if a != "ok":
+        return 1
+    for step in (mic_step, codecs_step, disk_step, apps_step):
+        step(w)
+    say("Setup is done. Say \"setup checklist\" to open it again.", title=w)
+    return 0
+
+
 TOOLS = [("firmware", "Update firmware", "Updates for the computer's own parts, like the BIOS", firmware),
          ("disk-unlock", "Unlock disk automatically", "Skip the disk password at startup", disk_unlock),
          ("free-space", "Free up disk space", "Remove things the computer no longer needs", free_space),
@@ -518,13 +649,17 @@ TOOLS = [("firmware", "Update firmware", "Updates for the computer's own parts, 
          ("updates", "Automatic updates", "Turn them on or off", updates),
          ("undo-update", "Undo the last update", "Go back to the version from before the last update", undo_update),
          ("problem-details", "Save problem details", "A file of recent errors to email to your helper",
-          problem_details)]
+          problem_details),
+         ("setup", "Setup checklist", "Microphone, media codecs, disk unlock and getting apps, one at a time",
+          setup_checklist)]
 
 
 def main(argv):
     if len(argv) > 1:
+        if argv[1:] == ["setup", "--first-login"]:
+            return setup_checklist(first_login=True)
         for key, _, _, fn in TOOLS:
-            if argv[1] == key:
+            if argv[1] == key and len(argv) == 2:
                 return fn()
         print(__doc__)
         return 2
