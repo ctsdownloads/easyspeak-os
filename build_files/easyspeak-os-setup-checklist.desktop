@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Setup checklist at first login
+Comment=Opens the setup checklist once, the first time a user logs in
+Exec=/usr/bin/easyspeak-os-tools setup --first-login
+Terminal=false
+NoDisplay=true
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=20

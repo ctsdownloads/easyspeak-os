@@ -34,6 +34,8 @@ jobs:
       # These stage versions are pinned by https://github.com/renovatebot/renovate
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 60     # the last changes' titles, for the list of changes below
 
       - name: Maximize build space
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
@@ -48,6 +50,11 @@ jobs:
 
       - name: Check README and help
         run: python3 build_files/check-docs.py
+
+      # The titles of the last 60 changes, with their dates, go into the image, so System Update can say what a
+      # new version changes.
+      - name: List of changes
+        run: git log -60 --format='%cs%x09%s' > build_files/changes.txt
 
       - name: Image Name
         id: image-name

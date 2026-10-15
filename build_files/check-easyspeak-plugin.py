@@ -30,8 +30,9 @@ TESTS = {
                            "start apps at login": "login", "apps at startup": "login"},
                           ["install updates", "open browser", "update system", "remove word", "log out"]),
     "easyspeak_os_tools": ({"system tools": "/usr/bin/easyspeak-os-tools",
-                            "open system tools": "/usr/bin/easyspeak-os-tools"},
-                           ["update system", "open settings", "install a package", "open browser"]),
+                            "open system tools": "/usr/bin/easyspeak-os-tools",
+                            "setup checklist": "setup", "set up the computer": "setup"},
+                           ["update system", "open settings", "install a package", "open browser", "set up"]),
 }
 for name, (takes, leaves) in TESTS.items():
     module = importlib.import_module(f"plugins.{name}")

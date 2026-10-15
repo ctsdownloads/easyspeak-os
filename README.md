@@ -112,13 +112,14 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | ujust | Bluefin's command runner, for example `ujust update`. Terminal only, for people who use one |
 | Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale (a private network between your own devices; it does nothing until you sign in to it) and Podman's automatic container updates (only for containers you set up to update that way), as on Bluefin |
 | Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
-| Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in Show Apps offers them later. See [Media codecs](#media-codecs) |
+| Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. The [setup checklist](#first-login) at first login offers them, with no password, and **Install Media Codecs** in Show Apps offers them later. See [Media codecs](#media-codecs) |
 | Apps from .rpm and .deb files | **Install Package File** puts them in a box (Distrobox) and adds them to Show Apps; **Remove Apps** takes them out. See [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files) |
 | Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. The Flathub entry that comes with Fedora, which stays off until you opt in, is removed |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from Show Apps |
-| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, and save problem details for your helper, in plain windows. See [System Tools](#system-tools) |
+| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, save problem details for your helper, and the setup checklist, in plain windows. See [System Tools](#system-tools) |
+| Window buttons | Every window has minimize, maximize and close buttons (GNOME's own default shows only close) |
 
 ## System requirements
 
@@ -154,7 +155,9 @@ and about how much has come in so far. Then it installs in two or three steps
 (unpacking the new version, adding the apps you put on the system if you have
 any, and saving it for your next restart): the window says which step it is on
 and how long that step has been going, and the bar moves with each part and
-each step. If the computer is on battery and the battery is low (under 20%,
+each step. When the new system is ready, the restart window also lists what's
+new in it, from the titles of this project's changes since the version you're
+using (changes to only the README or the build are left out). If the computer is on battery and the battery is low (under 20%,
 the same limit the automatic update uses), it first says so and recommends
 **Not now**: plug in, then start it again. **Update anyway** goes ahead. If the
 automatic update is already running
@@ -191,6 +194,24 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 
 ### First login
 
+- **The setup checklist** opens by itself about 20 seconds after a new user's
+  first login. It goes through four steps, one window each, and any can be
+  skipped:
+  1. **Check the microphone:** say "testing, testing" and it says whether the
+     computer heard you. If not, it offers **Open sound settings** to choose the
+     microphone, then **Test again**. It records with PipeWire, alongside
+     EasySpeak, and keeps nothing.
+  2. **Media codecs:** the [Media codecs](#media-codecs) window, with no
+     password during the first day. Skipped if they're already added.
+  3. **Skip the disk password at startup:** **Unlock disk automatically** from
+     System Tools. Only shown if the disk is encrypted, the computer has a
+     security chip and it isn't on already. It needs the disk password and the
+     administrator password, so it's a step for the helper.
+  4. **How to get apps:** where apps come from, in a few lines.
+
+  **Later** opens it again at the next login. **Don't show again** stops that.
+  Say "setup checklist", or pick it in System Tools, to open it any time. It
+  doesn't open by itself for users who were set up before it existed.
 - Log out and back in once so GNOME loads EasySpeak's shell extension.
 - **Optional: hold-to-dictate.** Holding **Ctrl+Shift** lets you speak without
   saying "Hey Jarvis". You don't need it if pressing keys is hard for you,
@@ -594,6 +615,7 @@ terminal. Say a line's number to pick a tool, then say its buttons.
 | Automatic updates | Turns the daily automatic updates on or off. Keeping them on is recommended, because updates fix security problems |
 | Undo the last update | If something stopped working after an update, goes back to the version from before it. See below |
 | Save problem details | Saves the computer's recent error messages to one file, for you to email to your helper. See below |
+| Setup checklist | The microphone, media codecs, disk unlock and getting apps, one at a time. It opens by itself at a new user's first login. See [First login](#first-login) |
 
 **Unlock disk automatically.** When the disk is encrypted, the computer asks for
 the disk password at every start, before the login password. Turning this on
@@ -620,6 +642,8 @@ does. Your files and apps aren't touched.
 - If an update is downloaded but waiting for a restart, the version in use isn't
   the new one yet. The tool offers **Don't use it**, which removes the waiting
   update (`rpm-ostree cleanup -p`), or **Keep it**.
+- After an undo, the tool offers **Use the newer version** instead, to go
+  forward again (also `rpm-ostree rollback`).
 - The next automatic update puts the newest version back. If the problem comes
   back, turn off Automatic updates and tell your helper.
 - It may ask for the administrator password.
@@ -668,7 +692,10 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
 | `build_files/check-docs.py` | The build test that the README's table of contents and the help keep up with the software |
-| `build_files/easyspeak-os-tools`, `easyspeak-os-tools.desktop`, `easyspeak_os_tools.py` | **System Tools** in Show Apps, and the "system tools" voice command |
+| `build_files/easyspeak-os-tools`, `easyspeak-os-tools.desktop`, `easyspeak_os_tools.py` | **System Tools** in Show Apps, and the "system tools" and "setup checklist" voice commands |
+| `build_files/easyspeak-os-setup-checklist.desktop` | Opens the setup checklist once, at a new user's first login |
+| `build_files/zz-easyspeak-os-windows.gschema.override` | Gives every window a minimize and a maximize button |
+| `build_files/changes.txt` | Not in the repository: the build writes it from the last 60 changes' titles, and System Update reads it to say what's new |
 | `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates and automatic disk unlock on or off, and its polkit policy (administrator password) |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
@@ -717,8 +744,8 @@ patents in some countries. Fedora leaves them out, and so does this image.
 Adding them is optional, it is your choice, and it is your responsibility to
 check what is legal where you live. EasySpeak does not need them.
 
-The first time you log in after this image first boots, a window asks whether
-you want them, with three large buttons: **Web video only**, **Everything** and
+The first time you log in after this image first boots, the
+[setup checklist](#first-login) asks whether you want them, with three large buttons: **Web video only**, **Everything** and
 **Not now**. You can open the same window again at any time from **Install
 Media Codecs** in Show Apps, or type the commands (`codecs` is the short
 name; `easyspeak-os-codecs` and `install-codecs` also work):
