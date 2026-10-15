@@ -946,6 +946,8 @@ def export(box, info):
         if r.returncode == 0 and exported.exists():
             fix_launcher(exported)
             done_apps.append(path)
+    if done_apps:
+        icons_changed()
     if not done_apps:
         bindir = HOME / ".local/bin"
         bindir.mkdir(parents=True, exist_ok=True)
@@ -955,6 +957,18 @@ def export(box, info):
             if r.returncode == 0:
                 done_bins.append(b)
     return done_apps, done_bins
+
+
+def icons_changed():
+    """Make GNOME look at the app icons again. An app's icon is copied into ~/.local/share/icons, often into folders
+    that did not exist when GNOME last looked; GNOME only sees them after the icon folder's date changes, so without
+    this the app shows a generic icon until the next login."""
+    for d in (HOME / ".local/share/icons/hicolor", HOME / ".local/share/icons"):
+        if d.is_dir():
+            try:
+                os.utime(d)
+            except OSError:
+                pass
 
 
 def unexport(entry):
@@ -978,6 +992,8 @@ def unexport(entry):
             subprocess.run(in_box(box, "distrobox-export", "--bin", b, "--export-path", str(HOME / ".local/bin"),
                                   "--delete"), capture_output=True)
         (HOME / ".local/bin" / os.path.basename(b)).unlink(missing_ok=True)
+    if entry.get("apps"):
+        icons_changed()
 
 
 # ---------------------------------------------------------------- start at login
