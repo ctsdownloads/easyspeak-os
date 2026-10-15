@@ -29,6 +29,7 @@ USTATE="${XDG_STATE_HOME:-$HOME/.local/state}/easyspeak-os"
 # easyspeak-os-dialog is zenity plus voice (say a button's name to press it, "read it" to hear the window).
 DIALOG=zenity; [ -x /usr/bin/easyspeak-os-dialog ] && DIALOG=/usr/bin/easyspeak-os-dialog
 ARGS=("$@")
+NO_RESTART=""   # set by --no-restart: the installed window doesn't offer a restart (the setup checklist does)
 
 say() { printf '%s\n' "$*"; }
 window_open() { [ ! -e "$DONE" ] && [ -n "$(find "$OPEN" -maxdepth 0 -mmin -1440 2>/dev/null)" ]; }
@@ -75,7 +76,10 @@ install_with_window() {   # $1 = web or full
   ( while kill -0 "$pid" 2>/dev/null; do echo; sleep 1; done; echo 100 ) | \
     zenity --progress --pulsate --auto-close --no-cancel --title="Install Media Codecs" --text="Installing the codecs. This can take a few minutes." || true
   wait "$pid"; rc=$?
-  if [ "$rc" -eq 0 ]; then
+  if [ "$rc" -eq 0 ] && [ -n "$NO_RESTART" ]; then     # opened from the setup checklist, which offers the restart
+    $DIALOG --info --title="Install Media Codecs" --width=480 \
+      --text="The codecs are installed. They start working after a restart, which the setup checklist offers at its end."
+  elif [ "$rc" -eq 0 ]; then
     $DIALOG --question --title="Install Media Codecs" --ok-label="Restart now" --cancel-label="Later" \
       --text="The codecs are installed.\n\nRecommended: Restart now to start using them. Or Later." && systemctl reboot
   else
@@ -105,7 +109,7 @@ mode=explain
 for a in "${ARGS[@]}"; do
   case "$a" in
     web|--web) mode=web ;; full|--full) mode=full ;; remove|--remove) mode=remove ;;
-    gui|--gui) mode=gui ;; --first-login) mode=first ;; --apply) ;; -h|--help|help) mode=explain ;;
+    gui|--gui) mode=gui ;; --first-login) mode=first ;; --no-restart) NO_RESTART=1 ;; --apply) ;; -h|--help|help) mode=explain ;;
     *) say "Unknown option: $a. Run  codecs  to see the choices."; exit 2 ;;
   esac
 done

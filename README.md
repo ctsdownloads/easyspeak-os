@@ -202,12 +202,18 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
      microphone, then **Test again**. It records with PipeWire, alongside
      EasySpeak, and keeps nothing.
   2. **Media codecs:** the [Media codecs](#media-codecs) window, with no
-     password during the first day. Skipped if they're already added.
+     password during the first day. Skipped if they're already added. Here it
+     doesn't ask to restart; the checklist does that at the end.
   3. **Skip the disk password at startup:** **Unlock disk automatically** from
      System Tools. Only shown if the disk is encrypted, the computer has a
      security chip and it isn't on already. It needs the disk password and the
      administrator password, so it's a step for the helper.
   4. **How to get apps:** where apps come from, in a few lines.
+
+  Nothing in the middle of the checklist restarts the computer, so no step is
+  lost. If the codecs were installed, the last window says they work after a
+  restart and offers **Restart now** or **Later**. If disk unlock was turned
+  on, it says the disk unlocks by itself from the next restart.
 
   **Later** opens it again at the next login. **Don't show again** stops that.
   Say "setup checklist", or pick it in System Tools, to open it any time. It
@@ -633,6 +639,9 @@ lets the computer's security chip unlock the disk instead:
   a change, turn it on again in System Tools.
 - Turning it off is in the same place, and the disk password is asked for at
   every start again.
+- Whether it's on is checked on the disk itself: at every start, and right
+  after turning it on or off. So System Tools and the setup checklist never
+  think it's on when the disk says otherwise.
 
 **Undo the last update.** The version from before the last update is kept on
 the computer. This tool says the dates of both and, on **Undo the update**, sets
@@ -697,6 +706,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/zz-easyspeak-os-windows.gschema.override` | Gives every window a minimize and a maximize button |
 | `build_files/changes.txt` | Not in the repository: the build writes it from the last 60 changes' titles, and System Update reads it to say what's new |
 | `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates and automatic disk unlock on or off, and its polkit policy (administrator password) |
+| `build_files/easyspeak-os-disk-unlock-check.service` | At every start, checks on the disk whether automatic disk unlock is on, for System Tools and the setup checklist |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |

@@ -49,7 +49,8 @@ HELP_SOFTWARE = [
     "problem details for your helper, in System Tools",
     "update anyway / not now / check the boxes - System Update's questions: a low battery, or app boxes that "
     "didn't update",
-    "start / later / don't show again / next / skip - the setup checklist: go through it, or skip a step",
+    "start / later / don't show again / next / skip / restart now - the setup checklist: go through it, skip a "
+    "step, and restart at the end if the codecs were installed",
     "test / test again / open sound settings / set it up - the setup checklist's microphone and disk unlock steps",
 ]
 

@@ -39,6 +39,9 @@ install -Dm644 /ctx/dev.easyspeak.os.hwrules.policy /usr/share/polkit-1/actions/
 install -Dm755 /ctx/easyspeak-os-tools /usr/bin/easyspeak-os-tools
 install -Dm755 /ctx/easyspeak-os-tools-admin /usr/libexec/easyspeak-os-tools-admin
 install -Dm644 /ctx/dev.easyspeak.os.tools.policy /usr/share/polkit-1/actions/dev.easyspeak.os.tools.policy
+# At every start, the note that says automatic disk unlock is on is made to match the disk itself.
+install -Dm644 /ctx/easyspeak-os-disk-unlock-check.service /usr/lib/systemd/system/easyspeak-os-disk-unlock-check.service
+systemctl enable easyspeak-os-disk-unlock-check.service
 install -Dm644 /ctx/easyspeak-os-tools.desktop /usr/share/applications/easyspeak-os-tools.desktop
 # The setup checklist (System Tools' "Setup checklist") opens once at a new user's first login. It also asks the
 # media codecs question, so Install Media Codecs no longer has a first-login window of its own.
@@ -75,7 +78,7 @@ python3 -I /ctx/check-packages.py /tmp/pkgtest || { echo 'ERROR: Install Package
 rm -rf /tmp/pkgtest
 # Services that must be on by default, also after a first boot (which applies these preset rules):
 # EasySpeak-OS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
-printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
+printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable easyspeak-os-disk-unlock-check.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
 systemctl enable tailscaled.service podman-auto-update.timer uupd.timer brew-setup.service
 for u in tailscaled.service uupd.timer brew-setup.service; do [ "$(systemctl is-enabled "$u")" = enabled ] || { echo "ERROR: $u is not enabled"; exit 1; }; done
 rpm -q gnome-software-rpm-ostree >/dev/null 2>&1 && { echo "ERROR: a second OS updater is still installed"; exit 1; }
