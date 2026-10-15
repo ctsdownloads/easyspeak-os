@@ -148,7 +148,9 @@ when the computer next starts, if it was off or asleep then) and updates the
 system, Flatpaks, app boxes and Homebrew. A new system
 image takes effect at the next reboot. To update by hand, open **System Update**
 from Show Apps, which shows progress and offers a restart when a new system
-image is ready and needs no password. If the automatic update is already running
+image is ready and needs no password. While the system itself updates, the
+window says how big the download is and in how many parts, which part it is on
+and about how much has come in so far, and when it is installing. If the automatic update is already running
 when you open it, it says so and follows that update to the end instead of
 failing (only one update can run at a time). Or run:
 

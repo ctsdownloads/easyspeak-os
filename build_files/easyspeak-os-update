@@ -88,13 +88,38 @@ fi
 
 # Each step the updater reports ({"msg":"Updating","title":..,"description":..,"overall":..}) moves the bar and
 # shows its name. Users who cannot read the system log see a pulsing bar and the general message instead.
-# Some steps report nothing until they finish (rpm-ostree, on a system with layered packages), so while a step runs
-# the text also says how long it has been going, once a minute, to show it is still working (once a minute, so a
-# screen reader is not flooded).
+# The system step (rpm-ostree or bootc) also writes its own lines to the log: how many parts the new system has
+# and their size ("ostree chunk layers needed: 4 (1.4 GB)"), each part as it finishes ("[2/4] Fetching ... done"),
+# then the install ("Checking out tree", "Staging deployment"). Those are shown in plain words. While a part
+# downloads, the text says about how much has come in, from the computer's network counters, every 10 seconds.
+# Other steps that report nothing until they finish say how long they have been going, once a minute.
 steps() {   # $1: the updater service to follow
   journalctl -f -n 0 -o cat -u "$1" 2>/dev/null | python3 -u -c '
-import json, os, select, sys, time
+import json, os, re, select, sys, time
+
+def received():
+    total = 0
+    try:
+        for line in open("/proc/net/dev").read().splitlines()[2:]:
+            name, data = line.split(":", 1)
+            if name.strip() != "lo":
+                total += int(data.split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return total
+
+def nbytes(size):
+    m = re.match(r"([0-9.]+)\s*([kMGT]?B)", size.replace("\u00a0", " "))
+    if not m:
+        return None
+    return float(m.group(1)) * {"B": 1, "kB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}[m.group(2)]
+
+def human(n):
+    return "%.1f GB" % (n / 1e9) if n >= 1e9 else "%d MB" % (n / 1e6)
+
 step, since, shown, buf = "", 0.0, 0, b""
+parts = done = 0
+size_text, size, base, said = "", None, None, 0.0
 while True:
     ready, _, _ = select.select([sys.stdin], [], [], 5)
     if ready:
@@ -106,17 +131,49 @@ while True:
         for line in lines:
             try: d = json.loads(line)
             except ValueError: continue
-            if d.get("msg") == "Updating" and "title" in d:
+            msg = str(d.get("msg", ""))
+            if msg == "Updating" and "title" in d:
                 step, since, shown = "Updating " + d["title"] + ": " + d.get("description", ""), time.time(), 0
+                parts = done = 0
                 print(int(d.get("overall", 0)))
                 print("# " + step)
+                continue
+            text = None
+            m = re.search(r"layers needed: (\d+) \(([^)]*)\)", msg)
+            if m:
+                parts += int(m.group(1))
+                size_text = m.group(2).replace("\u00a0", " ")
+                size, base = nbytes(size_text), received()
+                text = "Updating the system: downloading the new version, %s in %d parts." % (size_text, parts)
+            elif re.match(r"\[(\d+)/(\d+)\]", msg) and msg.endswith("done"):
+                done, parts = map(int, re.match(r"\[(\d+)/(\d+)\]", msg).groups())
+                text = "Updating the system: downloaded part %d of %d." % (done, parts)
+            elif msg.startswith("Pulling manifest"):
+                text = "Updating the system: checking for a new version."
+            elif msg.startswith(("Checking out tree", "Importing rpm-md", "Staging deployment")):
+                parts = 0
+                text = "Updating the system: installing the new version. It is used from your next restart." \
+                    if msg.startswith("Staging deployment") and msg.endswith("done") else \
+                    "Updating the system: installing the new version."
+            elif msg.startswith("No upgrade available"):
+                text = "Updating the system: it is already up to date."
+            if text:
+                since, shown, said = time.time(), 0, time.time()
+                print("# " + text)
+    elif parts and done < parts and size and base is not None and time.time() - said >= 10:
+        now = received()
+        if now is not None:
+            got = min(max(now - base, 0), size)
+            said = time.time()
+            print("# Updating the system: downloading part %d of %d, about %s of %s so far." %
+                  (min(done + 1, parts), parts, human(got), size_text))
     elif step:
         mins = int(time.time() - since) // 60
         if mins > shown:
             shown = mins
             print("# %s  (still working, %d min so far)" % (step, mins))'
 }
-pulse=(); can_read_log || pulse=(--pulsate)
+
 rcfile=$(mktemp); followfile=$(mktemp)
 text="Updating everything: the system, your apps and the app boxes. This can take a while. You can keep working."
 auto_running && text="The automatic update is already running, so this window follows it until it's done. You can keep working."
