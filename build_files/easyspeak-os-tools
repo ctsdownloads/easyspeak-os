@@ -42,8 +42,8 @@ GUI = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")) and s
 
 # ---------------------------------------------------------------- windows
 
-def zenity(*args, stdin=None, title=TITLE):
-    return subprocess.run([DIALOG, f"--title={title}", "--width=520", *args], input=stdin,
+def zenity(*args, stdin=None, title=TITLE, width=520):
+    return subprocess.run([DIALOG, f"--title={title}", f"--width={width}", *args], input=stdin,
                           capture_output=True, text=True)
 
 
@@ -81,12 +81,13 @@ def ask(text, ok="Yes", cancel="Cancel", extra=None, title=TITLE):
 def choose(text, columns, rows):
     """Pick one row; its index or None. Each line shows its number, so "number two" can be said by sight."""
     if GUI:
-        args = ["--list", f"--text={text}", "--height=380", "--print-column=1", "--hide-column=1",
+        # Wide and tall enough that every tool and what it does reads in full, without scrolling either way.
+        args = ["--list", f"--text={text}", "--height=460", "--print-column=1", "--hide-column=1",
                 "--column=n", "--column=No.", *[f"--column={c}" for c in columns]]
         cells = []
         for i, row in enumerate(rows):
             cells += [str(i), str(i + 1), *row]
-        r = zenity(*args, stdin="\n".join(cells) + "\n")
+        r = zenity(*args, stdin="\n".join(cells) + "\n", width=900)
         out = r.stdout.strip().split("|")[0]
         return int(out) if r.returncode == 0 and out.isdigit() else None
     print(text)

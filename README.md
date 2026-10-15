@@ -618,7 +618,8 @@ what a package needs without installing it, run
 **System Tools** (in Show Apps, or say "system tools") is a short list of system
 jobs, each in plain windows that say what will happen and what's recommended.
 They're the useful ones from Universal Blue's `ujust` commands, without a
-terminal. Say a line's number to pick a tool, then say its buttons.
+terminal. Say a line's number to pick a tool, then say its buttons. The list is
+wide enough to read every line in full, without scrolling.
 
 | Tool | What it does |
 |------|--------------|
