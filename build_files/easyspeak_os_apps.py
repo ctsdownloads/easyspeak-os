@@ -14,7 +14,7 @@ NAME = "easyspeak-os apps"
 DESCRIPTION = "Install apps from .rpm and .deb files, or remove them (EasySpeak-OS)"
 HELP_SECTION = "Software"   # its own section in the help overlay, cheat sheet and "did you mean"
 COMMANDS = [
-    "install a package - install an app from an .rpm or .deb file",
+    "install a package - install an app from an .rpm or .deb file, with its own icon in Show Apps and the dock",
     "remove an app - remove an app installed from a file",
     "repair app boxes - set a broken app box up again",
     "start apps at login - choose apps from .rpm or .deb files that start when you log in",

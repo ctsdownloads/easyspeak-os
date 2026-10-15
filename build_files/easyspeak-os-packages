@@ -882,45 +882,63 @@ BOX_RUN = "/usr/libexec/easyspeak-os-box-run"
 QUIT = "easyspeak-quit"
 
 
-def fix_launcher(path):
+def fix_launcher(path, box):
     """Make an app grid entry made by distrobox-export start the app through easyspeak-os-box-run, so the app's
     messages go to a log file (an app does not crash if its link to the desktop goes away) and a right-click Quit
-    really stops it inside the box. Safe to run more than once."""
+    really stops it inside the box. And make the dock show the app's own icon while it runs: the entry is named
+    after the box (easyspeak-fedora-vivaldi-stable.desktop), so GNOME cannot match the app's window to it by name,
+    only by StartupWMClass. An app's window is named after its own entry (vivaldi-stable), so that is what
+    StartupWMClass is set to, as newer distrobox-export versions do; the value an app ships with may be wrong, since
+    outside a box GNOME matches by the entry's name and never needs it. Safe to run more than once."""
     try:
         text = path.read_text()
     except OSError:
         return False
-    if BOX_RUN in text:
-        return True
-    key = ""
+    old = text
+    if BOX_RUN not in text:
+        key = ""
 
-    def swap(m):
-        nonlocal key
-        rest = m.group(2).strip()
-        try:
-            first = shlex.split(rest)[0]
-        except (ValueError, IndexError):
-            return m.group(0)
-        key = key or os.path.basename(first)
-        return f"Exec={BOX_RUN} {m.group(1)} {rest}"
-    text = re.sub(r"(?m)^Exec=\S*distrobox-enter\s+-n\s+(\S+)\s+(?:\S+\s+)*?--\s+(.*)$", swap, text)
-    text = re.sub(r"(?m)^StartupWMClass=/.*\n?", "", text)
-    if not key:
-        return False
-    name = re.search(r"(?m)^Name=(.*)$", text)
-    head, sep, rest = text.partition("[Desktop Entry]\n")
-    if re.search(r"(?m)^Actions=", rest.split("\n[", 1)[0]):
-        rest = re.sub(r"(?m)^(Actions=[^\n]*?);?[ \t]*$", lambda m: f"{m.group(1)};{QUIT};", rest, count=1)
-    else:
-        rest = f"Actions={QUIT};\n" + rest
-    text = head + sep + rest.rstrip("\n") + (
-        f"\n\n[Desktop Action {QUIT}]\nName=Quit {name.group(1) if name else key}\n"
-        f"Exec={BOX_RUN} --stop {key}\n")
-    path.write_text(text)
+        def swap(m):
+            nonlocal key
+            rest = m.group(2).strip()
+            try:
+                first = shlex.split(rest)[0]
+            except (ValueError, IndexError):
+                return m.group(0)
+            key = key or os.path.basename(first)
+            return f"Exec={BOX_RUN} {m.group(1)} {rest}"
+        text = re.sub(r"(?m)^Exec=\S*distrobox-enter\s+-n\s+(\S+)\s+(?:\S+\s+)*?--\s+(.*)$", swap, text)
+        if not key:
+            return False
+        name = re.search(r"(?m)^Name=(.*)$", text)
+        head, sep, rest = text.partition("[Desktop Entry]\n")
+        if re.search(r"(?m)^Actions=", rest.split("\n[", 1)[0]):
+            rest = re.sub(r"(?m)^(Actions=[^\n]*?);?[ \t]*$", lambda m: f"{m.group(1)};{QUIT};", rest, count=1)
+        else:
+            rest = f"Actions={QUIT};\n" + rest
+        text = head + sep + rest.rstrip("\n") + (
+            f"\n\n[Desktop Action {QUIT}]\nName=Quit {name.group(1) if name else key}\n"
+            f"Exec={BOX_RUN} --stop {key}\n")
+    if not wm_class_ok(text, path, box):
+        text = re.sub(r"(?m)^StartupWMClass=.*\n?", "", text)
+        head, sep, rest = text.partition("[Desktop Entry]\n")
+        text = head + sep + f"StartupWMClass={window_name(path, box)}\n" + rest
+    if text != old:
+        path.write_text(text)
     return True
 
 
+def window_name(path, box):
+    """The name the app's window goes by: its own entry's name, without the box's name in front."""
+    return path.name.removeprefix(f"{box}-").removesuffix(".desktop")
+
+
+def wm_class_ok(text, path, box):
+    return re.findall(r"(?m)^StartupWMClass=(.*)$", text) == [window_name(path, box)]
+
+
 def launchers_to_fix():
+    """App grid entries made before easyspeak-os-box-run existed, or before the dock showed box apps' icons."""
     apps_dir = HOME / ".local/share/applications"
     out = []
     for r in load():
@@ -928,8 +946,10 @@ def launchers_to_fix():
             for a in r.get("apps", []):
                 f = apps_dir / f"{r['where']}-{os.path.basename(a)}"
                 try:
-                    if f.exists() and BOX_RUN not in f.read_text():
-                        out.append(f)
+                    if f.exists():
+                        text = f.read_text()
+                        if BOX_RUN not in text or not wm_class_ok(text, f, r["where"]):
+                            out.append((f, r["where"]))
                 except OSError:
                     pass
     return out
@@ -944,7 +964,7 @@ def export(box, info):
                            capture_output=True, text=True)
         exported = apps_dir / f"{box}-{os.path.basename(path)}"
         if r.returncode == 0 and exported.exists():
-            fix_launcher(exported)
+            fix_launcher(exported, box)
             done_apps.append(path)
     if done_apps:
         icons_changed()
@@ -1369,8 +1389,8 @@ def after_restart():
     once. Then, for each package added to the system, say whether it is there now, once."""
     for k in boxes_missing_helpers():
         ensure_helpers(k, quiet=True)
-    for f in launchers_to_fix():           # app grid entries made before easyspeak-os-box-run existed
-        fix_launcher(f)
+    for f, box in launchers_to_fix():      # app grid entries made by an older Install Package File
+        fix_launcher(f, box)
     fix_app_login_files()
     left = []
     for e in pending():

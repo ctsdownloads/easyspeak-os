@@ -328,7 +328,8 @@ touched. See [Repairing a box](#repairing-a-box).
      much disk space it uses.
 6. The last window says where to find it ("Find it in Show Apps.") and how it
    gets updates (see [Updates](#updates)). Its own icon shows in Show Apps
-   straight away.
+   straight away, and in the dock while it runs. Apps installed before the dock
+   icon was fixed get it at your next login.
 
 .rpm files go in the Fedora box and .deb files in the Ubuntu 24.04 box. Each box
 is a Distrobox container, kept separate from any boxes of your own. System
@@ -544,6 +545,11 @@ through Distrobox:
   through its link to the desktop. If that link goes away (for example when a
   task manager's Force Stop ends it), the app keeps working instead of crashing
   with "write EPIPE" error windows, as Discord did.
+- **The dock shows the app's own icon while it runs**, not a generic one. A box
+  app's Show Apps entry has the box's name in front of the app's own
+  (`easyspeak-fedora-vivaldi-stable`), so GNOME can't tell from the name that
+  the open window belongs to it. The entry says which window is the app's
+  (`StartupWMClass`, set to the app's own name, `vivaldi-stable`).
 - **Two Quit items.** Right-click a box app in the dock or Show Apps and you see
   two of them:
   - **Quit <app name>**, for example **Quit Discord**, is EasySpeak-OS's. It
