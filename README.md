@@ -19,7 +19,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 [![Status](https://img.shields.io/badge/status-pre--alpha-red.svg)](#status)
 [![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
 [![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
-[![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#verifying-the-signature)
+[![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#checking-that-updates-are-real)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ## Contents
@@ -27,11 +27,12 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 <!-- contents -->
 - [Status](#status)
 - [Who it's for](#who-its-for)
+- [How this system works](#how-this-system-works)
 - [What's in it](#whats-in-it)
 - [System requirements](#system-requirements)
 - [Install](#install)
   - [Updating and rolling back](#updating-and-rolling-back)
-  - [Verifying the signature](#verifying-the-signature)
+  - [Checking that updates are real](#checking-that-updates-are-real)
   - [First login](#first-login)
 - [Using it](#using-it)
   - [What works by voice](#what-works-by-voice)
@@ -86,16 +87,29 @@ Most everyday things work by voice. Some still need typing, mainly passwords.
 Someone comfortable with a terminal has to set it up: the [install](#install)
 and the [first login](#first-login) steps are typed.
 
+## How this system works
+
+EasySpeak-OS is an **image-based** system. The system itself, meaning
+everything except your own files and settings, arrives as one finished, tested
+piece called an image, and apps can't change it. That keeps it from breaking.
+
+- **Updates** download a whole new image in the background. It's used from your
+  next restart.
+- **The previous version stays on disk.** If an update causes a problem, you can
+  go back to it (see [Updating and rolling back](#updating-and-rolling-back)).
+- **Apps** come from the Software app, or go into a box. Only when they have to
+  are they added to the system.
+
 ## What's in it
 
 | Part | Details |
 |------|---------|
 | Base | [Fedora Silverblue 44](https://fedoraproject.org/atomic-desktops/silverblue/) (`quay.io/fedora-ostree-desktops/silverblue:44`), with the logos and release packages from Fedora replaced by the generic ones |
 | Packages | firefox, qutebrowser, v4l-utils, wtype, ydotool, xdg-terminal-exec, and the Fedora packages Bluefin adds that are listed in [`build_files/bluefin-packages.txt`](build_files/bluefin-packages.txt) |
-| Updates | Automatic, with Bluefin's updater `uupd`: the system, Flatpaks, Distrobox containers and Homebrew. See [Updating and rolling back](#updating-and-rolling-back) |
-| Homebrew | Set up on first boot, as on Bluefin, for command-line tools (`brew`) |
-| ujust | Bluefin's command runner, for example `ujust update` |
-| Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale and Podman's automatic container updates, as on Bluefin |
+| Updates | Automatic, with Bluefin's updater `uupd`: the system, Flatpaks, app boxes and Homebrew. See [Updating and rolling back](#updating-and-rolling-back) |
+| Homebrew | Set up on first boot, as on Bluefin, for command-line tools (`brew`). Terminal only, for people who use one |
+| ujust | Bluefin's command runner, for example `ujust update`. Terminal only, for people who use one |
+| Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale (a private network between your own devices; it does nothing until you sign in to it) and Podman's automatic container updates (only for containers you set up to update that way), as on Bluefin |
 | Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
 | Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. A window at first login offers them, with no password, and **Install Media Codecs** in Show Apps offers them later. See [Media codecs](#media-codecs) |
 | Apps from .rpm and .deb files | **Install Package File** puts them in a box (Distrobox) and adds them to Show Apps; **Remove Apps** takes them out. See [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files) |
@@ -113,9 +127,8 @@ and the [first login](#first-login) steps are typed.
 
 ## Install
 
-You need an existing Fedora Atomic system (Silverblue, Bluefin or similar) and
-[rpm-ostree](https://coreos.github.io/rpm-ostree/). Do this **once per
-machine**. It takes two rebases because the image ships its own signature
+You need a computer already running a **Fedora Atomic** system: an image-based
+Fedora, such as Silverblue or Bluefin. Do this **once per machine**. It takes two rebases because the image ships its own signature
 policy: the first is unverified because a fresh machine has no key yet and this
 step installs it, and the second is verified.
 
@@ -128,8 +141,9 @@ systemctl reboot
 
 ### Updating and rolling back
 
-Updates are automatic. Bluefin's updater, `uupd`, runs on its own timer and
-updates the system, Flatpaks, Distrobox containers and Homebrew. A new system
+Updates are automatic. Bluefin's updater, `uupd`, runs every day at 4 am (or
+when the computer next starts, if it was off or asleep then) and updates the
+system, Flatpaks, app boxes and Homebrew. A new system
 image takes effect at the next reboot. To update by hand, open **System Update**
 from Show Apps, which shows progress and offers a restart when a new system
 image is ready and needs no password. If the automatic update is already running
@@ -141,17 +155,23 @@ sudo uupd
 ```
 
 `uupd` updates the system with `bootc`, and falls back to `rpm-ostree` when
-needed, for example when packages such as the full codecs are layered on top of
-the image. `rpm-ostree upgrade` also still works. To go back to the previous
-image:
+needed, for example when packages such as the full codecs are added on top of
+the system. `rpm-ostree upgrade` also still works.
 
-```
-rpm-ostree rollback
-```
+To go back to the version you had before the last update (it's kept on disk),
+run `rpm-ostree rollback` and restart. You can also pick it in the boot menu
+when the computer starts.
 
 To see when the next automatic update runs: `systemctl list-timers uupd.timer`.
 
-### Verifying the signature
+### Checking that updates are real
+
+Every update from this project carries a digital seal that only this project can
+make. Before installing an update, your computer checks the seal and refuses any
+update that's missing it or was changed along the way. So a fake or tampered
+update can't get in. You don't need to do anything for this.
+
+To check it yourself (terminal):
 
 ```
 cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
@@ -160,7 +180,12 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 ### First login
 
 - Log out and back in once so GNOME loads EasySpeak's shell extension.
-- Run `sudo usermod -aG input "$USER"` for hold-to-dictate, then log in again.
+- **Optional: hold-to-dictate.** Holding **Ctrl+Shift** lets you speak without
+  saying "Hey Jarvis". You don't need it if pressing keys is hard for you,
+  because the wake word does the same. To turn it on, run
+  `sudo usermod -aG input "$USER"` and log in again. This lets your account read
+  the keyboard and mouse directly, which EasySpeak needs to see the keys held
+  down.
 - The Ready Dot extension switches itself on at your first login after the
   update. If you turn it off later it stays off:
   `gnome-extensions disable ready-dot@easyspeak-os`.
@@ -171,8 +196,20 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 
 Say "Hey Jarvis", wait for the chime, then say a command.
 
+Some commands switch EasySpeak into a **mode**, for example "grid" (point and
+click), "browser" (the web, by link numbers) and "dictation" (typing by voice).
+In a mode, you say commands without "Hey Jarvis". EasySpeak announces each mode,
+and a mode ends by itself when you stop using it: after 30 seconds for grid, a
+minute for dictation and 3 minutes for browser. EasySpeak's
+[full command list](https://easyspeak.dev/latest/commands/) has every command.
+
 **Show Apps** is GNOME's list of all apps: the button with nine dots at the end of
 the dock, or press the Super key twice. The EasySpeak-OS tools are there.
+
+**The Software app** is GNOME's app store. Its apps come from **Flathub** as
+**Flatpaks**: apps packed with everything they need and kept apart from the
+system. That's why they're the recommended way to get apps here. They can't
+break the system, and they update by themselves.
 
 - **Ready Dot.** A dot in the top bar. Yellow: go ahead and speak, no wake word
   needed. Orange: EasySpeak is busy hearing, thinking or replying. No dot: it is
@@ -243,6 +280,15 @@ it directly. **Install Package File** puts them in a box, or on the system when
 they need it. Every window that offers a choice says which button is recommended
 and why, then what the other choice gives up.
 
+**What's a box?** Apps from .rpm and .deb files don't go into the system itself.
+They go into a "box": a small, separate Linux system just for those apps. That
+keeps your system clean and makes apps easy to remove.
+
+**Why repair one?** Rarely, a box stops working, for example after an update
+inside it fails. Then its apps won't open, and nothing new can be installed into
+it. **Repair** rebuilds the box and puts its apps back. Your files aren't
+touched. See [Repairing a box](#repairing-a-box).
+
 ### Installing an app
 
 1. Open the file: double-click it, open **Install Package File** from Show Apps
@@ -283,6 +329,11 @@ Browser" and "Brave") is only used for apps Flathub has verified as coming from
 their maker, so a look-alike is never offered.
 
 ### Apps that go on the system
+
+**Adding to the system** puts the app on top of the image. Because the image
+only changes at a restart, the app is there after your next restart. Each
+update then rebuilds the system with your added apps on top, so updates take a
+little longer. Remove Apps takes them off again.
 
 Some apps cannot work in a box at all. Then the window says "{app} has to go on
 the system. It has: … These can't work in a box.", with **Add to the system**
@@ -594,18 +645,18 @@ name; `easyspeak-os-codecs` and `install-codecs` also work):
   x264 and x265 from [RPM Fusion](https://rpmfusion.org/), the source standard
   Fedora uses. The repository definitions ship inside the image, and the signing
   key (fingerprint `E9A4 91A3 DE24 7814 E7E0 67EA E06F 8ECD D651 FF2E`) comes
-  from Fedora's own `distribution-gpg-keys` package. These packages are layered
-  on top of the image, so on a machine that has them, system updates go
-  through `rpm-ostree`.
+  from Fedora's own `distribution-gpg-keys` package. These packages are added
+  on top of the system, so on a machine that has them, system updates take a
+  little longer.
 
 ### Passwords
 
 During the first-time setup window, installing needs no password. The window
 lasts at most 24 hours after the image first boots and closes as soon as you
-answer. It works through one narrow polkit action. That action is limited to
-the administrator (wheel) account at the machine, accepts only the words `web`,
-`full` or `skip`, and installs a fixed package list from the pinned
-repository. It cannot run anything else. Every action is written to the system
+answer. It works through one narrow exception in the system's permission check
+(polkit). It works only for the administrator account, only for someone sitting
+at the machine, and only with the words `web`, `full` or `skip`, and it installs
+a fixed package list from the pinned repository. It cannot run anything else. Every action is written to the system
 log with the user who asked.
 
 At every other time, including `codecs remove`, the same commands ask for your
