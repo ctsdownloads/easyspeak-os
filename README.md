@@ -118,7 +118,7 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from Show Apps |
-| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, and turn automatic updates on or off, in plain windows. See [System Tools](#system-tools) |
+| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, and save problem details for your helper, in plain windows. See [System Tools](#system-tools) |
 
 ## System requirements
 
@@ -154,7 +154,10 @@ and about how much has come in so far. Then it installs in two or three steps
 (unpacking the new version, adding the apps you put on the system if you have
 any, and saving it for your next restart): the window says which step it is on
 and how long that step has been going, and the bar moves with each part and
-each step. If the automatic update is already running
+each step. If the computer is on battery and the battery is low (under 20%,
+the same limit the automatic update uses), it first says so and recommends
+**Not now**: plug in, then start it again. **Update anyway** goes ahead. If the
+automatic update is already running
 when you open it, it says so and follows that update to the end instead of
 failing (only one update can run at a time). Or run:
 
@@ -167,8 +170,9 @@ needed, for example when packages such as the full codecs are added on top of
 the system. `rpm-ostree upgrade` also still works.
 
 To go back to the version you had before the last update (it's kept on disk),
-run `rpm-ostree rollback` and restart. You can also pick it in the boot menu
-when the computer starts.
+use **Undo the last update** in [System Tools](#system-tools), or run
+`rpm-ostree rollback` and restart. You can also pick it in the boot menu when
+the computer starts.
 
 To see when the next automatic update runs: `systemctl list-timers uupd.timer`.
 
@@ -271,7 +275,7 @@ break the system, and they update by themselves.
 | Remove an app | Yes, if Install Package File installed it | "remove an app". Apps from the Software app are removed there, with grid mode |
 | Repair app boxes, or choose apps that start at login | Yes | "repair app boxes", "start apps at login" |
 | Update everything (system, Flatpaks, app boxes) | Yes | Automatic, or "update system" |
-| System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
+| System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates, undo the last update, problem details | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
 | Media codecs | Partly | Answer the window by voice. Outside first-time setup, the administrator password is typed |
 
 **Still typed:**
@@ -588,6 +592,8 @@ terminal. Say a line's number to pick a tool, then say its buttons.
 | Free up disk space | Removes unused app parts, old system update files and unused container images, and says how much space it freed. Your files and apps aren't touched |
 | Restart into BIOS settings | Restarts the computer straight into its BIOS settings screen. The BIOS settings are used with the keyboard |
 | Automatic updates | Turns the daily automatic updates on or off. Keeping them on is recommended, because updates fix security problems |
+| Undo the last update | If something stopped working after an update, goes back to the version from before it. See below |
+| Save problem details | Saves the computer's recent error messages to one file, for you to email to your helper. See below |
 
 **Unlock disk automatically.** When the disk is encrypted, the computer asks for
 the disk password at every start, before the login password. Turning this on
@@ -605,6 +611,37 @@ lets the computer's security chip unlock the disk instead:
   a change, turn it on again in System Tools.
 - Turning it off is in the same place, and the disk password is asked for at
   every start again.
+
+**Undo the last update.** The version from before the last update is kept on
+the computer. This tool says the dates of both and, on **Undo the update**, sets
+the earlier one to start at the next restart. It's what `rpm-ostree rollback`
+does. Your files and apps aren't touched.
+
+- If an update is downloaded but waiting for a restart, the version in use isn't
+  the new one yet. The tool offers **Don't use it**, which removes the waiting
+  update (`rpm-ostree cleanup -p`), or **Keep it**.
+- The next automatic update puts the newest version back. If the problem comes
+  back, turn off Automatic updates and tell your helper.
+- It may ask for the administrator password.
+
+**Save problem details.** When something goes wrong, the reason is usually in
+the computer's own record of errors (the system journal), which is normally
+read with terminal commands. This tool collects the useful part into one text
+file, `problem-details-<date>.txt`, in your Documents folder. You email it to
+your helper, who can see what went wrong without being at the computer. Nothing
+is sent anywhere by itself. The file holds the same things as `ujust
+logs-this-boot`, `ujust logs-last-boot` and `ujust device-info`, kept to the
+warnings and errors so it stays small:
+
+- the system version, and the computer's hardware and setup
+- warnings and errors since the computer started, and errors from the start
+  before that
+- the last 3 days of the automatic updates
+- the Flatpak apps and the app boxes
+- the logs of Install Package File and System Tools
+
+Box apps' own logs are left out, since they hold whatever the app printed, such
+as web addresses and file names. The window says so.
 
 ## How it's built
 
