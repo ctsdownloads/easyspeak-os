@@ -2006,7 +2006,10 @@ def remove():
     else:
         unexport(entry)
         ok = True
-        if box_exists(where) and box_works(where):
+        bkind = next((k for k in BOXES if BOXES[k]["name"] == where), None)
+        # an app that is already gone from its box (the box was set up again, or it was removed another way) only
+        # comes off the list: asking the box to remove it would fail, and it would then stay on the list for good
+        if box_exists(where) and box_works(where) and bkind and box_version(bkind, entry["package"]):
             # a download source is purged on Ubuntu, so its source file (a kept setting otherwise) goes too
             purge = ["--purge"] if entry.get("source") else []
             cmd = ["sudo", "dnf", "-y", "remove", entry["package"]] if where == BOXES["rpm"]["name"] else \

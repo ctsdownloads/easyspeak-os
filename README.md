@@ -469,7 +469,9 @@ is started. Apps from the Software app have this setting inside the app.
 with Install Package File, numbered, with how much space each box uses. Pick one
 and press **Remove**. It removes the app from its box, its Show Apps entry, any
 device rule it added, or the package added to the system (then it offers a
-restart). Remove Apps quits a running app before removing it.
+restart). Remove Apps quits a running app before removing it. If an app is
+already gone from its box (for example after the box was set up again), Remove
+Apps just takes it off the list.
 
 When you remove the last app from a box, the window says "{app} is removed, and
 the Fedora box is now empty":
