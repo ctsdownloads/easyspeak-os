@@ -14,9 +14,9 @@
 # Also called easyspeak-os-codecs and install-codecs. The dashed forms (--web, --full, --remove,
 # --gui) work too. A window also appears once, the first time you log in after this image first boots.
 #
-# Passwords: during that first-time setup window (the first 24 hours after the image first boots,
-# until you answer) the choice installs without a password, through one narrow polkit action that
-# can only add these fixed packages. At every other time it asks for your administrator password.
+# Passwords: adding the codecs (web or full) needs no password on an administrator account at the
+# computer, through one narrow polkit action whose helper can only add these fixed packages. Taking
+# them out (remove) asks for the administrator password.
 # Changes are staged by rpm-ostree: restart to use them, and `rpm-ostree rollback` undoes them.
 set -uo pipefail
 
@@ -37,7 +37,11 @@ window_open() { [ ! -e "$DONE" ] && [ -n "$(find "$OPEN" -maxdepth 0 -mmin -1440
 run_helper() {   # $1 = web, full, remove or skip
   if [ "$(id -u)" -eq 0 ]; then "$ADMIN" "$1"; return; fi          # already root, for example via sudo
   command -v pkexec >/dev/null 2>&1 || { say "pkexec is missing. Run this with sudo instead."; return 1; }
-  if [ "$1" != remove ] && window_open; then pkexec "$SETUP" "$1"; else pkexec "$ADMIN" "$1"; fi
+  case "$1" in
+    web|full) pkexec "$SETUP" "$1" ;;                       # fixed packages: no password (see the rules file)
+    skip)     window_open && pkexec "$SETUP" skip ;;        # closes the first-time window
+    *)        pkexec "$ADMIN" "$1" ;;                       # remove: administrator password
+  esac
 }
 
 explain() {
@@ -51,18 +55,13 @@ explain() {
   say "  codecs full  Everything. Replaces Fedora's free ffmpeg libraries with the full ffmpeg,"
   say "               x264 and x265 from RPM Fusion, the source standard Fedora uses."
   say
-  if window_open; then
-    say "The first-time setup window is open, so either choice installs with no password."
-  else
-    say "Either choice asks for your administrator password, in the standard system box."
-  fi
+  say "Either choice installs with no password on an administrator account. Taking them out asks for it."
   say "Restart afterwards. To take them out again: codecs remove"
 }
 
 ask() {   # prints web or full, or nothing for "Not now"
   local note out rc
-  if window_open; then note="Either choice installs now with no password, because this is first-time setup. Later, Install Media Codecs asks for your administrator password."
-  else note="Either choice asks for your administrator password next."; fi
+  note="Either choice installs with no password."
   out=$($DIALOG --question --title="Install Media Codecs" --width=600 \
         --ok-label="Web video only" --extra-button="Everything" --cancel-label="Not now" \
         --text="Some video formats (like most web video) need extra codecs that Fedora, and this system, leave out because of patents in some countries. Installing them is your choice and your responsibility. EasySpeak does not need them.\n\nWeb video only: lets Firefox play most web video. A small addition to the system.\n\nEverything: plays all common video and audio, in every app. It replaces some parts of the system, so system updates take a little longer.\n\nNot now: you can open Install Media Codecs from Show Apps any time.\n\nPick by what you need. If you only watch video in Firefox, Web video only is enough.\n\n$note" 2>/dev/null); rc=$?

@@ -6,6 +6,10 @@ open window in $XDG_RUNTIME_DIR/easyspeak-os/dialogs/. While one is open:
   - say a button's name ("set up and install", "open it", "cancel") to press it;
   - say "number two" (or the name on a line) to pick a line in a list;
   - say "read it" to hear the window and the buttons you can say.
+  - say "next" or "continue" to go on, in a window whose main button only moves forward (Start, Next, Test, OK).
+Apostrophes don't matter, and "do not" counts as "don't", since speech recognition writes them either way.
+When EasySpeak has loaded its plugins, setup() leaves a note (easyspeak-ready, holding EasySpeak's process
+number) next to the windows' descriptions, so the setup checklist can wait to open until voice works.
 When no such window is open this plugin takes no commands at all, so it never gets in the way of anything else.
 It never speaks on its own: a window read aloud by itself would be heard by the open microphone, and could press
 one of its own buttons. English phrases only.
@@ -24,6 +28,7 @@ COMMANDS = [
     "open it, cancel",
     "read it - hear what an open EasySpeak-OS window says, and the buttons you can say",
     "number one / number two - pick that line in an EasySpeak-OS list window",
+    "next / continue - go on, when the window's main button is Start, Next, Test or OK",
 ]
 
 # The buttons of the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login,
@@ -43,7 +48,7 @@ HELP_SOFTWARE = [
     "try anyway / repair / repair the box - when disk space is low or an app box is broken",
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
     "turn on / turn off / turn on anyway / free up space / keep it on / keep them on / keep them off - the System "
-    "Tools buttons",
+    "Tools buttons (turning updates on, disk unlock and freeing up space need no administrator password)",
     "undo the update / use the newer version / don't use it / keep it / save details / show the file - undo the "
     "last update or go back to the newer one, or save "
     "problem details for your helper, in System Tools",
@@ -52,6 +57,7 @@ HELP_SOFTWARE = [
     "start / later / don't show again / next / skip / restart now - the setup checklist: go through it, skip a "
     "step, and restart at the end if the codecs were installed",
     "test / test again / open sound settings / set it up - the setup checklist's microphone and disk unlock steps",
+    "open software / open install package file - the setup checklist's getting apps step: see where apps come from",
 ]
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")
@@ -63,8 +69,26 @@ TRAIL = re.compile(r"( button| please)+$")
 
 
 def norm(text):
-    text = re.sub(r"[^a-z0-9' ]+", " ", (text or "").lower())
-    return " ".join(text.split())
+    """Words only: lower case, no punctuation, no apostrophes ("don't" and "dont" alike), "do not" as "dont"."""
+    text = re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower().replace("'", "").replace("\u2019", ""))
+    text = " ".join(text.split())
+    return re.sub(r"\bdo not\b", "dont", text)
+
+
+# The main buttons that only move forward: "next" or "continue" presses them. Never a button that changes or removes
+# something (Turn off, Remove, Restart now), so a "next" said out of habit can't do that.
+FORWARD = {"start", "next", "test", "test again", "ok", "continue"}
+READY = os.path.join(os.path.dirname(DIALOGS), "easyspeak-ready")
+
+
+def setup(core):
+    """EasySpeak calls this once its speech model and plugins are loaded: leave the note that voice works now."""
+    try:
+        os.makedirs(os.path.dirname(READY), exist_ok=True)
+        with open(READY, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
 
 
 def open_window():
@@ -135,6 +159,8 @@ def handle(cmd, core):
         button = by_name["ok"]
     if button is None and said == "cancel":
         button = next((b for b in info["buttons"] if b["does"] == "cancel"), None)
+    if button is None and said in ("next", "continue", "go on"):
+        button = next((b for b in info["buttons"] if b["does"] == "ok" and norm(b["say"]) in FORWARD), None)
     if button is not None:
         answer(info, button["does"])
         core.speak(button["say"] + ".")

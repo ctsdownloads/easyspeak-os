@@ -1,0 +1,86 @@
+#!/usr/bin/python3 -I
+"""The System Tools jobs that need no administrator password. Runs as root through polkit.
+
+An administrator sitting at the computer runs these without a password (50-easyspeak-os-tools.rules); anyone else
+is asked for it. They are the jobs a program running as the user could not use to do harm, so a password adds
+nothing:
+
+  easyspeak-os-tools-safe updates on
+      Turn the automatic updater's daily timer on (turning it off is in easyspeak-os-tools-admin, with a password).
+  easyspeak-os-tools-safe disk-unlock on|off      (the disk password on standard input)
+      Let the TPM unlock the disk at startup, or stop it. The disk password is checked first and nothing changes
+      without it, so it, not the administrator password, is what proves the owner is asking. So that this can't
+      be used to guess the disk password over and over, after 5 wrong ones within an hour it refuses (exit 4)
+      until the hour is up.
+  easyspeak-os-tools-safe free-space
+      Remove what the system no longer needs: rpm-ostree's cached packages and old metadata (cleanup -bm, which
+      keeps the version you can undo to and any update waiting for a restart), and Flatpak runtimes no app uses.
+
+Nothing else is accepted. The work itself is easyspeak-os-tools-admin's own code, so the two can't drift apart.
+"""
+import importlib.machinery
+import importlib.util
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ADMIN = "/usr/libexec/easyspeak-os-tools-admin"
+FAILURES = Path("/var/lib/easyspeak-os/disk-password-wrong")    # the times of recent wrong disk passwords
+MAX_WRONG, WINDOW = 5, 3600
+
+
+def recent_wrong():
+    now = time.time()
+    try:
+        times = [float(x) for x in FAILURES.read_text().split()]
+    except (OSError, ValueError):
+        times = []
+    return [t for t in times if now - WINDOW < t <= now]
+
+
+def disk_unlock(state):
+    wrong = recent_wrong()
+    if len(wrong) >= MAX_WRONG:
+        print("Too many wrong disk passwords. Try again in an hour.")
+        return 4
+    try:
+        admin().disk_unlock(state)
+        rc = 0
+    except SystemExit as e:
+        rc = e.code if isinstance(e.code, int) else 1
+    if rc == 3:             # wrong disk password
+        FAILURES.parent.mkdir(parents=True, exist_ok=True)
+        FAILURES.write_text(" ".join(str(t) for t in wrong + [time.time()]))
+    elif rc == 0:
+        FAILURES.unlink(missing_ok=True)
+    return rc
+
+
+def admin():
+    loader = importlib.machinery.SourceFileLoader("easyspeak_os_tools_admin", ADMIN)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def main(argv):
+    if os.geteuid() != 0:
+        print("This helper runs as root, through polkit.")
+        return 1
+    if argv[1:] == ["updates", "on"]:
+        return subprocess.run(["systemctl", "enable", "--now", "uupd.timer"]).returncode
+    if len(argv) == 3 and argv[1] == "disk-unlock" and argv[2] in ("on", "off"):
+        return disk_unlock(argv[2])
+    if argv[1:] == ["free-space"]:
+        rc = subprocess.run(["rpm-ostree", "cleanup", "-bm"]).returncode
+        subprocess.run(["flatpak", "uninstall", "--system", "--unused", "-y", "--noninteractive"])
+        return rc
+    print(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -112,7 +112,7 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | ujust | Bluefin's command runner, for example `ujust update`. Terminal only, for people who use one |
 | Services on by default | Fedora's own defaults (power management, DNS, SSD trim and others), plus Tailscale (a private network between your own devices; it does nothing until you sign in to it) and Podman's automatic container updates (only for containers you set up to update that way), as on Bluefin |
 | Power management | tuned 2.27.0, the version Bluefin ships. See [Known limitations](#known-limitations) |
-| Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. The [setup checklist](#first-login) at first login offers them, with no password, and **Install Media Codecs** in Show Apps offers them later. See [Media codecs](#media-codecs) |
+| Codecs | Not included. Fedora leaves out patent-encumbered video codecs and so does this image. The [setup checklist](#first-login) at first login offers them, and **Install Media Codecs** in Show Apps offers them any time, with no password on an administrator account. See [Media codecs](#media-codecs) |
 | Apps from .rpm and .deb files | **Install Package File** puts them in a box (Distrobox) and adds them to Show Apps; **Remove Apps** takes them out. See [Apps from .rpm and .deb files](#apps-from-rpm-and-deb-files) |
 | Flathub | Added as a Flatpak remote on first boot, so Flatpak apps and runtimes such as `ffmpeg-full` can be installed straight away. The Flathub entry that comes with Fedora, which stays off until you opt in, is removed |
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
@@ -194,9 +194,10 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 
 ### First login
 
-- **The setup checklist** opens by itself about 20 seconds after a new user's
-  first login. It goes through four steps, one window each, and any can be
-  skipped:
+- **The setup checklist** opens by itself at a new user's first login, as soon
+  as EasySpeak has finished loading, so its buttons can be said from the first
+  window (if EasySpeak isn't running, it opens after 3 minutes anyway). It goes
+  through four steps, one window each, and any can be skipped:
   1. **Check the microphone:** say "testing, testing" and it says whether the
      computer heard you. If not, it offers **Open sound settings** to choose the
      microphone, then **Test again**. It records with PipeWire, alongside
@@ -206,9 +207,11 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
      doesn't ask to restart; the checklist does that at the end.
   3. **Skip the disk password at startup:** **Unlock disk automatically** from
      System Tools. Only shown if the disk is encrypted, the computer has a
-     security chip and it isn't on already. It needs the disk password and the
-     administrator password, so it's a step for the helper.
-  4. **How to get apps:** where apps come from, in a few lines.
+     security chip and it isn't on already. It needs the disk password, so it's
+     a step for the helper.
+  4. **How to get apps:** where apps come from, with **Open Software** and
+     **Open Install Package File** to see each one for real. The window comes
+     back after each, until **Next**.
 
   Nothing in the middle of the checklist restarts the computer, so no step is
   lost. If the codecs were installed, the last window says they work after a
@@ -272,7 +275,11 @@ break the system, and they update by themselves.
   (Install Package File, Remove Apps, Repair App Boxes, System Update, Install
   Media Codecs), say a button's name to press it: "set up and install", "open
   it", "restart now", "cancel". In a list, say "number two" (each line shows its
-  number) or the name on the line. Say "read it" to hear the window and the buttons you can say. The window
+  number) or the name on the line. Say "read it" to hear the window and the buttons you can say.
+  Apostrophes don't matter ("dont show again" and "do not show again" both press
+  **Don't show again**). "Next" or "continue" presses the main button when it
+  only moves forward (Start, Next, Test, OK), never one that changes or removes
+  something, like Turn off. The window
   is never read out by itself: the open microphone would hear it and could press
   one of its buttons. When no such window is open, these words do nothing, so
   they never get in the way of other commands. English only.
@@ -303,13 +310,14 @@ break the system, and they update by themselves.
 | Repair app boxes, or choose apps that start at login | Yes | "repair app boxes", "start apps at login" |
 | Update everything (system, Flatpaks, app boxes) | Yes | Automatic, or "update system" |
 | System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates, undo the last update, problem details | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
-| Media codecs | Partly | Answer the window by voice. Outside first-time setup, the administrator password is typed |
+| Media codecs | Yes | Answer the window by voice. Adding them needs no password; taking them out asks for the administrator password |
 
 **Still typed:**
 
 - the password to log in and to unlock the screen
-- the administrator password, when adding an app to the system, installing
-  codecs later, or changing a System Tools setting
+- the administrator password, when adding an app to the system, taking the
+  codecs out, or for the System Tools jobs that keep it (see
+  [System Tools](#system-tools))
 - the disk password, once, when turning Unlock disk automatically on or off
 - the install and first-login setup
 - Homebrew, and anything else in a terminal
@@ -623,6 +631,16 @@ terminal. Say a line's number to pick a tool, then say its buttons.
 | Save problem details | Saves the computer's recent error messages to one file, for you to email to your helper. See below |
 | Setup checklist | The microphone, media codecs, disk unlock and getting apps, one at a time. It opens by itself at a new user's first login. See [First login](#first-login) |
 
+**Which jobs ask for the administrator password.** None of these do, for an
+administrator sitting at the computer, because no program could do harm with
+them: turning automatic updates on, Unlock disk automatically (it checks the
+disk password instead), and Free up disk space. They go through one small
+helper that can only do those, and one narrow polkit rule, the same way
+GNOME lets you connect to Wi-Fi or open a USB stick without a password.
+These keep the password, because a bad program could use them to weaken the
+computer: turning automatic updates off, Undo the last update (it puts an older
+version back), Update firmware, and adding apps to the system.
+
 **Unlock disk automatically.** When the disk is encrypted, the computer asks for
 the disk password at every start, before the login password. Turning this on
 lets the computer's security chip unlock the disk instead:
@@ -631,8 +649,10 @@ lets the computer's security chip unlock the disk instead:
   security chip (TPM 2.0). Intel computers from 11th generation on, and Framework
   laptops with an up-to-date BIOS, have one. Secure Boot should be on; if it's
   off, the window says so and recommends turning it on first.
-- Turning it on asks for the disk password one last time, and the administrator
-  password, then a restart.
+- Turning it on asks for the disk password one last time, then a restart. No
+  administrator password: the disk password already proves it's the owner.
+  After 5 wrong disk passwords within an hour it stops trying until the hour is
+  up, so it can't be used to guess the disk password.
 - If the disk is taken out of the computer, or the computer's startup settings
   change (a BIOS or firmware update, Secure Boot switched off), the chip refuses
   and the disk password is asked for as before. Nobody is locked out. After such
@@ -689,7 +709,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/bluefin-packages.txt` | The Fedora packages carried over from Bluefin |
 | `build_files/easyspeak-os-codecs` | Installed as `easyspeak-os-codecs` (also `codecs` and `install-codecs`), the optional command and windows that add media codecs |
 | `build_files/easyspeak-os-codecs-setup`, `-admin`, `-lib.sh` | The two privileged helpers and their shared fixed settings, run through polkit |
-| `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that skips the password during first-time setup |
+| `build_files/dev.easyspeak.os.codecs.policy`, `50-easyspeak-os-codecs.rules` | The polkit policy and the one narrow rule that lets the codecs be added without a password |
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in Show Apps, which runs `uupd` and shows each step |
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app", "repair app boxes" and "start apps at login" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
@@ -705,7 +725,8 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-setup-checklist.desktop` | Opens the setup checklist once, at a new user's first login |
 | `build_files/zz-easyspeak-os-windows.gschema.override` | Gives every window a minimize and a maximize button |
 | `build_files/changes.txt` | Not in the repository: the build writes it from the last 60 changes' titles, and System Update reads it to say what's new |
-| `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates and automatic disk unlock on or off, and its polkit policy (administrator password) |
+| `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates off (administrator password) and checks automatic disk unlock, and the polkit policy for both helpers |
+| `build_files/easyspeak-os-tools-safe`, `50-easyspeak-os-tools.rules` | The helper for the System Tools jobs with no password (automatic updates on, automatic disk unlock, freeing up space), and the narrow rule that lets an administrator at the computer run only it without one |
 | `build_files/easyspeak-os-disk-unlock-check.service` | At every start, checks on the disk whether automatic disk unlock is on, for System Tools and the setup checklist |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
 | `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
@@ -778,19 +799,17 @@ name; `easyspeak-os-codecs` and `install-codecs` also work):
 
 ### Passwords
 
-During the first-time setup window, installing needs no password. The window
-lasts at most 24 hours after the image first boots and closes as soon as you
-answer. It works through one narrow exception in the system's permission check
-(polkit). It works only for the administrator account, only for someone sitting
-at the machine, and only with the words `web`, `full` or `skip`, and it installs
-a fixed package list from the pinned repository. It cannot run anything else. Every action is written to the system
-log with the user who asked.
+Adding the codecs needs no password. It works through one narrow exception in
+the system's permission check (polkit). It works only for the administrator
+account, only for someone sitting at the machine, and only with the words
+`web`, `full` or `skip` (`skip` only closes the first-login question), and it
+installs a fixed package list from the pinned repository. It cannot run
+anything else. Every action is written to the system log with the user who
+asked.
 
-At every other time, including `codecs remove`, the same commands ask for your
-administrator password in the standard system box. If you would rather never
-skip the password, delete `/usr/share/polkit-1/rules.d/50-easyspeak-os-codecs.rules`
-(or override it in `/etc/polkit-1/rules.d/`), and the setup action asks for the
-password too.
+Taking them out (`codecs remove`) asks for your administrator password in the
+standard system box. If you would rather always be asked, override the rule
+with an empty file of the same name in `/etc/polkit-1/rules.d/`.
 
 Restart afterwards. `rpm-ostree rollback` returns to the previous state.
 
