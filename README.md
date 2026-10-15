@@ -150,7 +150,11 @@ image takes effect at the next reboot. To update by hand, open **System Update**
 from Show Apps, which shows progress and offers a restart when a new system
 image is ready and needs no password. While the system itself updates, the
 window says how big the download is and in how many parts, which part it is on
-and about how much has come in so far, and when it is installing. If the automatic update is already running
+and about how much has come in so far. Then it installs in two or three steps
+(unpacking the new version, adding the apps you put on the system if you have
+any, and saving it for your next restart): the window says which step it is on
+and how long that step has been going, and the bar moves with each part and
+each step. If the automatic update is already running
 when you open it, it says so and follows that update to the end instead of
 failing (only one update can run at a time). Or run:
 

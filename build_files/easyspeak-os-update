@@ -86,16 +86,19 @@ if ! command -v zenity >/dev/null 2>&1 || [ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}
   exit 0
 fi
 
-# Each step the updater reports ({"msg":"Updating","title":..,"description":..,"overall":..}) moves the bar and
-# shows its name. Users who cannot read the system log see a pulsing bar and the general message instead.
-# The system step (rpm-ostree or bootc) also writes its own lines to the log: how many parts the new system has
-# and their size ("ostree chunk layers needed: 4 (1.4 GB)"), each part as it finishes ("[2/4] Fetching ... done"),
-# then the install ("Checking out tree", "Staging deployment"). Those are shown in plain words. While a part
-# downloads, the text says about how much has come in, from the computer's network counters, every 10 seconds.
+# Each step the updater reports ({"msg":"Updating","title":..,"description":..,"overall":..,"total":..}) moves the bar
+# and shows its name. Users who cannot read the system log see a pulsing bar and the general message instead.
+# The system step (rpm-ostree) also writes its own lines to the log: how many parts the new system has and their
+# size ("ostree chunk layers needed: 4 (1.4 GB)"), each part as it finishes ("[2/4] Fetching ... done"), then each
+# install stage as it finishes ("Checking out tree ...done", "Writing OSTree commit...done", "Staging
+# deployment...done"). Those are shown in plain words, and they move the bar through the system step's share of it:
+# the download takes the first 70%, the install stages the rest. While a part downloads, the text says about how
+# much has come in, from the computer's network counters, every 10 seconds. While it installs, the text says which
+# stage it is on ("step 2 of 3") and how long that stage has been going, every 10 seconds.
 # Other steps that report nothing until they finish say how long they have been going, once a minute.
 steps() {   # $1: the updater service to follow
   journalctl -f -n 0 -o cat -u "$1" 2>/dev/null | python3 -u -c '
-import json, os, re, select, sys, time
+import json, os, re, select, subprocess, sys, time
 
 def received():
     total = 0
@@ -109,7 +112,7 @@ def received():
     return total
 
 def nbytes(size):
-    m = re.match(r"([0-9.]+)\s*([kMGT]?B)", size.replace("\u00a0", " "))
+    m = re.match(r"([0-9.]+)\s*([kMGT]?B)", size.replace(" ", " "))
     if not m:
         return None
     return float(m.group(1)) * {"B": 1, "kB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}[m.group(2)]
@@ -117,9 +120,40 @@ def nbytes(size):
 def human(n):
     return "%.1f GB" % (n / 1e9) if n >= 1e9 else "%d MB" % (n / 1e6)
 
+def added_to_system():
+    """Does the running system have apps added to it (layered packages)? Then the install has a stage for them."""
+    try:
+        out = subprocess.run(["rpm-ostree", "status", "--json", "--booted"], capture_output=True, timeout=30).stdout
+        d = next(d for d in json.loads(out)["deployments"] if d.get("booted"))
+    except (OSError, ValueError, KeyError, StopIteration, subprocess.SubprocessError):
+        return False
+    return any(d.get(k) for k in ("requested-packages", "requested-local-packages", "requested-base-removals",
+                                  "requested-base-local-replacements"))
+
+STAGES = {"unpack": "unpacking the new version",
+          "apps": "adding the apps you put on the system to the new version",
+          "save": "saving the new version so it starts at your next restart"}
+
+def ago(secs):
+    return "%d seconds so far" % secs if secs < 60 else "about %d min so far" % round(secs / 60)
+
 step, since, shown, buf = "", 0.0, 0, b""
 parts = done = 0
 size_text, size, base, said = "", None, None, 0.0
+low, width = 0.0, 0.0        # the part of the bar that belongs to the system step
+order, stage, began = [], "", 0.0
+
+def bar(frac):
+    if width:
+        print(int(low + width * min(max(frac, 0.0), 1.0)))
+
+def install(name):
+    global stage, began, said
+    stage, began, said = name, time.time(), time.time()
+    k = order.index(name)
+    bar(0.7 + 0.3 * k / len(order))
+    print("# Updating the system: step %d of %d, %s." % (k + 1, len(order), STAGES[name]))
+
 while True:
     ready, _, _ = select.select([sys.stdin], [], [], 5)
     if ready:
@@ -135,36 +169,55 @@ while True:
             if msg == "Updating" and "title" in d:
                 step, since, shown = "Updating " + d["title"] + ": " + d.get("description", ""), time.time(), 0
                 parts = done = 0
-                print(int(d.get("overall", 0)))
+                stage = ""
+                low, width = float(d.get("overall", 0)), 0.0
+                if d["title"] == "System":
+                    width = 100.0 / max(int(d.get("total", 1) or 1), 1)
+                    order = ["unpack", "apps", "save"] if added_to_system() else ["unpack", "save"]
+                print(int(low))
                 print("# " + step)
                 continue
             text = None
             m = re.search(r"layers needed: (\d+) \(([^)]*)\)", msg)
             if m:
                 parts += int(m.group(1))
-                size_text = m.group(2).replace("\u00a0", " ")
+                size_text = m.group(2).replace(" ", " ")
                 size, base = nbytes(size_text), received()
                 text = "Updating the system: downloading the new version, %s in %d parts." % (size_text, parts)
             elif re.match(r"\[(\d+)/(\d+)\]", msg) and msg.endswith("done"):
                 done, parts = map(int, re.match(r"\[(\d+)/(\d+)\]", msg).groups())
-                text = "Updating the system: downloaded part %d of %d." % (done, parts)
+                if done < parts:
+                    text = "Updating the system: downloaded part %d of %d." % (done, parts)
+                    bar(0.7 * done / parts)
+                elif order:
+                    install("unpack")
             elif msg.startswith("Pulling manifest"):
                 text = "Updating the system: checking for a new version."
-            elif msg.startswith(("Checking out tree", "Importing rpm-md", "Staging deployment")):
-                parts = 0
-                text = "Updating the system: installing the new version. It is used from your next restart." \
-                    if msg.startswith("Staging deployment") and msg.endswith("done") else \
-                    "Updating the system: installing the new version."
+            elif msg.startswith("Checking out tree") and order:
+                install(order[1])
+            elif msg.startswith("Writing OSTree commit") and stage == "apps":
+                install("save")
+            elif msg.startswith("Staging deployment") and msg.endswith("done"):
+                stage = ""
+                bar(1.0)
+                text = "Updating the system: the new version is installed. It starts at your next restart."
             elif msg.startswith("No upgrade available"):
                 text = "Updating the system: it is already up to date."
             if text:
                 since, shown, said = time.time(), 0, time.time()
                 print("# " + text)
+    elif stage:
+        if time.time() - said >= 10:
+            said = time.time()
+            k = order.index(stage)
+            print("# Updating the system: step %d of %d, %s (%s)." %
+                  (k + 1, len(order), STAGES[stage], ago(int(time.time() - began))))
     elif parts and done < parts and size and base is not None and time.time() - said >= 10:
         now = received()
         if now is not None:
             got = min(max(now - base, 0), size)
             said = time.time()
+            bar(0.7 * got / size)
             print("# Updating the system: downloading part %d of %d, about %s of %s so far." %
                   (min(done + 1, parts), parts, human(got), size_text))
     elif step:
