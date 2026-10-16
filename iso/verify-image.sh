@@ -47,7 +47,6 @@ ok "Flatpak files open in Bazaar"                 "[ \"\$(XDG_CURRENT_DESKTOP=GN
 ok "EasySpeakOS tools in the Utilities folder"    "( u=\$(dconf read /org/gnome/desktop/app-folders/folders/Utilities/apps); for a in easyspeak-os-tools easyspeak-os-update easyspeak-os-install-package easyspeak-os-remove-apps easyspeak-os-repair-boxes easyspeak-os-login-apps easyspeak-os-codecs easyspeak-os-commands; do printf %s \"\$u\" | grep -qF \"\$a.desktop\" || exit 1; done )"
 ok "login screen shows the EasySpeakOS logo"      "gs org.gnome.login-screen logo | grep -qF /usr/share/pixmaps/easyspeak-os-gdm-logo.png && [ -s /usr/share/pixmaps/easyspeak-os-gdm-logo.png ]"
 ok "installed boot-menu entry will be named EasySpeakOS (system-release)" "[ \"\$(sed \"s/ *release.*//\" /etc/system-release)\" = EasySpeakOS ]"
-ok "boot menu entry named EasySpeakOS, not Fedora" "( for f in /usr/lib/efi/shim/*/EFI/*/BOOTX64.CSV; do iconv -f UTF-16LE -t UTF-8 \$f | grep -q ,EasySpeakOS, || exit 1; iconv -f UTF-16LE -t UTF-8 \$f | grep -q Fedora && exit 1; done; true )"
 ok "voice: Install EasySpeakOS can be said as separate words" "grep -qF \"replace(\\\" \\\", \\\"\\\")\" /usr/lib/opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins/easyspeak_os_dialogs.py"
 '
 
@@ -66,7 +65,7 @@ ok "installer launcher: Install EasySpeakOS"       "grep -qx \"Name=Install Easy
 ok "welcome window: Install EasySpeakOS / Try it first" "grep -qF \"Install EasySpeakOS\" /usr/libexec/easyspeak-os-live-welcome && grep -qF \"Try it first\" /usr/libexec/easyspeak-os-live-welcome"
 ok "installer installs EasySpeakOS from the USB"   "grep -q \"^ostreecontainer --url=ghcr.io/ctsdownloads/easyspeak-os:latest \" /usr/share/anaconda/interactive-defaults.ks"
 ok "live session does not install Flathub apps" "[ \"\$(systemctl is-enabled easyspeak-os-flatpak-apps.service 2>/dev/null)\" != enabled ]"
-ok "USB boot menu entry named EasySpeakOS, not Fedora" "( ls /boot/efi/EFI/*/BOOTX64.CSV && for f in /boot/efi/EFI/*/BOOTX64.CSV; do iconv -f UTF-16LE -t UTF-8 \$f | grep -q ,EasySpeakOS, || exit 1; done )"
+ok "USB boots the EasySpeakOS grub without shim, from EFI/BOOT and EFI/EasySpeakOS only, no Fedora" "! grep -rqi fedora /boot/efi && [ \"\$(ls /boot/efi/EFI | tr \"\\n\" \" \")\" = \"BOOT EasySpeakOS \" ] && [ \"\$(ls /boot/efi/EFI/BOOT)\" = BOOTX64.EFI ] && [ \"\$(ls /boot/efi/EFI/EasySpeakOS)\" = grubx64.efi ]"
 ok "copy to install is on the USB"                 "grep -qF ghcr.io/ctsdownloads/easyspeak-os:latest /var/lib/containers/storage/overlay-images/images.json"
 '
 
@@ -74,7 +73,7 @@ out=$(run_in "$sys" "$system_checks" 2>&1)
 echo "== The system that gets installed ($sys)"
 echo "$out"
 fails=$(grep -c '^FAIL' <<<"$out")
-[ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge $((27 + $(wc -w <<<"$apps"))) ] || { echo "FAIL: not all system checks ran"; fails=$((fails+1)); }
+[ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge $((26 + $(wc -w <<<"$apps"))) ] || { echo "FAIL: not all system checks ran"; fails=$((fails+1)); }
 if [ -n "$live" ]; then
   out=$(run_in "$live" "$live_checks" 2>&1)
   echo "== The live USB system and installer ($live)"

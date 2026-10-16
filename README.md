@@ -128,7 +128,7 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | App store | [Bazaar](https://github.com/kolunmi/bazaar), for Flathub apps, instead of GNOME Software (which is removed). Its apps show up in the Super-key search, and Flatpak files and links open in it. It comes from Universal Blue's package repository |
 | Utilities folder | All EasySpeakOS tools (System Tools, System Update, Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login, Install Media Codecs, EasySpeak Commands) are in the **Utilities** folder of Show Apps, with GNOME's own utilities |
 | Default file apps | Text files open in Text Editor, .rpm and .deb files in Install Package File, Flatpak files in Bazaar. Everything else keeps Fedora's defaults |
-| Login screen and boot menu | The login screen shows the EasySpeakOS logo at the bottom. The computer's boot menu lists EasySpeakOS, for the live USB and for the installed system |
+| Login screen and boot menu | The login screen shows the EasySpeakOS logo at the bottom. The computer's boot menu lists EasySpeakOS for the installed system. The live USB carries no Fedora boot files and needs Secure Boot off; the installed system works with it on |
 | fastfetch | Shows the EasySpeakOS logo instead of Fedora's |
 
 ## System requirements
@@ -158,7 +158,10 @@ computer's disk isn't touched until you install.
    run `iso/build-local-iso.sh` from the top of the repository, in a normal
    terminal (not a toolbox or distrobox). It needs about 70 GB free, asks for
    your password once, and puts the ISO in `~/Downloads/easyspeak-os-iso/`.
-2. Start the computer from the USB stick and pick **EasySpeakOS Live**.
+2. Turn Secure Boot off in the computer's BIOS settings: the live USB starts
+   without Fedora's Secure Boot loader (shim), which made the boot menu list it
+   as "Fedora". Then start the computer from the USB stick and pick
+   **EasySpeakOS Live**.
 3. A welcome window opens once EasySpeak has loaded: **Install EasySpeakOS**,
    or **Try it first**. Both can be said. The installer is also first in the
    dock.
@@ -169,7 +172,8 @@ computer's disk isn't touched until you install.
    the top says EasySpeakOS is in beta. **Report issue** (in the installer's
    menu, and in the window shown if it hits an error) opens a new issue on
    this project's GitHub page, filled in with the error details.
-5. Restart and log in. The [setup checklist](#first-login) opens.
+5. Turn Secure Boot back on in the BIOS settings: the installed system starts
+   with it on. Then log in. The [setup checklist](#first-login) opens.
 
 The installed system gets its updates from GitHub and checks them against the
 project's signature, like any other EasySpeakOS install (see
@@ -818,7 +822,7 @@ What the build checks:
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk, including with the security chip (TPM).
-- GNOME Software is removed; Bazaar is the app store. The build fails if GNOME Software is still installed, if Bazaar or its Super-search files are missing, if text files would not open in Text Editor, if an EasySpeakOS tool is missing from the Utilities folder, if the login logo is not set, or if the boot-menu name still says Fedora. `uupd` is the only OS updater.
+- GNOME Software is removed; Bazaar is the app store. The build fails if GNOME Software is still installed, if Bazaar or its Super-search files are missing, if text files would not open in Text Editor, if an EasySpeakOS tool is missing from the Utilities folder, or if the login logo is not set. `uupd` is the only OS updater.
 - The build fails if EasySpeak no longer orders its plugins by `PRIORITY`, which "open software" needs to reach Bazaar.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
 - The build fails if an EasySpeakOS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
@@ -885,9 +889,11 @@ Restart afterwards. `rpm-ostree rollback` returns to the previous state.
 ## Boot menu name
 
 New installs from the live USB are named EasySpeakOS in the computer's boot
-menu, and so is the live USB itself. A computer that was installed before keeps
-the name it got then (for example "Fedora", "Generic" or "bluefin"). That name
-is stored on your machine, so an image update cannot change it. To rename it:
+menu. The live USB carries no Fedora boot files (it needs Secure Boot off, see
+[From the live USB](#from-the-live-usb)). A computer that was installed before
+keeps the name it got then (for example "Fedora", "Generic" or "bluefin"). That
+name is stored on your machine, so an image update cannot change it. To rename
+it:
 
     sudo easyspeak-os-boot-label          # shows what would change
     sudo easyspeak-os-boot-label --apply  # makes the change

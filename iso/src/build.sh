@@ -144,10 +144,19 @@ DRACUT_NO_XATTR=1 dracut -v --force --zstd --reproducible --no-hostonly \
     --add "dmsquash-live dmsquash-live-autooverlay" \
     "/usr/lib/modules/${kernel}/initramfs.img" "${kernel}"
 
-# image-builder needs gcdx64.efi, and expects the EFI directory in /boot/efi
-dnf install -y grub2-efi-x64-cdboot
-mkdir -p /boot/efi
-cp -av /usr/lib/efi/*/*/EFI /boot/efi/
+# The USB's boot partition (titanoboa copies /boot/efi/EFI onto it): EasySpeakOS's own grub, unsigned, so the USB
+# needs Secure Boot off. No Fedora boot files: with Fedora's shim and EFI/fedora folder the boot menu listed the USB
+# as "Fedora", editing shim's BOOTX64.CSV did not change that and made the USB vanish from the menu with Secure Boot
+# on, and Fedora's grub has /EFI/fedora built in. This grub is made from GRUB's modules with only what the menu
+# (iso.yaml, written to grub.cfg by titanoboa) uses, and reads that menu from /EFI/EasySpeakOS. EFI/BOOT/BOOTX64.EFI
+# is the file the computer starts from a USB stick; EFI/EasySpeakOS takes the place of EFI/fedora. The installed
+# system is not affected: it gets Fedora's signed shim from the copy of EasySpeakOS it installs.
+dnf install -y grub2-efi-x64-modules grub2-tools
+grub2-mkimage -O x86_64-efi -d /usr/lib/grub/x86_64-efi -p /EFI/EasySpeakOS -o /tmp/easyspeak-os-grub.efi \
+    normal boot linux search part_gpt fat iso9660 gzio all_video chain
+install -Dm644 /tmp/easyspeak-os-grub.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
+install -Dm644 /tmp/easyspeak-os-grub.efi /boot/efi/EFI/EasySpeakOS/grubx64.efi
+rm /tmp/easyspeak-os-grub.efi
 
 # Needed for image-builder's buildroot
 dnf install -y xorriso isomd5sum squashfs-tools
@@ -174,6 +183,9 @@ grep -qx 'PRETTY_NAME="EasySpeakOS"' /usr/lib/os-release || fail "the system nam
 grep -qi 'fedora' /etc/system-release && fail "/etc/system-release still says Fedora"
 grep -q '^os_id = easyspeak-os$' /etc/anaconda/profile.d/easyspeak-os.conf || fail "the installer profile is missing"
 podman image exists "$IMAGE" || fail "the copy of EasySpeakOS for the installer is missing"
+[ "$(ls /boot/efi/EFI | tr '\n' ' ')" = "BOOT EasySpeakOS " ] || fail "the USB's boot partition must hold only EFI/BOOT and EFI/EasySpeakOS (no shim, no EFI/fedora)"
+[ "$(ls /boot/efi/EFI/BOOT)" = BOOTX64.EFI ] && [ "$(ls /boot/efi/EFI/EasySpeakOS)" = grubx64.efi ] || fail "the USB's boot files are not just the EasySpeakOS grub"
+grep -rqi fedora /boot/efi && fail "a file on the USB's boot partition still contains Fedora"
 # The installer copies the image one layer at a time through the live session's memory: a few huge layers fill it
 # up ("no space left on device"). The published image is split into many small layers; a local one must be too.
 [ "$(podman image inspect "$IMAGE" --format '{{len .RootFS.Layers}}')" -ge 20 ] || fail "the copy of EasySpeakOS for the installer is not split into small layers"
