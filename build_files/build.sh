@@ -177,18 +177,6 @@ got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.login-screen logo)
 # The EasySpeakOS tools in Show Apps' Utilities folder (see that file).
 install -Dm644 /ctx/easyspeak-os-app-folders.dconf /etc/dconf/db/distro.d/50-easyspeak-os-app-folders
 
-# The firmware boot menu names a boot entry from shim's BOOT*.CSV files ("shimx64.efi,Fedora,,..."), when shim's
-# fallback creates the entry: EasySpeakOS instead. Plain UTF-16 text files; Secure Boot checks only the .efi files.
-for f in /usr/lib/efi/shim/*/EFI/*/BOOT*.CSV; do
-  iconv -f UTF-16LE -t UTF-8 "$f" | sed 's/Fedora/EasySpeakOS/g' | iconv -f UTF-8 -t UTF-16LE > "$f.new"
-  mv "$f.new" "$f"
-done
-ls /usr/lib/efi/shim/*/EFI/*/BOOTX64.CSV >/dev/null || { echo "ERROR: shim's BOOTX64.CSV was not found"; exit 1; }
-for f in /usr/lib/efi/shim/*/EFI/*/BOOT*.CSV; do
-  iconv -f UTF-16LE -t UTF-8 "$f" | grep -q ',EasySpeakOS,' || { echo "ERROR: $f does not name EasySpeakOS"; exit 1; }
-  iconv -f UTF-16LE -t UTF-8 "$f" | grep -q Fedora && { echo "ERROR: $f still names Fedora"; exit 1; }
-done
-
 # EasySpeak's toggle in the Quick Settings menu, on from the start (see that file).
 install -Dm644 /ctx/easyspeak-os-quick-settings.dconf /etc/dconf/db/distro.d/50-easyspeak-os-quick-settings
 dconf update
