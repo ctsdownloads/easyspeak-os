@@ -1,0 +1,16 @@
+# Installs the EasySpeakOS default apps that come from Flathub (Errands, Shortwave, Podcasts, Pika Backup, Secrets),
+# listed in /usr/share/flatpak/preinstall.d/easyspeak-os.preinstall. Runs at every start, so an app missed while
+# offline is added the next time; ones already there, or uninstalled by the user, are left as they are.
+[Unit]
+Description=Install the EasySpeakOS apps from Flathub
+Wants=network-online.target
+After=network-online.target easyspeak-os-flathub.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flatpak preinstall --system -y --noninteractive
+Restart=on-failure
+RestartSec=15min
+
+[Install]
+WantedBy=multi-user.target

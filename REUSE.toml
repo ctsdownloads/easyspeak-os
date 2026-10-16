@@ -1,5 +1,5 @@
 version = 1
-SPDX-PackageName = "EasySpeak-OS"
+SPDX-PackageName = "EasySpeakOS"
 SPDX-PackageSupplier = "Matt Hartley <matt@matthartley.com>"
 SPDX-PackageDownloadLocation = "https://github.com/ctsdownloads/easyspeak-os"
 
@@ -29,12 +29,12 @@ precedence = "override"
 SPDX-FileCopyrightText = ["Universal Blue contributors", "2026 Matt Hartley"]
 SPDX-License-Identifier = "Apache-2.0"
 
-# The live-ISO build, adapted from the Kinoite example in github.com/ondrejbudai/bootc-isos, taken as
-# Apache-2.0 like that project's one marked file.
+# The live-ISO build, based on the Bazzite example in Universal Blue's titanoboa (github.com/ublue-os/titanoboa),
+# which is Apache-2.0. It keeps that license, with this project's changes under it too.
 [[annotations]]
 path = ["iso/Containerfile", "iso/src/**"]
 precedence = "override"
-SPDX-FileCopyrightText = ["Ondřej Budai", "2026 Matt Hartley"]
+SPDX-FileCopyrightText = ["Universal Blue contributors", "2026 Matt Hartley"]
 SPDX-License-Identifier = "Apache-2.0"
 
 # The Ready Dot GNOME Shell extension runs inside GNOME Shell (GPL-2.0-or-later), so it uses that license.

@@ -1,0 +1,14 @@
+#!/bin/bash
+# The live session's welcome window: install EasySpeakOS, or try it first. Answered by voice like every
+# EasySpeakOS window. It waits for EasySpeak to finish loading (up to 3 minutes) so its buttons can be said.
+DIALOG=zenity; [ -x /usr/bin/easyspeak-os-dialog ] && DIALOG=/usr/bin/easyspeak-os-dialog
+note="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/easyspeak-os/easyspeak-ready"
+for _ in $(seq 90); do
+  pid=$(cat "$note" 2>/dev/null) && kill -0 "$pid" 2>/dev/null && { sleep 3; break; }
+  sleep 2
+done
+$DIALOG --question --title="Welcome to EasySpeakOS" --width=560 \
+  --ok-label="Install EasySpeakOS" --cancel-label="Try it first" \
+  --text="Welcome to EasySpeakOS. Answer this window by saying a button's name.\n\nThis is a live session: it runs from the USB stick, nothing here is saved, and the computer's disk isn't touched.\n\nRecommended: Install EasySpeakOS, to put it on this computer. Or Try it first: Install EasySpeakOS is also in the dock." \
+  && exec liveinst
+exit 0

@@ -1,6 +1,6 @@
-"""EasySpeak-OS: start a system update by voice.
+"""EasySpeakOS: start a system update by voice.
 
-Shipped by the EasySpeak-OS image, not by EasySpeak. "Update system" (or "system update", "install updates",
+Shipped by the EasySpeakOS image, not by EasySpeak. "Update system" (or "system update", "install updates",
 "check for updates") opens the same System Update window as the app grid: it updates the system, Flatpak apps,
 Distrobox containers and Homebrew, shows each step and how far along the system download and install
 are, and offers a restart when a new system image is ready.
@@ -11,7 +11,7 @@ import os
 import re
 
 NAME = "easyspeak-os update"
-DESCRIPTION = "Start a system update (EasySpeak-OS)"
+DESCRIPTION = "Start a system update (EasySpeakOS)"
 COMMANDS = ["update system - update the system, apps and boxes, showing each step as it goes (also: install updates, check for updates)"]
 
 UPDATER = "/usr/bin/easyspeak-os-update"

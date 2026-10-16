@@ -1,7 +1,12 @@
-# Live variant of EasySpeak-OS, for building a bootable live ISO.
-# It follows the "Container-native ISO contract" and the recipe Fedora's own Kinoite live-ISO
-# example uses (github.com/ondrejbudai/bootc-isos), with GNOME in place of KDE.
-# Build with:  podman build --cap-add sys_admin --security-opt label=disable -f iso/Containerfile iso
-FROM ghcr.io/ctsdownloads/easyspeak-os:latest
+# Live variant of EasySpeakOS, for building a bootable live ISO with its installer.
+# Based on the Bazzite example in Universal Blue's titanoboa (github.com/ublue-os/titanoboa, Apache-2.0), which
+# follows the "Container-native ISO contract" that titanoboa builds the ISO from.
+# Build from the top of the repository:
+#   podman build --cap-add sys_admin --security-opt label=disable -f iso/Containerfile .
+# BASE_IMAGE is the published image, or a locally built one for a test build (see build-local-iso.sh).
+ARG BASE_IMAGE=ghcr.io/ctsdownloads/easyspeak-os:latest
+FROM ${BASE_IMAGE}
 
-RUN --mount=type=bind,source=src,target=/src /src/build.sh
+RUN --mount=type=bind,source=iso/src,target=/src \
+    --mount=type=bind,source=branding,target=/branding \
+    /src/build.sh

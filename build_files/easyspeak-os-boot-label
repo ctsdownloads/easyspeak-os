@@ -1,5 +1,5 @@
 #!/bin/bash
-# easyspeak-os-boot-label: rename this system's UEFI boot-menu entry to "EasySpeak-OS".
+# easyspeak-os-boot-label: rename this system's UEFI boot-menu entry to "EasySpeakOS".
 #
 # The label lives in your machine's firmware (NVRAM), not in the OS image, so an image update can't
 # change it. efibootmgr can't rename an entry in place, so this creates a new entry for the same
@@ -7,7 +7,7 @@
 # Only entries on THIS system's EFI partition that point at the shim are touched.
 # Default is a dry run. Add --apply to make the change:   sudo easyspeak-os-boot-label --apply
 set -euo pipefail
-LABEL="EasySpeak-OS"
+LABEL="EasySpeakOS"
 LOADER='\EFI\fedora\shimx64.efi'   # the folder name is part of the file path and does not change
 APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 

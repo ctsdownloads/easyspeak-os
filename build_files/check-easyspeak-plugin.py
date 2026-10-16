@@ -1,4 +1,4 @@
-"""Build test: load the EasySpeak-OS plugins exactly the way EasySpeak loads its plugins, and try them."""
+"""Build test: load the EasySpeakOS plugins exactly the way EasySpeak loads its plugins, and try them."""
 import importlib, json, os, sys, tempfile
 from pathlib import Path
 
@@ -46,7 +46,7 @@ for name, (takes, leaves) in TESTS.items():
         assert module.handle(phrase, Core()) is None, f"{name}: takes '{phrase}', which is not its own"
     print(f"{name} loads and works")
 
-# The dialogs plugin: it takes nothing while no EasySpeak-OS window is open, and presses a window's button by name.
+# The dialogs plugin: it takes nothing while no EasySpeakOS window is open, and presses a window's button by name.
 dialogs = importlib.import_module("plugins.easyspeak_os_dialogs")
 assert dialogs.handle("cancel", Core()) is None, "dialogs plugin takes words while no window is open"
 folder = Path(dialogs.DIALOGS)
@@ -73,6 +73,16 @@ assert dialogs.handle("next", Core()) is True and \
     "pid": os.getpid(), "time": 1, "text": "Turn off?", "rows": [],
     "buttons": [{"say": "Turn off", "does": "ok"}, {"say": "Keep it on", "does": "cancel"}]}))
 assert dialogs.handle("next", Core()) is None, "'next' pressed a button that changes something"
+# Spacing doesn't matter: the live USB's "Install EasySpeakOS" button, said as separate words.
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 1, "text": "Welcome to EasySpeakOS.", "rows": [],
+    "buttons": [{"say": "Install EasySpeakOS", "does": "ok"}, {"say": "Try it first", "does": "cancel"}]}))
+assert dialogs.handle("install easy speak os", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "ok", "'install easy speak os' does not press Install EasySpeakOS"
+(folder / f"{os.getpid()}.answer").unlink()
+assert dialogs.handle("try it first", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "cancel", "'try it first' not pressed"
+(folder / f"{os.getpid()}.answer").unlink()
 # A list window from easyspeak-os-dialog: its lines are named by their name, not by the visible number column
 dialog = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 if dialog:

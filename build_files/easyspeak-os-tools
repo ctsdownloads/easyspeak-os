@@ -511,7 +511,7 @@ def problem_details():
            ok="Save details", title=w) != "ok":
         return 1
     bar = busy("Collecting the problem details.", w)
-    parts = [f"Problem details from EasySpeak-OS, {time.strftime('%Y-%m-%d %H:%M')}"]
+    parts = [f"Problem details from EasySpeakOS, {time.strftime('%Y-%m-%d %H:%M')}"]
     for heading, cmd, n in DETAILS:
         r = output(cmd) if shutil.which(cmd[0]) else None
         text = (r.stdout + r.stderr).strip() if r else "(not available)"
@@ -650,7 +650,7 @@ def apps_step(w):
 
 def voice_ready(wait=180):
     """Wait until EasySpeak has loaded, so the checklist's buttons can be said from its first window. EasySpeak's
-    EasySpeak-OS dialogs plugin leaves a note with EasySpeak's process number once its speech model and plugins are
+    EasySpeakOS dialogs plugin leaves a note with EasySpeak's process number once its speech model and plugins are
     loaded (easyspeak-ready, in $XDG_RUNTIME_DIR/easyspeak-os). At most `wait` seconds, then open anyway: the
     buttons can always be clicked."""
     note = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "easyspeak-os" / "easyspeak-ready"

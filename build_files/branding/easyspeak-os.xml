@@ -2,7 +2,7 @@
 <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
 <wallpapers>
   <wallpaper deleted="false">
-    <name>EasySpeak-OS</name>
+    <name>EasySpeakOS</name>
     <filename>/usr/share/backgrounds/easyspeak-os/wallpaper.png</filename>
     <filename-dark>/usr/share/backgrounds/easyspeak-os/wallpaper.png</filename-dark>
     <options>zoom</options>

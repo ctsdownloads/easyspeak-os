@@ -1,7 +1,7 @@
-"""EasySpeak-OS: install an app from an .rpm or .deb file, remove one, repair the app boxes, or choose which of
+"""EasySpeakOS: install an app from an .rpm or .deb file, remove one, repair the app boxes, or choose which of
 those apps start at login, by voice.
 
-Shipped by the EasySpeak-OS image, not by EasySpeak. "Install a package" opens Install Package File, which lists
+Shipped by the EasySpeakOS image, not by EasySpeak. "Install a package" opens Install Package File, which lists
 the .rpm and .deb files in Downloads. "Remove an app" opens Remove Apps. "Repair app boxes" opens Repair App
 Boxes. "Start apps at login" opens Start Apps at Login. Apps go into, and come out of, a box (Distrobox); the window says first if a file needs the system itself.
 English phrases only.
@@ -11,7 +11,7 @@ import os
 import re
 
 NAME = "easyspeak-os apps"
-DESCRIPTION = "Install apps from .rpm and .deb files, or remove them (EasySpeak-OS)"
+DESCRIPTION = "Install apps from .rpm and .deb files, or remove them (EasySpeakOS)"
 HELP_SECTION = "Software"   # its own section in the help overlay, cheat sheet and "did you mean"
 COMMANDS = [
     "install a package - install an app from an .rpm or .deb file, with its own icon in Show Apps and the dock",

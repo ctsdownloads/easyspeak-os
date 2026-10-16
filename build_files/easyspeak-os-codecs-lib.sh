@@ -17,7 +17,7 @@ FREE="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-
 FULL="ffmpeg ffmpeg-libs libavdevice x264-libs x265-libs"
 WEB="openh264 mozilla-openh264 gstreamer1-plugin-openh264"
 
-# Earlier EasySpeak-OS builds used negativo17. These are only used to remove that setup cleanly.
+# Earlier EasySpeakOS builds used negativo17. These are only used to remove that setup cleanly.
 OLD_REPO=/etc/yum.repos.d/negativo17-multimedia.repo
 OLD_FULL="ffmpeg ffmpeg-libs libavcodec libavdevice libavfilter libavformat libavutil libswresample libswscale x264-libs x265-libs"
 OLD_REPLACE="xevd-libs xeve-libs"
@@ -45,7 +45,7 @@ old_setup_present() {   # anything left from the negativo17 version
 }
 
 repos_on()  { local r; for r in $REPOS; do install -m 0644 "$REPO_DIR/$r" "/etc/yum.repos.d/$r" || return 1; done; }
-repos_off() { local r; for r in $REPOS; do grep -qs 'EasySpeak-OS' "/etc/yum.repos.d/$r" && rm -f "/etc/yum.repos.d/$r"; done; return 0; }
+repos_off() { local r; for r in $REPOS; do grep -qs 'EasySpeakOS' "/etc/yum.repos.d/$r" && rm -f "/etc/yum.repos.d/$r"; done; return 0; }
 
 # Run a command and show its output. If it fails, keep a full copy in the system log, because the
 # window can only show a few lines:  journalctl -t easyspeak-os-codecs
