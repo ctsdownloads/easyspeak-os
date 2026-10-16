@@ -7,24 +7,23 @@ dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
 xargs -a /ctx/bluefin-packages.txt dnf5 -y install
 # EasySpeakOS default apps from Fedora's packages (see default-apps.txt); the build fails if any is missing.
 grep -v '^#' /ctx/default-apps.txt | xargs dnf5 -y install
-for p in $(grep -v '^#' /ctx/default-apps.txt) firefox qutebrowser nautilus ptyxis gnome-control-center gnome-software orca; do
+for p in $(grep -v '^#' /ctx/default-apps.txt) firefox qutebrowser nautilus ptyxis gnome-control-center orca; do
   rpm -q "$p" >/dev/null || { echo "ERROR: default app $p is not installed"; exit 1; }
 done
 # Updates and Homebrew the Bluefin way, from Universal Blue's package repository: the updater (uupd) on its daily
-# timer, and Homebrew (ublue-brew, unpacked at boot by brew-setup.service, kept updated by uupd). No second updater:
-# remove only GNOME Software's OS-update plugin, as Bluefin does; the Software app itself stays.
+# timer, and Homebrew (ublue-brew, unpacked at boot by brew-setup.service, kept updated by uupd). From the same
+# repository: Bazaar, the app store (Flathub apps), with its own Super-search provider. It replaces GNOME Software,
+# which is removed completely; uupd is the one OS updater.
 # Update by hand any time:  sudo uupd
 curl -fsSL --retry 3 "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-$(rpm -E %fedora)/ublue-os-packages-fedora-$(rpm -E %fedora).repo" -o /etc/yum.repos.d/ublue-os-packages.repo
-dnf5 -y install uupd ublue-brew ublue-os-just
+dnf5 -y install uupd ublue-brew ublue-os-just bazaar
 rm -f /etc/yum.repos.d/ublue-os-packages.repo
-dnf5 -y remove gnome-software-rpm-ostree
+dnf5 -y remove gnome-software gnome-software-rpm-ostree
 # GNOME's tour app, and its "Welcome" popup at first login, which would open on top of the setup checklist.
 dnf5 -y remove gnome-tour
-# The rpm-ostree plugin is also what switches off GNOME Software's dnf plugin. Without it, the dnf plugin would offer
-# dnf package updates, which cannot apply to an image. Remove that plugin too: GNOME Software then handles Flatpak
-# apps and firmware only, and uupd is the one OS updater.
-rm -f /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so
-ls /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so >/dev/null 2>&1 && { echo "ERROR: GNOME Software's dnf plugin is still installed"; exit 1; }
+for p in gnome-software gnome-software-rpm-ostree; do rpm -q "$p" >/dev/null 2>&1 && { echo "ERROR: $p is still installed"; exit 1; }; done
+rpm -q bazaar >/dev/null || { echo "ERROR: Bazaar is not installed"; exit 1; }
+[ -f /usr/share/gnome-shell/search-providers/io.github.kolunmi.Bazaar.search-provider.ini ] && [ -f /usr/share/dbus-1/services/io.github.kolunmi.Bazaar.SearchProvider.service ] || { echo "ERROR: Bazaar's Super-search provider is missing"; exit 1; }
 command -v ujust >/dev/null || { echo 'ERROR: ujust is missing'; exit 1; }
 # System Update in the app grid: runs uupd now, with a progress window. uupd's own polkit rule lets it run without a password.
 install -Dm755 /ctx/easyspeak-os-update /usr/bin/easyspeak-os-update
@@ -78,8 +77,11 @@ install -Dm644 /ctx/easyspeak-os-packages-after-restart.desktop /etc/xdg/autosta
 if grep -l '^X-GNOME-Autostart-Phase=' /etc/xdg/autostart/easyspeak-os-*.desktop 2>/dev/null; then
   echo "ERROR: the autostart entries above name a GNOME startup phase, so they would never run at login"; exit 1
 fi
-# .rpm and .deb files open in Install Package File (GNOME reads gnome-mimeapps.list before Fedora's mimeapps.list).
-install -Dm644 /ctx/gnome-mimeapps.list /usr/share/applications/gnome-mimeapps.list
+# EasySpeakOS's own default apps (.rpm and .deb files open in Install Package File) in /etc/xdg, which GNOME reads
+# first. Fedora's /usr/share/applications/gnome-mimeapps.list stays as it is: it holds all of GNOME's other defaults
+# (replacing it made text files open in LibreOffice Writer).
+install -Dm644 /ctx/gnome-mimeapps.list /etc/xdg/gnome-mimeapps.list
+grep -q '^text/plain=org.gnome.TextEditor.desktop$' /usr/share/applications/gnome-mimeapps.list || { echo "ERROR: Fedora's GNOME default apps file is missing or changed"; exit 1; }
 update-desktop-database /usr/share/applications
 for t in application/x-rpm application/vnd.debian.binary-package; do
   first=$(XDG_CURRENT_DESKTOP=GNOME gio mime "$t" | sed -n 1p)
@@ -91,10 +93,9 @@ python3 -I /ctx/check-packages.py /tmp/pkgtest || { echo 'ERROR: Install Package
 rm -rf /tmp/pkgtest
 # Services that must be on by default, also after a first boot (which applies these preset rules):
 # EasySpeakOS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
-printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable easyspeak-os-flatpak-apps.service\nenable easyspeak-os-disk-unlock-check.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
+printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable easyspeak-os-flatpak-apps.service\ndisable flatpak-add-fedora-repos.service\nenable easyspeak-os-disk-unlock-check.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
 systemctl enable tailscaled.service podman-auto-update.timer uupd.timer brew-setup.service
 for u in tailscaled.service uupd.timer brew-setup.service; do [ "$(systemctl is-enabled "$u")" = enabled ] || { echo "ERROR: $u is not enabled"; exit 1; }; done
-rpm -q gnome-software-rpm-ostree >/dev/null 2>&1 && { echo "ERROR: a second OS updater is still installed"; exit 1; }
 # tuned: use the same version Bluefin ships (Bluefin stable: tuned and tuned-ppd 2.27.0-1.fc44).
 if [ "$(rpm -q --qf '%{VERSION}' tuned)" != "2.27.0" ]; then dnf5 -y downgrade tuned-2.27.0-1.fc44 tuned-ppd-2.27.0-1.fc44; fi
 [ "$(rpm -q --qf '%{VERSION}' tuned)" = 2.27.0 ] && [ "$(rpm -q --qf '%{VERSION}' tuned-ppd)" = 2.27.0 ] || { echo "ERROR: tuned does not match Bluefin's 2.27.0"; exit 1; }
@@ -109,8 +110,11 @@ install -Dm644 /ctx/NOTICE /usr/share/doc/easyspeak-os/NOTICE
 dnf5 -y remove fedora-flathub-remote || echo "note: fedora-flathub-remote was not removed"
 install -Dm644 /ctx/flathub.flatpakrepo /usr/share/easyspeak-os/flathub.flatpakrepo
 install -Dm644 /ctx/easyspeak-os-flathub.service /usr/lib/systemd/system/easyspeak-os-flathub.service
-# The default apps Fedora doesn't package, from Flathub on the first start with internet (see those files).
-install -Dm644 /ctx/easyspeak-os.preinstall /usr/share/flatpak/preinstall.d/easyspeak-os.preinstall
+# The default apps Fedora doesn't package, from Flathub on the first start with internet (see those files). Fedora's
+# own Flatpak store is not added (flatpak-add-fedora-repos.service): apps come from Flathub only.
+install -Dm644 /ctx/flathub-apps.txt /usr/share/easyspeak-os/flathub-apps.txt
+install -Dm755 /ctx/easyspeak-os-flathub-apps /usr/libexec/easyspeak-os-flathub-apps
+systemctl disable flatpak-add-fedora-repos.service
 install -Dm644 /ctx/easyspeak-os-flatpak-apps.service /usr/lib/systemd/system/easyspeak-os-flatpak-apps.service
 install -Dm755 /ctx/easyspeak-os-codecs /usr/bin/easyspeak-os-codecs
 ln -sf easyspeak-os-codecs /usr/bin/codecs
@@ -152,6 +156,8 @@ install -Dm644 /ctx/branding/zz-easyspeak-os-background.gschema.override /usr/sh
 install -Dm644 /ctx/zz-easyspeak-os-windows.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-windows.gschema.override
 install -Dm644 /ctx/zz-easyspeak-os-no-tour.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-no-tour.gschema.override
 install -Dm644 /ctx/zz-easyspeak-os-desktop.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-desktop.gschema.override
+install -Dm644 /ctx/zz-easyspeak-os-login.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-login.gschema.override
+install -Dm644 /ctx/branding/easyspeak-os-gdm-logo.png /usr/share/pixmaps/easyspeak-os-gdm-logo.png
 glib-compile-schemas /usr/share/glib-2.0/schemas 2>&1 | grep -v 'deprecated' || true
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.background picture-uri)
 [ "$got" = "'file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'" ] || { echo "ERROR: the default wallpaper is $got, not the EasySpeakOS one"; exit 1; }
@@ -165,11 +171,31 @@ got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface enable-
 [ "$got" = "false" ] || { echo "ERROR: the hot corner is still on by default ($got)"; exit 1; }
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface show-battery-percentage)
 [ "$got" = "true" ] || { echo "ERROR: the battery percentage is not shown by default ($got)"; exit 1; }
+got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.login-screen logo)
+[ "$got" = "'/usr/share/pixmaps/easyspeak-os-gdm-logo.png'" ] && [ -s /usr/share/pixmaps/easyspeak-os-gdm-logo.png ] || { echo "ERROR: the login screen does not show the EasySpeakOS logo ($got)"; exit 1; }
+
+# The EasySpeakOS tools in Show Apps' Utilities folder (see that file).
+install -Dm644 /ctx/easyspeak-os-app-folders.dconf /etc/dconf/db/distro.d/50-easyspeak-os-app-folders
+
+# The firmware boot menu names a boot entry from shim's BOOT*.CSV files ("shimx64.efi,Fedora,,..."), when shim's
+# fallback creates the entry: EasySpeakOS instead. Plain UTF-16 text files; Secure Boot checks only the .efi files.
+for f in /usr/lib/efi/shim/*/EFI/*/BOOT*.CSV; do
+  iconv -f UTF-16LE -t UTF-8 "$f" | sed 's/Fedora/EasySpeakOS/g' | iconv -f UTF-8 -t UTF-16LE > "$f.new"
+  mv "$f.new" "$f"
+done
+ls /usr/lib/efi/shim/*/EFI/*/BOOTX64.CSV >/dev/null || { echo "ERROR: shim's BOOTX64.CSV was not found"; exit 1; }
+for f in /usr/lib/efi/shim/*/EFI/*/BOOT*.CSV; do
+  iconv -f UTF-16LE -t UTF-8 "$f" | grep -q ',EasySpeakOS,' || { echo "ERROR: $f does not name EasySpeakOS"; exit 1; }
+  iconv -f UTF-16LE -t UTF-8 "$f" | grep -q Fedora && { echo "ERROR: $f still names Fedora"; exit 1; }
+done
 
 # EasySpeak's toggle in the Quick Settings menu, on from the start (see that file).
 install -Dm644 /ctx/easyspeak-os-quick-settings.dconf /etc/dconf/db/distro.d/50-easyspeak-os-quick-settings
 dconf update
 got=$(HOME=/tmp dconf read /org/gnome/shell/extensions/easyspeak/show-in-quick-settings)
+for a in easyspeak-os-tools easyspeak-os-update easyspeak-os-install-package easyspeak-os-remove-apps easyspeak-os-repair-boxes easyspeak-os-login-apps easyspeak-os-codecs easyspeak-os-commands; do
+  HOME=/tmp dconf read /org/gnome/desktop/app-folders/folders/Utilities/apps | grep -q "'$a.desktop'" || { echo "ERROR: $a is not in the Utilities folder"; exit 1; }
+done
 [ "$got" = "true" ] || { echo "ERROR: EasySpeak's Quick Settings toggle is not on by default ($got)"; exit 1; }
 
 # Firefox: its own home page instead of Fedora's start page, no "Fedora Project - Start Page" tile, and its About
@@ -241,10 +267,14 @@ install -Dm644 /ctx/system_files/etc/xdg/autostart/easyspeak-os-ready-dot.deskto
 # EasySpeak loads its own plugins.
 plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
 [ -d "$plugins" ] || { echo "ERROR: EasySpeak's plugin folder was not found"; exit 1; }
+# "open software" must reach the Bazaar plugin before EasySpeak's own apps plugin (which looks for GNOME Software):
+# EasySpeak must still order plugins by PRIORITY.
+grep -qF 'getattr(m, "PRIORITY", 50)' "$core/main.py" || { echo 'ERROR: EasySpeak no longer orders plugins by PRIORITY'; exit 1; }
 install -Dm644 /ctx/easyspeak_os_update.py "$plugins/easyspeak_os_update.py"
 install -Dm644 /ctx/easyspeak_os_apps.py "$plugins/easyspeak_os_apps.py"
 install -Dm644 /ctx/easyspeak_os_tools.py "$plugins/easyspeak_os_tools.py"
 install -Dm644 /ctx/easyspeak_os_dialogs.py "$plugins/easyspeak_os_dialogs.py"
+install -Dm644 /ctx/easyspeak_os_software.py "$plugins/easyspeak_os_software.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
 "$py" /ctx/check-easyspeak-plugin.py "$plugins" /usr/bin/easyspeak-os-dialog || { echo 'ERROR: EasySpeak would not load the EasySpeakOS plugins'; exit 1; }
 

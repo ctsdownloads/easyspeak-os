@@ -33,6 +33,9 @@ TESTS = {
                             "open system tools": "/usr/bin/easyspeak-os-tools",
                             "setup checklist": "setup", "set up the computer": "setup"},
                            ["update system", "open settings", "install a package", "open browser", "set up"]),
+    "easyspeak_os_software": ({"open software": "gtk-launch", "open the app store": "gtk-launch",
+                               "open bazaar": "gtk-launch", "close software": "pkill"},
+                              ["open browser", "software rendering", "system tools", "install a package"]),
 }
 for name, (takes, leaves) in TESTS.items():
     module = importlib.import_module(f"plugins.{name}")

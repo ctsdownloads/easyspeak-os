@@ -1,0 +1,4 @@
+# The EasySpeakOS logo at the bottom of the login screen. Fedora's GDM package points it at Fedora's logo file
+# (org.gnome.login-screen.gschema.override); this file sorts after it, so it wins.
+[org.gnome.login-screen]
+logo='/usr/share/pixmaps/easyspeak-os-gdm-logo.png'

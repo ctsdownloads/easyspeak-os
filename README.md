@@ -100,7 +100,7 @@ piece called an image, and apps can't change it. That keeps it from breaking.
   next restart.
 - **The previous version stays on disk.** If an update causes a problem, you can
   go back to it (see [Updating and rolling back](#updating-and-rolling-back)).
-- **Apps** come from the Software app, or go into a box. Only when they have to
+- **Apps** come from Bazaar, the app store, or go into a box. Only when they have to
   are they added to the system.
 
 ## What's in it
@@ -124,7 +124,11 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | Window buttons | Every window has minimize, maximize and close buttons (GNOME's own default shows only close) |
 | Desktop defaults | EasySpeak's on/off toggle is in the Quick Settings menu (top right) from the start. No hot corner (the pointer in the top-left corner doesn't open the Activities overview). The battery percentage shows in the top bar. Each can be changed back: the toggle in EasySpeak's Settings, the other two in Settings |
 | Firefox | Opens Firefox's own home page, not Fedora's start page, with no Fedora tile |
-| Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ptyxis, Settings, Software, Pika Backup, Secrets. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts, Pika Backup and Secrets aren't packaged by Fedora, so they come from Flathub on the first start with internet. No email app: use your own |
+| Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ptyxis, Settings, Bazaar (the app store), Pika Backup. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts and Pika Backup aren't packaged by Fedora, so they come from Flathub on the first start with internet ([`build_files/flathub-apps.txt`](build_files/flathub-apps.txt)). No email app: use your own |
+| App store | [Bazaar](https://github.com/kolunmi/bazaar), for Flathub apps, instead of GNOME Software (which is removed). Its apps show up in the Super-key search, and Flatpak files and links open in it. It comes from Universal Blue's package repository |
+| Utilities folder | All EasySpeakOS tools (System Tools, System Update, Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login, Install Media Codecs, EasySpeak Commands) are in the **Utilities** folder of Show Apps, with GNOME's own utilities |
+| Default file apps | Text files open in Text Editor, .rpm and .deb files in Install Package File, Flatpak files in Bazaar. Everything else keeps Fedora's defaults |
+| Login screen and boot menu | The login screen shows the EasySpeakOS logo at the bottom. The computer's boot menu lists EasySpeakOS, for the live USB and for the installed system |
 | fastfetch | Shows the EasySpeakOS logo instead of Fedora's |
 
 ## System requirements
@@ -258,7 +262,7 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
      System Tools. Only shown if the disk is encrypted, the computer has a
      security chip and it isn't on already. It needs the disk password, so it's
      a step for the helper.
-  4. **How to get apps:** where apps come from, with **Open Software** and
+  4. **How to get apps:** where apps come from, with **Open Bazaar** and
      **Open Install Package File** to see each one for real. The window comes
      back after each, until **Next**.
 
@@ -295,9 +299,12 @@ minute for dictation and 3 minutes for browser. EasySpeak's
 [full command list](https://easyspeak.dev/latest/commands/) has every command.
 
 **Show Apps** is GNOME's list of all apps: the button with nine dots at the end of
-the dock, or press the Super key twice. The EasySpeakOS tools are there.
+the dock, or press the Super key twice. The EasySpeakOS tools are in its
+**Utilities** folder. (An account made before EasySpeakOS put them there keeps its own folders. To
+get the new ones, run `dconf reset -f /org/gnome/desktop/app-folders/` in a
+terminal as that user; folders you made yourself are removed too.)
 
-**The Software app** is GNOME's app store. Its apps come from **Flathub** as
+**Bazaar** is the app store. Its apps come from **Flathub** as
 **Flatpaks**: apps packed with everything they need and kept apart from the
 system. That's why they're the recommended way to get apps here. They can't
 break the system, and they update by themselves.
@@ -347,15 +354,15 @@ break the system, and they update by themselves.
 
 | To | By voice? | How |
 |----|-----------|-----|
-| Open an app | Yes, from a fixed list | "open firefox", "open files", "open settings", "open software", "open calculator", "open editor" and the others in EasySpeak's list. Apps you install yourself are not on it |
+| Open an app | Yes, from a fixed list | "open firefox", "open files", "open settings", "open software" (Bazaar), "open calculator", "open editor" and the others in EasySpeak's list. Apps you install yourself are not on it |
 | Browse the web | Yes, in qutebrowser | "browser", then link numbers, "search …", "go to …" and tabs. In Firefox, only with grid mode |
 | Click anything on screen | Yes, but slowly | "grid", numbers to zoom in, then "click" |
 | Type text | Yes | "dictation", into the field that has focus. Click the field first with grid mode or a link number |
 | Volume, brightness, music, folders | Yes | "volume up", "pause", "open downloads" and so on |
-| Install from an .rpm or .deb file in Downloads | Yes | "install a package", "number one" for the file, then say the buttons. If the Software app has the same app, it offers that instead |
-| Install from the Software app (Flathub) | Yes, but slowly | "open software", then grid mode to click the search box, dictation for the name, and grid mode to click Install |
+| Install from an .rpm or .deb file in Downloads | Yes | "install a package", "number one" for the file, then say the buttons. If Bazaar (Flathub) has the same app, it offers that instead |
+| Install from Bazaar (Flathub) | Yes, but slowly | "open software" (or "open app store", "open bazaar"), then grid mode to click the search box, dictation for the name, and grid mode to click Install |
 | Add an app to the system | Partly | The same windows, but the administrator password is typed |
-| Remove an app | Yes, if Install Package File installed it | "remove an app". Apps from the Software app are removed there, with grid mode |
+| Remove an app | Yes, if Install Package File installed it | "remove an app". Apps from Bazaar are removed there, with grid mode |
 | Repair app boxes, or choose apps that start at login | Yes | "repair app boxes", "start apps at login" |
 | Update everything (system, Flatpaks, app boxes) | Yes | Automatic, or "update system" |
 | System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates, undo the last update, problem details | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
@@ -396,8 +403,8 @@ touched. See [Repairing a box](#repairing-a-box).
    [Files that cannot be installed](#files-that-cannot-be-installed)).
 3. If the app is already installed, it says so and asks what to do (see
    [Already installed](#already-installed)).
-4. If the Software app (Flathub) has the same app, the window says "{app} is in
-   the Software app (Flathub)":
+4. If Bazaar (Flathub) has the same app, the window says "{app} is in
+   Bazaar, the app store (Flathub)":
    - Recommended: **Use Flathub**. It updates by itself and is made for this
      kind of system.
    - Or **Use the file**: installs your download. It never updates.
@@ -410,8 +417,8 @@ touched. See [Repairing a box](#repairing-a-box).
      everything works, with your password and a restart. **Set up and install**
      is still offered: easier to remove, but those parts will not work.
    - A .deb cannot go on the system, so if parts would not work in a box, the
-     window says so, suggests looking for an .rpm file or the app in the Software
-     app, and offers **Set up and install** without those parts.
+     window says so, suggests looking for an .rpm file or the app in Bazaar,
+     and offers **Set up and install** without those parts.
    - The first time, the window also says how much the box downloads and how
      much disk space it uses.
 6. The last window says where to find it ("Find it in Show Apps.") and how it
@@ -423,7 +430,7 @@ touched. See [Repairing a box](#repairing-a-box).
 is a Distrobox container, kept separate from any boxes of your own. System
 Update keeps the boxes up to date, along with everything else.
 
-The Software app is matched by the app ID the package itself carries (Brave's
+Bazaar's app is matched by the app ID the package itself carries (Brave's
 file names `com.brave.Browser`), or by name. A looser name match ("Brave Web
 Browser" and "Brave") is only used for apps Flathub has verified as coming from
 their maker, so a look-alike is never offered.
@@ -483,7 +490,7 @@ The last window of every install ends with an Updates line:
 | Updates line | Means |
 |--------------|-------|
 | Updates: automatic, with System Update. | It came from Fedora, or the package added its maker's download source to the box (Google Chrome and VS Code do) |
-| Updates: automatic. | It came from the Software app (Flathub) |
+| Updates: automatic. | It came from Bazaar (Flathub) |
 | Updates: none, because it came from a file. To update, install a newer file. (Some apps, like Discord, update themselves.) | An app in a box, installed from a plain file |
 | Updates: none, because it came from a file. To update, install a newer file. | An app added to the system from a file, which the system keeps at that file's version |
 
@@ -501,7 +508,7 @@ instead of installing again:
 | In its box, same version | "{app} is already installed." Recommended: **Open it**. **Reinstall** is only needed if it isn't working | **Open it**, **Reinstall**, Cancel |
 | In its box, newer file | "Update {app} to the newer version in this file?" | **Update**, Cancel |
 | In its box, older file | "This file is an older version of {app} than the one you have." Only for when the newer one has a problem | **Install the older version**, Cancel |
-| From the Software app (Flathub) | "{app} is already installed from the Software app." Recommended: **Open it**. A second copy never updates | **Open it**, **Install the file too**, Cancel |
+| From Bazaar (Flathub) | "{app} is already installed from Bazaar, the app store." Recommended: **Open it**. A second copy never updates | **Open it**, **Install the file too**, Cancel |
 | In the other box | "{app} is already installed from a .deb file." (or ".rpm") Recommended: **Open it**. A second copy never updates | **Open it**, **Install it here too**, Cancel |
 
 ### Files that cannot be installed
@@ -557,7 +564,7 @@ and .deb files, with whether each starts at login. Choose one to switch it. Some
 apps have their own "open at login" setting (Discord does). In a box, that
 setting would point at a path that only exists inside the box, so at login
 nothing would happen. At login, such an entry is pointed at the box and the app
-is started. Apps from the Software app have this setting inside the app.
+is started. Apps from Bazaar have this setting inside the app.
 
 ### Removing apps
 
@@ -763,7 +770,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/rpmfusion-free.repo`, `rpmfusion-free-updates.repo` | The RPM Fusion free repositories, copied into place only when you choose Everything |
 | `build_files/easyspeak-os-update`, `easyspeak-os-update.desktop` | **System Update** in Show Apps, which runs `uupd` and shows each step |
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app", "repair app boxes" and "start apps at login" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
-| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `easyspeak-os-login-apps.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps**, **Repair App Boxes** and **Start Apps at Login**, and the setting that opens .rpm and .deb files in them |
+| `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `easyspeak-os-login-apps.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps**, **Repair App Boxes** and **Start Apps at Login**, and the setting that opens .rpm and .deb files in them (`gnome-mimeapps.list`, installed as `/etc/xdg/gnome-mimeapps.list`, which also opens Flatpak files in Bazaar and leaves Fedora's own list, with text files in Text Editor, as it is) |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
 | `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeakOS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
 | `build_files/os-commands.py` | Reads the EasySpeakOS voice commands from the plugins for the help overlay, the cheat sheet and "did you mean" |
@@ -776,7 +783,10 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/zz-easyspeak-os-windows.gschema.override` | Gives every window a minimize and a maximize button |
 | `build_files/zz-easyspeak-os-desktop.gschema.override` | No hot corner, and the battery percentage in the top bar |
 | `build_files/easyspeak-os-quick-settings.dconf` | Turns on EasySpeak's toggle in the Quick Settings menu for every user (a system default; EasySpeak itself is unchanged) |
-| `build_files/default-apps.txt`, `easyspeak-os.preinstall`, `easyspeak-os-flatpak-apps.service` | The default apps: Fedora packages in the image, and the five from Flathub, installed at the first start with internet |
+| `build_files/default-apps.txt`, `flathub-apps.txt`, `easyspeak-os-flathub-apps`, `easyspeak-os-flatpak-apps.service` | The default apps: Fedora packages in the image, and the four from Flathub, installed straight from Flathub at the first start with internet (tried again every 15 minutes until it works). Fedora's own Flatpak store is not added |
+| `build_files/easyspeak_os_software.py` | The "open software", "open app store" and "open bazaar" voice commands, which open Bazaar (and "close software"). It goes before EasySpeak's own apps plugin, which would look for GNOME Software |
+| `build_files/easyspeak-os-app-folders.dconf` | The Show Apps folders for every new user: GNOME's Utilities and System folders, with the EasySpeakOS tools added to Utilities |
+| `build_files/zz-easyspeak-os-login.gschema.override`, `branding/easyspeak-os-gdm-logo.png` | The EasySpeakOS logo at the bottom of the login screen (`branding/logo-EasySpeak-wide.svg` is its source) |
 | `build_files/fastfetch-logo.txt`, `fastfetch-config.jsonc` | fastfetch's EasySpeakOS logo, and the system-wide setting that uses it |
 | `build_files/zz-easyspeak-os-no-tour.gschema.override` | No GNOME "Welcome" tour popup at first login, so the setup checklist is the first window. The GNOME Tour app is also removed |
 | `build_files/changes.txt` | Not in the repository: the build writes it from the last 60 changes' titles, and System Update reads it to say what's new |
@@ -808,8 +818,9 @@ What the build checks:
   an unsigned image that a signed rebase rejects.
 - If the cheat sheet cannot be generated, the image still builds without it.
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk, including with the security chip (TPM).
-- GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
-- The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
+- GNOME Software is removed; Bazaar is the app store. The build fails if GNOME Software is still installed, if Bazaar or its Super-search files are missing, if text files would not open in Text Editor, if an EasySpeakOS tool is missing from the Utilities folder, if the login logo is not set, or if the boot-menu name still says Fedora. `uupd` is the only OS updater.
+- The build fails if EasySpeak no longer orders its plugins by `PRIORITY`, which "open software" needs to reach Bazaar.
+- The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
 - The build fails if an EasySpeakOS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
 - The build fails if the README's table of contents does not list every section, in order, with working links, if a link inside the README goes to a section that does not exist, or if a button in the software windows or System Tools is missing from the help's Software section. So a change that adds a section or a button cannot merge until the README and the help match.
 - The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads four real Fedora packages (an app, a background service, a hardware rule and a download source).
@@ -873,9 +884,10 @@ Restart afterwards. `rpm-ostree rollback` returns to the previous state.
 
 ## Boot menu name
 
-Your firmware's boot menu keeps the name it got when you installed (for example
-"Fedora" or "bluefin"). That name is stored on your machine, so an image update
-cannot change it. To rename it:
+New installs from the live USB are named EasySpeakOS in the computer's boot
+menu, and so is the live USB itself. A computer that was installed before keeps
+the name it got then (for example "Fedora", "Generic" or "bluefin"). That name
+is stored on your machine, so an image update cannot change it. To rename it:
 
     sudo easyspeak-os-boot-label          # shows what would change
     sudo easyspeak-os-boot-label --apply  # makes the change

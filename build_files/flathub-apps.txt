@@ -1,0 +1,6 @@
+# EasySpeakOS default apps that Fedora doesn't package, installed from Flathub on the first start with internet
+# (easyspeak-os-flatpak-apps.service). One Flathub app ID per line.
+io.github.mrvladus.List
+de.haeckerfelix.Shortwave
+org.gnome.Podcasts
+org.gnome.World.PikaBackup

@@ -1060,7 +1060,7 @@ def login():
     """Start Apps at Login: choose box apps that start by themselves when you log in."""
     apps = [r for r in load() if r["where"].startswith("easyspeak-") and r.get("apps")]
     if not apps:
-        say("No downloaded apps that can start at login are installed. Apps from the Software app have this "
+        say("No downloaded apps that can start at login are installed. Apps from Bazaar, the app store, have this "
             "setting inside the app.")
         return 0
     rows = [[r["title"], WHERE.get(r["where"], r["where"]), "Yes" if starts_at_login(r) else "No"] for r in apps]
@@ -1542,7 +1542,7 @@ def already_installed(pkg, info, title):
     want = {norm_name(title), norm_name(pkg.name)}
     for r in records:
         if r["where"] == "flathub" and (norm_name(r["title"]) in want) and flatpak_installed(r["package"]):
-            a = ask(f"{r['title']} is already installed from the Software app.\n\nRecommended: Open it.\n\n"
+            a = ask(f"{r['title']} is already installed from Bazaar, the app store.\n\nRecommended: Open it.\n\n"
                     f"Or Install the file too: adds a second copy, which never updates. You would have two of the "
                     f"same app.", ok="Open it", extra="Install the file too")
             if a == "ok":
@@ -1632,7 +1632,7 @@ def install(path):
     match = None if info["rules_only"] or pkg.name in SOURCED else flathub_match(pkg, info)
     if match and flatpak_installed(match[0]):
         app_id, name = match
-        a = ask(f"{name} is already installed from the Software app.\n\nRecommended: Open it.\n\n"
+        a = ask(f"{name} is already installed from Bazaar, the app store.\n\nRecommended: Open it.\n\n"
                 f"Or Install the file too: adds a second copy, which never updates. You would have two of the same "
                 f"app.", ok="Open it", extra="Install the file too")
         if a == "ok":
@@ -1643,7 +1643,7 @@ def install(path):
         match = None
     if match:
         app_id, name = match
-        answer = ask(f"{name} is in the Software app (Flathub).\n\nRecommended: Use Flathub. It updates by itself "
+        answer = ask(f"{name} is in Bazaar, the app store (Flathub).\n\nRecommended: Use Flathub. It updates by itself "
                      f"and is made for this kind of system.\n\nOr Use the file: installs your download. It never "
                      f"updates.",
                      ok="Use Flathub", cancel="Cancel", extra="Use the file")
@@ -1691,7 +1691,7 @@ def install(path):
         if pkg.kind == "deb":
             say(f"{title} can't be installed from this file. It has:\n{reasons}\n\n"
                 f"These have to go on the system, and the system only takes .rpm files. "
-                f"Look for {title} as an .rpm for Fedora {fedora_version()}, or in the Software app.", "warning")
+                f"Look for {title} as an .rpm for Fedora {fedora_version()}, or in Bazaar, the app store.", "warning")
             return 1
         if ask(f"{title} has to go on the system. It has:\n{reasons}\nThese can't work in a box.\n\n"
                f"Add to the system: everything works. Needs your password and a restart. You can remove it any time "
@@ -1723,7 +1723,7 @@ def install(path):
         # a .deb cannot go on the system: the box is the only choice, said plainly
         if ask(f"Install {title}\n\nIn a box, these parts of {title} won't work:\n{plain_list(info['notes'])}\n"
                f"A .deb file can't go on the system. For everything to work, look for {title} as an .rpm file or in "
-               f"the Software app.\n\n{setup}: puts it in a box anyway, without those parts.{first}{rule}",
+               f"Bazaar, the app store.\n\n{setup}: puts it in a box anyway, without those parts.{first}{rule}",
                ok=setup) != "ok":
             return 1
     elif ask(f"Install {title}\n\n{setup}: puts it in a separate box. Your system isn't changed, and Remove Apps "
