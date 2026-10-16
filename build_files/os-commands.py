@@ -1,6 +1,6 @@
-"""Build step: list the EasySpeak-OS voice commands, read from the plugins themselves, for the help overlay,
+"""Build step: list the EasySpeakOS voice commands, read from the plugins themselves, for the help overlay,
 the cheat sheet and "did you mean". Each plugin's COMMANDS lines read "what to say - what it does". They go in the
-plugin's HELP_SECTION ("EasySpeak-OS" if it has none); HELP_SOFTWARE lines go in the "Software" section.
+plugin's HELP_SECTION ("EasySpeakOS" if it has none); HELP_SOFTWARE lines go in the "Software" section.
 
 usage: os-commands.py PLUGINS_DIR OUT.json
 """
@@ -16,13 +16,13 @@ ORDER = ["easyspeak_os_update", "easyspeak_os_tools", "easyspeak_os_apps", "easy
 files = sorted(plugins.glob("easyspeak_os_*.py"), key=lambda f: (ORDER.index(f.stem) if f.stem in ORDER else 99, f.stem))
 for f in files:
     module = importlib.import_module(f"plugins.{f.stem}")
-    section = getattr(module, "HELP_SECTION", "EasySpeak-OS")
+    section = getattr(module, "HELP_SECTION", "EasySpeakOS")
     lines = [(line, section) for line in getattr(module, "COMMANDS", [])]
     lines += [(line, "Software") for line in getattr(module, "HELP_SOFTWARE", [])]
     for line, sec in lines:
         say, _, does = line.partition(" - ")
         rows.append({"say": say.strip(), "does": does.strip(), "section": sec})
 if not rows:
-    sys.exit("no EasySpeak-OS commands found in " + str(plugins))
+    sys.exit("no EasySpeakOS commands found in " + str(plugins))
 Path(sys.argv[2]).write_text(json.dumps(rows, ensure_ascii=False))
-print(f"EasySpeak-OS commands: {len(rows)}")
+print(f"EasySpeakOS commands: {len(rows)}")

@@ -5,6 +5,11 @@ NAME=easyspeak-os
 
 dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
 xargs -a /ctx/bluefin-packages.txt dnf5 -y install
+# EasySpeakOS default apps from Fedora's packages (see default-apps.txt); the build fails if any is missing.
+grep -v '^#' /ctx/default-apps.txt | xargs dnf5 -y install
+for p in $(grep -v '^#' /ctx/default-apps.txt) firefox qutebrowser nautilus ptyxis gnome-control-center gnome-software orca; do
+  rpm -q "$p" >/dev/null || { echo "ERROR: default app $p is not installed"; exit 1; }
+done
 # Updates and Homebrew the Bluefin way, from Universal Blue's package repository: the updater (uupd) on its daily
 # timer, and Homebrew (ublue-brew, unpacked at boot by brew-setup.service, kept updated by uupd). No second updater:
 # remove only GNOME Software's OS-update plugin, as Bluefin does; the Software app itself stays.
@@ -13,6 +18,8 @@ curl -fsSL --retry 3 "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/
 dnf5 -y install uupd ublue-brew ublue-os-just
 rm -f /etc/yum.repos.d/ublue-os-packages.repo
 dnf5 -y remove gnome-software-rpm-ostree
+# GNOME's tour app, and its "Welcome" popup at first login, which would open on top of the setup checklist.
+dnf5 -y remove gnome-tour
 # The rpm-ostree plugin is also what switches off GNOME Software's dnf plugin. Without it, the dnf plugin would offer
 # dnf package updates, which cannot apply to an image. Remove that plugin too: GNOME Software then handles Flatpak
 # apps and firmware only, and uupd is the one OS updater.
@@ -26,7 +33,7 @@ install -Dm644 /ctx/easyspeak-os-update.desktop /usr/share/applications/easyspea
 # time it is needed. Hardware rules that only set permissions go onto the system through a polkit helper
 # (password every time); drivers and other system parts are offered as a layered .rpm, or refused for a .deb.
 install -Dm755 /ctx/easyspeak-os-packages /usr/bin/easyspeak-os-packages
-# zenity plus voice: the EasySpeak-OS windows go through it, so EasySpeak can press their buttons (see the
+# zenity plus voice: the EasySpeakOS windows go through it, so EasySpeak can press their buttons (see the
 # easyspeak_os_dialogs plugin).
 install -Dm755 /ctx/easyspeak-os-dialog /usr/bin/easyspeak-os-dialog
 install -Dm755 /ctx/easyspeak-os-hwrules /usr/libexec/easyspeak-os-hwrules
@@ -83,8 +90,8 @@ mkdir -p /tmp/pkgtest && (cd /tmp/pkgtest && dnf5 -q download gnome-mines openvp
 python3 -I /ctx/check-packages.py /tmp/pkgtest || { echo 'ERROR: Install Package File does not read packages correctly'; exit 1; }
 rm -rf /tmp/pkgtest
 # Services that must be on by default, also after a first boot (which applies these preset rules):
-# EasySpeak-OS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
-printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable easyspeak-os-disk-unlock-check.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
+# EasySpeakOS's own two services, and what Bluefin switches on for the Bluefin parts we carry.
+printf 'enable brew-setup.service\nenable easyspeak-os-codecs-setup.service\nenable easyspeak-os-flathub.service\nenable easyspeak-os-flatpak-apps.service\nenable easyspeak-os-disk-unlock-check.service\nenable tailscaled.service\nenable podman-auto-update.timer\nenable uupd.timer\n' > /usr/lib/systemd/system-preset/80-easyspeak-os.preset
 systemctl enable tailscaled.service podman-auto-update.timer uupd.timer brew-setup.service
 for u in tailscaled.service uupd.timer brew-setup.service; do [ "$(systemctl is-enabled "$u")" = enabled ] || { echo "ERROR: $u is not enabled"; exit 1; }; done
 rpm -q gnome-software-rpm-ostree >/dev/null 2>&1 && { echo "ERROR: a second OS updater is still installed"; exit 1; }
@@ -102,6 +109,9 @@ install -Dm644 /ctx/NOTICE /usr/share/doc/easyspeak-os/NOTICE
 dnf5 -y remove fedora-flathub-remote || echo "note: fedora-flathub-remote was not removed"
 install -Dm644 /ctx/flathub.flatpakrepo /usr/share/easyspeak-os/flathub.flatpakrepo
 install -Dm644 /ctx/easyspeak-os-flathub.service /usr/lib/systemd/system/easyspeak-os-flathub.service
+# The default apps Fedora doesn't package, from Flathub on the first start with internet (see those files).
+install -Dm644 /ctx/easyspeak-os.preinstall /usr/share/flatpak/preinstall.d/easyspeak-os.preinstall
+install -Dm644 /ctx/easyspeak-os-flatpak-apps.service /usr/lib/systemd/system/easyspeak-os-flatpak-apps.service
 install -Dm755 /ctx/easyspeak-os-codecs /usr/bin/easyspeak-os-codecs
 ln -sf easyspeak-os-codecs /usr/bin/codecs
 ln -sf easyspeak-os-codecs /usr/bin/install-codecs
@@ -134,17 +144,52 @@ install -Dm644 /ctx/rpmfusion-free-updates.repo /usr/share/easyspeak-os/rpmfusio
 # Kept only so machines that still have the old negativo17 codecs can update until they run  codecs remove .
 install -Dm644 /ctx/RPM-GPG-KEY-negativo17 /usr/share/easyspeak-os/RPM-GPG-KEY-negativo17
 install -Dm644 /ctx/easyspeak-os-codecs-setup.service /usr/lib/systemd/system/easyspeak-os-codecs-setup.service
-systemctl enable easyspeak-os-flathub.service easyspeak-os-codecs-setup.service
+systemctl enable easyspeak-os-flathub.service easyspeak-os-flatpak-apps.service easyspeak-os-codecs-setup.service
 # Default wallpaper. The override file sorts after Fedora's own 10_ overrides, so it wins.
 install -Dm644 /ctx/branding/wallpaper.png /usr/share/backgrounds/easyspeak-os/wallpaper.png
 install -Dm644 /ctx/branding/easyspeak-os.xml /usr/share/gnome-background-properties/easyspeak-os.xml
 install -Dm644 /ctx/branding/zz-easyspeak-os-background.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-background.gschema.override
 install -Dm644 /ctx/zz-easyspeak-os-windows.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-windows.gschema.override
+install -Dm644 /ctx/zz-easyspeak-os-no-tour.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-no-tour.gschema.override
+install -Dm644 /ctx/zz-easyspeak-os-desktop.gschema.override /usr/share/glib-2.0/schemas/zz-easyspeak-os-desktop.gschema.override
 glib-compile-schemas /usr/share/glib-2.0/schemas 2>&1 | grep -v 'deprecated' || true
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.background picture-uri)
-[ "$got" = "'file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'" ] || { echo "ERROR: the default wallpaper is $got, not the EasySpeak-OS one"; exit 1; }
+[ "$got" = "'file:///usr/share/backgrounds/easyspeak-os/wallpaper.png'" ] || { echo "ERROR: the default wallpaper is $got, not the EasySpeakOS one"; exit 1; }
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.wm.preferences button-layout)
 [ "$got" = "'appmenu:minimize,maximize,close'" ] || { echo "ERROR: windows have no minimize button by default ($got)"; exit 1; }
+got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.shell welcome-dialog-last-shown-version)
+[ "$got" = "'4294967295'" ] || { echo "ERROR: GNOME's welcome popup would still open at first login ($got)"; exit 1; }
+rpm -q gnome-tour >/dev/null 2>&1 && { echo "ERROR: GNOME's tour app is still installed"; exit 1; }
+[ "$(. /usr/lib/os-release; echo "$PRETTY_NAME")" = "EasySpeakOS" ] || { echo "ERROR: the system's display name is not EasySpeakOS"; exit 1; }
+got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface enable-hot-corners)
+[ "$got" = "false" ] || { echo "ERROR: the hot corner is still on by default ($got)"; exit 1; }
+got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface show-battery-percentage)
+[ "$got" = "true" ] || { echo "ERROR: the battery percentage is not shown by default ($got)"; exit 1; }
+
+# EasySpeak's toggle in the Quick Settings menu, on from the start (see that file).
+install -Dm644 /ctx/easyspeak-os-quick-settings.dconf /etc/dconf/db/distro.d/50-easyspeak-os-quick-settings
+dconf update
+got=$(HOME=/tmp dconf read /org/gnome/shell/extensions/easyspeak/show-in-quick-settings)
+[ "$got" = "true" ] || { echo "ERROR: EasySpeak's Quick Settings toggle is not on by default ($got)"; exit 1; }
+
+# Firefox: its own home page instead of Fedora's start page, no "Fedora Project - Start Page" tile, and its About
+# window says "Mozilla Firefox", not "Mozilla Firefox for Fedora". Fails if Fedora's Firefox package changes these.
+ffprefs=/usr/lib64/firefox/browser/defaults/preferences/firefox-redhat-default-prefs.js
+ffdist=/usr/lib64/firefox/distribution/distribution.ini
+grep -q '^pref("browser.startup.homepage", *"https://start.fedoraproject.org/");' "$ffprefs" || { echo "ERROR: Firefox's Fedora home page setting was not found"; exit 1; }
+grep -q '^pref("browser.newtabpage.pinned",' "$ffprefs" || { echo "ERROR: Firefox's Fedora tile setting was not found"; exit 1; }
+sed -i -e 's|^pref("browser.startup.homepage", *"https://start.fedoraproject.org/");|pref("browser.startup.homepage", "about:home");|' \
+       -e 's|^pref("browser.newtabpage.pinned",.*|pref("browser.newtabpage.pinned", "[]");|' "$ffprefs"
+grep -q '^about=Mozilla Firefox for Fedora$' "$ffdist" || { echo "ERROR: Firefox's About text was not found"; exit 1; }
+sed -i 's/^about=Mozilla Firefox for Fedora$/about=Mozilla Firefox/' "$ffdist"
+grep -qi 'fedoraproject' "$ffprefs" && { echo "ERROR: Firefox still points at Fedora's pages"; exit 1; }
+grep -qi '^about=.*fedora' "$ffdist" && { echo "ERROR: Firefox's About window still says Fedora"; exit 1; }
+
+# fastfetch: the EasySpeakOS logo instead of Fedora's, with fastfetch's usual information next to it.
+install -Dm644 /ctx/fastfetch-logo.txt /usr/share/easyspeak-os/fastfetch-logo.txt
+install -Dm644 /ctx/fastfetch-config.jsonc /etc/xdg/fastfetch/config.jsonc
+out=$(HOME=/tmp fastfetch --pipe false -s OS 2>&1)
+printf '%s' "$out" | grep -qF '_.-##' && printf '%s' "$out" | grep -qF 'EasySpeakOS' || { echo "ERROR: fastfetch does not show the EasySpeakOS logo"; printf '%s\n' "$out" | head -5; exit 1; }
 
 rm -rf /opt
 mkdir /opt
@@ -191,7 +236,7 @@ cp -a /ctx/system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os 
 install -Dm755 /ctx/system_files/usr/libexec/easyspeak-os-ready-dot-enable /usr/libexec/easyspeak-os-ready-dot-enable
 install -Dm644 /ctx/system_files/etc/xdg/autostart/easyspeak-os-ready-dot.desktop /etc/xdg/autostart/easyspeak-os-ready-dot.desktop
 # Voice commands "update system", "install a package", "remove an app", "repair app boxes", "start apps at login" and
-# the EasySpeak-OS windows: plugin files in EasySpeak's own plugin
+# the EasySpeakOS windows: plugin files in EasySpeak's own plugin
 # folder; EasySpeak itself is unchanged. Fail the build if a new EasySpeak release would no longer load them the way
 # EasySpeak loads its own plugins.
 plugins=$(echo /opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins)
@@ -201,11 +246,11 @@ install -Dm644 /ctx/easyspeak_os_apps.py "$plugins/easyspeak_os_apps.py"
 install -Dm644 /ctx/easyspeak_os_tools.py "$plugins/easyspeak_os_tools.py"
 install -Dm644 /ctx/easyspeak_os_dialogs.py "$plugins/easyspeak_os_dialogs.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
-"$py" /ctx/check-easyspeak-plugin.py "$plugins" /usr/bin/easyspeak-os-dialog || { echo 'ERROR: EasySpeak would not load the EasySpeak-OS plugins'; exit 1; }
+"$py" /ctx/check-easyspeak-plugin.py "$plugins" /usr/bin/easyspeak-os-dialog || { echo 'ERROR: EasySpeak would not load the EasySpeakOS plugins'; exit 1; }
 
-# The EasySpeak-OS voice commands, read from the plugins, go into the cheat sheet, the "help" overlay and
+# The EasySpeakOS voice commands, read from the plugins, go into the cheat sheet, the "help" overlay and
 # "did you mean" as their own section.
-"$py" /ctx/os-commands.py "$plugins" /tmp/os-commands.json || { echo 'ERROR: the EasySpeak-OS command list could not be made'; exit 1; }
+"$py" /ctx/os-commands.py "$plugins" /tmp/os-commands.json || { echo 'ERROR: the EasySpeakOS command list could not be made'; exit 1; }
 
 # Offline cheat sheet of EasySpeak's commands (and the phrase list for the "did you mean" card),
 # from its docs for the installed version. If anything here fails, the image still builds,
@@ -220,13 +265,13 @@ for tag in "$ver" "v$ver"; do
   fi
 done
 if [ "$cheat_ok" = 1 ]; then
-  # every EasySpeak-OS command must be in the "help" overlay's list
-  python3 - /tmp/os-commands.json /usr/share/easyspeak-os/cheatsheet.json <<'PY' || { echo "ERROR: EasySpeak-OS commands are missing from the help overlay"; exit 1; }
+  # every EasySpeakOS command must be in the "help" overlay's list
+  python3 - /tmp/os-commands.json /usr/share/easyspeak-os/cheatsheet.json <<'PY' || { echo "ERROR: EasySpeakOS commands are missing from the help overlay"; exit 1; }
 import json, sys
 want = [r["say"] for r in json.load(open(sys.argv[1]))]
 have = {s for sec in json.load(open(sys.argv[2])) for s in sec["say"]}
 missing = [w for w in want if w not in have]
-print("missing from help:", missing) if missing else print(f"help overlay has all {len(want)} EasySpeak-OS commands")
+print("missing from help:", missing) if missing else print(f"help overlay has all {len(want)} EasySpeakOS commands")
 sys.exit(1 if missing else 0)
 PY
   install -Dm644 /ctx/easyspeak-os-commands.desktop /usr/share/applications/easyspeak-os-commands.desktop

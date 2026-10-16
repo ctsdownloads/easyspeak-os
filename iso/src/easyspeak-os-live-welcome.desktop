@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome to EasySpeakOS
+Comment=Install EasySpeakOS, or try it first
+Exec=/usr/libexec/easyspeak-os-live-welcome
+Terminal=false
+NoDisplay=true
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=10

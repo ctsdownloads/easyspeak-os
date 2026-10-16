@@ -1,0 +1,6 @@
+# EasySpeakOS desktop defaults. Each can still be changed in Settings.
+# No hot corner: moving the pointer to the top-left corner does not open the Activities overview by surprise.
+# The battery percentage shows next to the battery icon in the top bar.
+[org.gnome.desktop.interface]
+enable-hot-corners=false
+show-battery-percentage=true

@@ -1,9 +1,9 @@
 #!/usr/bin/python3 -I
-"""zenity, with voice: the EasySpeak-OS windows use this in place of zenity.
+"""zenity, with voice: the EasySpeakOS windows use this in place of zenity.
 
 It takes zenity's own arguments and runs zenity with them, unchanged. While the window is open, it also writes a
 small description of it (its text and buttons, or the lines of a list) to
-$XDG_RUNTIME_DIR/easyspeak-os/dialogs/PID.json. EasySpeak's EasySpeak-OS dialogs plugin reads that, so you can
+$XDG_RUNTIME_DIR/easyspeak-os/dialogs/PID.json. EasySpeak's EasySpeakOS dialogs plugin reads that, so you can
 say a button's name to press it, "number two" to pick a line in a list, or "read it" to hear the window. The
 plugin answers by writing PID.answer; this closes the window and gives back exactly what zenity would have:
 the same exit code, and the same text on standard output.

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Install Package File and Remove Apps, for EasySpeak-OS.
+"""Install Package File and Remove Apps, for EasySpeakOS.
 
   easyspeak-os-packages install [FILE]   install an .rpm or .deb (no FILE: pick one from Downloads)
   easyspeak-os-packages remove           remove an app installed this way
@@ -1500,7 +1500,7 @@ def already_installed(pkg, info, title):
     if hv:
         mine = next((r for r in records if r["where"] == "system" and r["package"] == pkg.name), None)
         if not mine:
-            say(f"{title} is already part of EasySpeak-OS. Nothing to install.")
+            say(f"{title} is already part of EasySpeakOS. Nothing to install.")
             return False, "", 0
         if mine.get("from_fedora"):
             say(f"{title} is already installed from Fedora and stays up to date. You don't need this file.")

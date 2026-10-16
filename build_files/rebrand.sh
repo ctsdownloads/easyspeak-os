@@ -40,13 +40,13 @@ rm -rf "$keep"
 
 # The image's own name. ID_LIKE keeps tools that look for a Fedora-family system working.
 cat > /usr/lib/os-release <<'OSREL'
-NAME="EasySpeak-OS"
+NAME="EasySpeakOS"
 ID=easyspeak-os
 ID_LIKE="fedora"
 VERSION_ID=44
 VERSION="44"
 PLATFORM_ID="platform:f44"
-PRETTY_NAME="EasySpeak-OS 44"
+PRETTY_NAME="EasySpeakOS"
 ANSI_COLOR="0;34"
 HOME_URL="https://github.com/ctsdownloads/easyspeak-os"
 DOCUMENTATION_URL="https://github.com/ctsdownloads/easyspeak-os"

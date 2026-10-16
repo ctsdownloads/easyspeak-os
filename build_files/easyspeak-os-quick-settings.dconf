@@ -1,0 +1,5 @@
+# EasySpeakOS: EasySpeak's on/off toggle shows in the Quick Settings menu (top right) from the start. EasySpeak hides
+# it until "Show EasySpeak in Quick Settings Menu" is switched on in its Settings; this switches it on for every user.
+# Anyone can still switch it off there. A system default (dconf), because the setting belongs to EasySpeak's extension.
+[org/gnome/shell/extensions/easyspeak]
+show-in-quick-settings=true

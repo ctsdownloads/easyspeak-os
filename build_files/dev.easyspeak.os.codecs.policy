@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN" "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
 <policyconfig>
-  <vendor>EasySpeak-OS</vendor>
+  <vendor>EasySpeakOS</vendor>
   <vendor_url>https://github.com/ctsdownloads/easyspeak-os</vendor_url>
 
   <!-- Adding the codecs. By default this asks for the administrator password too. The rules file

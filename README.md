@@ -1,4 +1,4 @@
-# EasySpeak-OS
+# EasySpeakOS
 
 An image for a workstation, with [EasySpeak](https://easyspeak.dev/latest/)
 voice control installed for accessibility. It is a derivative of **Fedora®**,
@@ -6,7 +6,7 @@ built upon Fedora Silverblue 44, with a set of packages carried over from
 [Bluefin](https://projectbluefin.io/), Bluefin's updater and Homebrew setup,
 EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 
-> **EasySpeak-OS is not Fedora.** It contains modified Fedora software and is
+> **EasySpeakOS is not Fedora.** It contains modified Fedora software and is
 > not provided or supported by the Fedora Project. The logos and release
 > packages from Fedora have been removed. Official, unmodified Fedora is available from the
 > Fedora Project at <https://fedoraproject.org/>.
@@ -31,6 +31,8 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 - [What's in it](#whats-in-it)
 - [System requirements](#system-requirements)
 - [Install](#install)
+  - [From the live USB](#from-the-live-usb)
+  - [From Silverblue or Bluefin](#from-silverblue-or-bluefin)
   - [Updating and rolling back](#updating-and-rolling-back)
   - [Checking that updates are real](#checking-that-updates-are-real)
   - [First login](#first-login)
@@ -78,7 +80,7 @@ Universal Blue, Bluefin or EasySpeak product, and none of them endorse it.
 
 ## Who it's for
 
-EasySpeak-OS is for people who can see the screen and speak clearly in English,
+EasySpeakOS is for people who can see the screen and speak clearly in English,
 but find a keyboard and mouse hard to use, for example because of RSI,
 arthritis, a tremor or limited hand movement.
 
@@ -90,7 +92,7 @@ and the [first login](#first-login) steps are typed.
 
 ## How this system works
 
-EasySpeak-OS is an **image-based** system. The system itself, meaning
+EasySpeakOS is an **image-based** system. The system itself, meaning
 everything except your own files and settings, arrives as one finished, tested
 piece called an image, and apps can't change it. That keeps it from breaking.
 
@@ -120,6 +122,10 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from Show Apps |
 | System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, save problem details for your helper, and the setup checklist, in plain windows. See [System Tools](#system-tools) |
 | Window buttons | Every window has minimize, maximize and close buttons (GNOME's own default shows only close) |
+| Desktop defaults | EasySpeak's on/off toggle is in the Quick Settings menu (top right) from the start. No hot corner (the pointer in the top-left corner doesn't open the Activities overview). The battery percentage shows in the top bar. Each can be changed back: the toggle in EasySpeak's Settings, the other two in Settings |
+| Firefox | Opens Firefox's own home page, not Fedora's start page, with no Fedora tile |
+| Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ptyxis, Settings, Software, Pika Backup, Secrets. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts, Pika Backup and Secrets aren't packaged by Fedora, so they come from Flathub on the first start with internet. No email app: use your own |
+| fastfetch | Shows the EasySpeakOS logo instead of Fedora's |
 
 ## System requirements
 
@@ -129,6 +135,48 @@ piece called an image, and apps can't change it. That keeps it from breaking.
   since each app box adds to memory use.
 
 ## Install
+
+There are two ways: from the live USB on any computer, or by switching a
+computer that already runs Fedora Silverblue or Bluefin.
+
+### From the live USB
+
+The live USB starts EasySpeakOS straight from the stick, with EasySpeak
+working, so you can try it before installing. Nothing is saved and the
+computer's disk isn't touched until you install.
+
+1. Make the USB stick: on GitHub, open **Actions**, then **Build live ISO
+   (test)**, and **Run workflow**. When it finishes, download
+   `easyspeak-os-live-iso` from that run, unzip it, and write
+   `easyspeak-os-live.iso` to a USB stick at least as big as the file (with
+   Fedora Media Writer, or GNOME Disks' **Restore Disk Image**). To try
+   changes before they go to GitHub, build it on your own computer instead:
+   run `iso/build-local-iso.sh` from the top of the repository, in a normal
+   terminal (not a toolbox or distrobox). It needs about 70 GB free, asks for
+   your password once, and puts the ISO in `~/Downloads/easyspeak-os-iso/`.
+2. Start the computer from the USB stick and pick **EasySpeakOS Live**.
+3. A welcome window opens once EasySpeak has loaded: **Install EasySpeakOS**,
+   or **Try it first**. Both can be said. The installer is also first in the
+   dock.
+4. The installer is Fedora's (Anaconda), with EasySpeakOS's name and logo. It
+   asks for the language, the disk, whether to encrypt it (recommended, then
+   set a disk password), and your user account. It installs EasySpeakOS from
+   the copy on the USB stick, with no download. The orange **Beta** badge at
+   the top says EasySpeakOS is in beta. **Report issue** (in the installer's
+   menu, and in the window shown if it hits an error) opens a new issue on
+   this project's GitHub page, filled in with the error details.
+5. Restart and log in. The [setup checklist](#first-login) opens.
+
+The installed system gets its updates from GitHub and checks them against the
+project's signature, like any other EasySpeakOS install (see
+[Checking that updates are real](#checking-that-updates-are-real)). In the
+live session nothing updates and no first-login questions are asked; the
+installed system gets those on its first start.
+
+The installer's own pages are in a web view, so they're used with the mouse,
+EasySpeak's grid mode, or the keyboard, not by saying button names.
+
+### From Silverblue or Bluefin
 
 You need a computer already running a **Fedora Atomic** system: an image-based
 Fedora, such as Silverblue or Bluefin. Do this **once per machine**. It takes two rebases because the image ships its own signature
@@ -195,7 +243,8 @@ cosign verify --key cosign.pub ghcr.io/ctsdownloads/easyspeak-os:latest
 ### First login
 
 - **The setup checklist** opens by itself at a new user's first login, as soon
-  as EasySpeak has finished loading, so its buttons can be said from the first
+  as EasySpeak has finished loading (GNOME's own welcome tour is turned off, so
+  nothing opens on top of it), so its buttons can be said from the first
   window (if EasySpeak isn't running, it opens after 3 minutes anyway). It goes
   through four steps, one window each, and any can be skipped:
   1. **Check the microphone:** say "testing, testing" and it says whether the
@@ -246,7 +295,7 @@ minute for dictation and 3 minutes for browser. EasySpeak's
 [full command list](https://easyspeak.dev/latest/commands/) has every command.
 
 **Show Apps** is GNOME's list of all apps: the button with nine dots at the end of
-the dock, or press the Super key twice. The EasySpeak-OS tools are there.
+the dock, or press the Super key twice. The EasySpeakOS tools are there.
 
 **The Software app** is GNOME's app store. Its apps come from **Flathub** as
 **Flatpaks**: apps packed with everything they need and kept apart from the
@@ -264,14 +313,14 @@ break the system, and they update by themselves.
   screen. It stays until you speak again, or for 90 seconds. EasySpeak will
   still say "Check the terminal"; ignore that.
 - **Update by voice.** Say "update system" (or "install updates") after the wake word to open
-  **System Update**, the same window as in Show Apps. This command comes from EasySpeak-OS,
+  **System Update**, the same window as in Show Apps. This command comes from EasySpeakOS,
   as a plugin added to EasySpeak's plugin folder, and works in English only.
 - **Install and remove apps by voice.** Say "install a package" to open
   **Install Package File**, "remove an app" to open **Remove Apps**, "repair
   app boxes" to open **Repair App Boxes**, or "start apps at login" to open
-  **Start Apps at Login**. These also come from EasySpeak-OS as a plugin, in
+  **Start Apps at Login**. These also come from EasySpeakOS as a plugin, in
   English only.
-- **Answer EasySpeak-OS windows by voice.** While an EasySpeak-OS window is open
+- **Answer EasySpeakOS windows by voice.** While an EasySpeakOS window is open
   (Install Package File, Remove Apps, Repair App Boxes, System Update, Install
   Media Codecs), say a button's name to press it: "set up and install", "open
   it", "restart now", "cancel". In a list, say "number two" (each line shows its
@@ -283,8 +332,8 @@ break the system, and they update by themselves.
   is never read out by itself: the open microphone would hear it and could press
   one of its buttons. When no such window is open, these words do nothing, so
   they never get in the way of other commands. English only.
-- **The EasySpeak-OS commands are in the help.** "help", the cheat sheet and the
-  "did you mean" card include them, in two sections of their own: **EasySpeak-OS**
+- **The EasySpeakOS commands are in the help.** "help", the cheat sheet and the
+  "did you mean" card include them, in two sections of their own: **EasySpeakOS**
   (update system, reading and answering windows) and **Software** (installing,
   removing and repairing apps, starting apps at login, and the buttons of those
   windows by name: ok, cancel, install, remove, use Flathub, delete the box and
@@ -445,7 +494,7 @@ instead of installing again:
 
 | Already there | The window says | Buttons |
 |---------------|-----------------|---------|
-| Part of EasySpeak-OS | "{app} is already part of EasySpeak-OS. Nothing to install." | OK |
+| Part of EasySpeakOS | "{app} is already part of EasySpeakOS. Nothing to install." | OK |
 | On the system, from Fedora | "{app} is already installed from Fedora and stays up to date. You don't need this file." | OK |
 | On the system, same or older file | "{app} is already installed. This file is the same version." (or "older than the one installed") | OK |
 | On the system, newer file | "Update {app} to the newer version in this file? Needs your password and a restart." | **Update**, Cancel |
@@ -591,7 +640,7 @@ through Distrobox:
   (`StartupWMClass`, set to the app's own name, `vivaldi-stable`).
 - **Two Quit items.** Right-click a box app in the dock or Show Apps and you see
   two of them:
-  - **Quit <app name>**, for example **Quit Discord**, is EasySpeak-OS's. It
+  - **Quit <app name>**, for example **Quit Discord**, is EasySpeakOS's. It
     stops the app inside the box. Use this one to really close a box app.
   - **Quit** on its own (the last item) is GNOME's. It only closes the app's
     windows. Many apps keep running in the background after it.
@@ -716,8 +765,8 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak_os_update.py`, `easyspeak_os_apps.py`, `check-easyspeak-plugin.py` | The "update system", "install a package", "remove an app", "repair app boxes" and "start apps at login" voice commands, added to EasySpeak's plugin folder, and the build test that they load |
 | `build_files/easyspeak-os-packages`, `easyspeak-os-install-package.desktop`, `easyspeak-os-remove-apps.desktop`, `easyspeak-os-repair-boxes.desktop`, `easyspeak-os-login-apps.desktop`, `gnome-mimeapps.list` | **Install Package File**, **Remove Apps**, **Repair App Boxes** and **Start Apps at Login**, and the setting that opens .rpm and .deb files in them |
 | `build_files/easyspeak-os-packages-after-restart.desktop` | Runs once at login after something was added to the system, to say whether it is ready (and, for a printer driver, to add the printer) |
-| `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeak-OS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
-| `build_files/os-commands.py` | Reads the EasySpeak-OS voice commands from the plugins for the help overlay, the cheat sheet and "did you mean" |
+| `build_files/easyspeak-os-dialog`, `easyspeak_os_dialogs.py` | zenity plus voice: the EasySpeakOS windows go through it, and the plugin lets EasySpeak press their buttons, pick list lines and read them out |
+| `build_files/os-commands.py` | Reads the EasySpeakOS voice commands from the plugins for the help overlay, the cheat sheet and "did you mean" |
 | `build_files/easyspeak-os-box-run` | Starts box apps for their Show Apps entries with their messages in a log file, and stops them (the Quit action) |
 | `build_files/easyspeak-os-hwrules`, `dev.easyspeak.os.hwrules.policy` | The helper that adds or removes an app's hardware rules on the system, and its polkit policy (password every time) |
 | `build_files/check-packages.py` | The build test that Install Package File reads real packages correctly |
@@ -725,15 +774,23 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-tools`, `easyspeak-os-tools.desktop`, `easyspeak_os_tools.py` | **System Tools** in Show Apps, and the "system tools" and "setup checklist" voice commands |
 | `build_files/easyspeak-os-setup-checklist.desktop` | Opens the setup checklist once, at a new user's first login |
 | `build_files/zz-easyspeak-os-windows.gschema.override` | Gives every window a minimize and a maximize button |
+| `build_files/zz-easyspeak-os-desktop.gschema.override` | No hot corner, and the battery percentage in the top bar |
+| `build_files/easyspeak-os-quick-settings.dconf` | Turns on EasySpeak's toggle in the Quick Settings menu for every user (a system default; EasySpeak itself is unchanged) |
+| `build_files/default-apps.txt`, `easyspeak-os.preinstall`, `easyspeak-os-flatpak-apps.service` | The default apps: Fedora packages in the image, and the five from Flathub, installed at the first start with internet |
+| `build_files/fastfetch-logo.txt`, `fastfetch-config.jsonc` | fastfetch's EasySpeakOS logo, and the system-wide setting that uses it |
+| `build_files/zz-easyspeak-os-no-tour.gschema.override` | No GNOME "Welcome" tour popup at first login, so the setup checklist is the first window. The GNOME Tour app is also removed |
 | `build_files/changes.txt` | Not in the repository: the build writes it from the last 60 changes' titles, and System Update reads it to say what's new |
 | `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates off (administrator password) and checks automatic disk unlock, and the polkit policy for both helpers |
 | `build_files/easyspeak-os-tools-safe`, `50-easyspeak-os-tools.rules` | The helper for the System Tools jobs with no password (automatic updates on, automatic disk unlock, freeing up space), and the narrow rule that lets an administrator at the computer run only it without one |
+| `iso/Containerfile`, `iso/src/`, `.github/workflows/build-iso.yml` | The live USB: the live session, its welcome window, and the installer with EasySpeakOS's name and logo, set to install EasySpeakOS from the copy on the stick, with a Beta badge and problem reports going to this project's GitHub issues. The build fails if the installer still says or links to Fedora |
+| `iso/build-local-iso.sh` | Builds a test live ISO on your own computer from the code in the folder, before anything goes to GitHub |
+| `iso/verify-image.sh` | Checks inside the built system and the live USB system that every EasySpeakOS change is there (name, installer, desktop defaults, Firefox, fastfetch), and prints PASS or FAIL for each; the local build stops before making the ISO if any fail |
 | `build_files/easyspeak-os-disk-unlock-check.service` | At every start, checks on the disk whether automatic disk unlock is on, for System Tools and the setup checklist |
 | `build_files/easyspeak-os-flathub.service`, `flathub.flatpakrepo` | Add the Flathub remote on first boot |
-| `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name |
+| `build_files/rebrand.sh` | Replaces the logo and release packages from Fedora with the generic ones and sets the system name, shown as "EasySpeakOS" |
 | `build_files/initramfs.sh` | Rebuilds the boot image so the boot and disk-unlock screens carry no Fedora logo |
 | `build_files/easyspeak-os-boot-label` | Installed as `easyspeak-os-boot-label`, an optional command that renames the firmware boot-menu entry |
-| `build_files/make-cheatsheet.py` | Turns EasySpeak's command docs, plus the EasySpeak-OS commands, into the cheat sheet and the on-screen list |
+| `build_files/make-cheatsheet.py` | Turns EasySpeak's command docs, plus the EasySpeakOS commands, into the cheat sheet and the on-screen list |
 | `system_files/` | Files copied into the image, including the Ready Dot extension |
 | `cosign.pub` | Public key for verifying the image |
 
@@ -753,7 +810,7 @@ What the build checks:
 - The rebrand and boot-image steps fail the build if anything unexpected would be removed, if the logo or release packages from Fedora are still installed, or if the new boot image lacks what is needed to unlock a disk, including with the security chip (TPM).
 - GNOME Software handles Flatpak apps and firmware only. The build removes its rpm-ostree and dnf plugins, so `uupd` is the only OS updater, and fails if either is still there.
 - The build fails if Fedora's default-service files are missing, if Tailscale, the updater or the Homebrew setup would not be switched on, if GNOME Software's OS-update plugin is still installed (so there is only one updater), if tuned is not Bluefin's version, if the RPM Fusion signing key is missing, or if RPM Fusion's codecs would not install on the image (a test run of the Everything choice, nothing is installed).
-- The build fails if an EasySpeak-OS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
+- The build fails if an EasySpeakOS voice command is missing from the "help" list, or if EasySpeak would not load the plugins the way it loads its own (the dialogs plugin is also tried against a pretend open window and a numbered list).
 - The build fails if the README's table of contents does not list every section, in order, with working links, if a link inside the README goes to a section that does not exist, or if a button in the software windows or System Tools is missing from the help's Software section. So a change that adds a section or a button cannot merge until the README and the help match.
 - The build fails if .rpm and .deb files would not open in Install Package File, if a tool it needs is missing, or if it misreads four real Fedora packages (an app, a background service, a hardware rule and a download source).
 
@@ -908,8 +965,9 @@ with two exceptions:
   [image template](https://github.com/ublue-os/image-template)** stay under its
   [Apache License 2.0](LICENSES/Apache-2.0.txt): the `Justfile`, the
   `Containerfile`, the build workflows, `disk_config/` and a few small settings
-  files. The live-ISO build in `iso/`, adapted from the Kinoite example in
-  [bootc-isos](https://github.com/ondrejbudai/bootc-isos), is also Apache 2.0.
+  files. The live-ISO build in `iso/`, based on the Bazzite example in
+  Universal Blue's [titanoboa](https://github.com/ublue-os/titanoboa), is also
+  Apache 2.0.
   Apache 2.0 files can be part of a GPL-3.0 project.
 - **The Ready Dot extension** runs inside GNOME Shell, which is
   GPL-2.0-or-later, so it is
@@ -919,7 +977,7 @@ with two exceptions:
 [REUSE](https://reuse.software/) format, and the license texts are in
 [`LICENSES/`](LICENSES).
 
-**The image itself is not under those licenses.** EasySpeak-OS is built on
+**The image itself is not under those licenses.** EasySpeakOS is built on
 Fedora Silverblue. It is a collection of software from many other projects,
 each under its own license, and this repository cannot change them. The Fedora
 base alone declares hundreds of different license expressions, from the GPL
@@ -946,4 +1004,4 @@ Also under their own licenses:
 
 ## Trademarks
 
-Fedora® is a registered trademark of Red Hat, Inc., or its subsidiaries in the United States and other countries. EasySpeak-OS is not provided or supported by the Fedora Project, and is not affiliated with or endorsed by the Fedora Project or Red Hat.
+Fedora® is a registered trademark of Red Hat, Inc., or its subsidiaries in the United States and other countries. EasySpeakOS is not provided or supported by the Fedora Project, and is not affiliated with or endorsed by the Fedora Project or Red Hat.

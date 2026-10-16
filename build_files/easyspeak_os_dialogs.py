@@ -1,6 +1,6 @@
-"""EasySpeak-OS: answer EasySpeak-OS windows by voice.
+"""EasySpeakOS: answer EasySpeakOS windows by voice.
 
-Shipped by the EasySpeak-OS image, not by EasySpeak. The EasySpeak-OS windows (Install Package File, Remove Apps,
+Shipped by the EasySpeakOS image, not by EasySpeak. The EasySpeakOS windows (Install Package File, Remove Apps,
 Repair App Boxes, System Update, Install Media Codecs) are opened through easyspeak-os-dialog, which describes the
 open window in $XDG_RUNTIME_DIR/easyspeak-os/dialogs/. While one is open:
   - say a button's name ("set up and install", "open it", "cancel") to press it;
@@ -21,13 +21,13 @@ import os
 import re
 
 NAME = "easyspeak-os dialogs"
-DESCRIPTION = "Answer EasySpeak-OS windows by voice (EasySpeak-OS)"
+DESCRIPTION = "Answer EasySpeakOS windows by voice (EasySpeakOS)"
 PRIORITY = 5        # before the everyday plugins, so "cancel" or "open it" reach the open window first
 COMMANDS = [
-    "[a button's name] - press that button in an EasySpeak-OS window, for example: set up and install, "
+    "[a button's name] - press that button in an EasySpeakOS window, for example: set up and install, "
     "open it, cancel",
-    "read it - hear what an open EasySpeak-OS window says, and the buttons you can say",
-    "number one / number two - pick that line in an EasySpeak-OS list window",
+    "read it - hear what an open EasySpeakOS window says, and the buttons you can say",
+    "number one / number two - pick that line in an EasySpeakOS list window",
     "next / continue - go on, when the window's main button is Start, Next, Test or OK",
 ]
 
@@ -58,6 +58,7 @@ HELP_SOFTWARE = [
     "step, and restart at the end if the codecs were installed",
     "test / test again / open sound settings / set it up - the setup checklist's microphone and disk unlock steps",
     "open software / open install package file - the setup checklist's getting apps step: see where apps come from",
+    "install EasySpeakOS / try it first - the live USB's welcome window",
 ]
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")
@@ -92,7 +93,7 @@ def setup(core):
 
 
 def open_window():
-    """The most recent EasySpeak-OS window that is still open, or None."""
+    """The most recent EasySpeakOS window that is still open, or None."""
     best = None
     for path in glob.glob(os.path.join(DIALOGS, "*.json")):
         try:
@@ -153,6 +154,9 @@ def handle(cmd, core):
 
     by_name = {norm(b["say"]): b for b in info["buttons"]}
     button = by_name.get(said)
+    if button is None:
+        # Spacing doesn't matter: "install easy speak os" presses "Install EasySpeakOS".
+        button = next((b for b in info["buttons"] if norm(b["say"]).replace(" ", "") == said.replace(" ", "")), None)
     if button is None and said in ("ok", "okay", "done", "close") and len(info["buttons"]) == 1:
         button = info["buttons"][0]
     if button is None and said in ("ok", "okay") and "ok" in by_name:
@@ -170,7 +174,7 @@ def handle(cmd, core):
     if rows:
         n = number(said)
         pick = n - 1 if n and 1 <= n <= len(rows) else next(
-            (i for i, r in enumerate(rows) if norm(r["say"]) == said), None)
+            (i for i, r in enumerate(rows) if norm(r["say"]).replace(" ", "") == said.replace(" ", "")), None)
         if pick is not None:
             answer(info, f"row:{pick}")
             core.speak(rows[pick]["say"] + ".")

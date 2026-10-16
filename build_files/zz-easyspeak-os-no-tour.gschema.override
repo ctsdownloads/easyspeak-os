@@ -1,0 +1,4 @@
+# No GNOME "Welcome" popup offering the tour at first login: it would open on top of the setup checklist.
+# The value is the highest version number, so GNOME treats the popup as already shown.
+[org.gnome.shell]
+welcome-dialog-last-shown-version='4294967295'

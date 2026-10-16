@@ -1,4 +1,4 @@
-# RPM Fusion free, as published in RPM Fusion's own rpmfusion-free-release package, shipped by EasySpeak-OS.
+# RPM Fusion free, as published in RPM Fusion's own rpmfusion-free-release package, shipped by EasySpeakOS.
 # Copied into /etc/yum.repos.d only when you choose "Everything" in Install Media Codecs.
 # The signing key comes from Fedora's distribution-gpg-keys package.
 [rpmfusion-free]
