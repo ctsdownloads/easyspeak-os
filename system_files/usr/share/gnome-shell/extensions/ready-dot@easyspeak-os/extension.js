@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Matt Hartley
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 // Dot in the top bar for EasySpeak: yellow = ready for a command (no wake word
 // needed), orange = busy hearing, thinking or replying, hidden = waiting for the
 // wake word. It follows the session journal for EasySpeak's log lines and, while

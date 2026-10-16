@@ -1,0 +1,45 @@
+version = 1
+SPDX-PackageName = "EasySpeak-OS"
+SPDX-PackageSupplier = "Matt Hartley <matt@matthartley.com>"
+SPDX-PackageDownloadLocation = "https://github.com/ctsdownloads/easyspeak-os"
+
+# Everything is GPL-3.0-or-later unless a rule below says otherwise.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Matt Hartley"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Files that started from Universal Blue's image template (github.com/ublue-os/image-template), which is
+# Apache-2.0. They keep that license, with this project's changes under it too.
+[[annotations]]
+path = [
+    "Justfile",
+    "Containerfile",
+    "artifacthub-repo.yml",
+    "image-template.env",
+    ".gitignore",
+    "disk_config/**",
+    ".github/dependabot.yml",
+    ".github/renovate.json5",
+    ".github/workflows/build.yml",
+    ".github/workflows/build-disk.yml",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["Universal Blue contributors", "2026 Matt Hartley"]
+SPDX-License-Identifier = "Apache-2.0"
+
+# The live-ISO build, adapted from the Kinoite example in github.com/ondrejbudai/bootc-isos, taken as
+# Apache-2.0 like that project's one marked file.
+[[annotations]]
+path = ["iso/Containerfile", "iso/src/**"]
+precedence = "override"
+SPDX-FileCopyrightText = ["Ondřej Budai", "2026 Matt Hartley"]
+SPDX-License-Identifier = "Apache-2.0"
+
+# The Ready Dot GNOME Shell extension runs inside GNOME Shell (GPL-2.0-or-later), so it uses that license.
+[[annotations]]
+path = "system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Matt Hartley"
+SPDX-License-Identifier = "GPL-2.0-or-later"
