@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 sys=${1-localhost/easyspeak-os}
 live=${2-localhost/easyspeak-os-live}
 logo_sum=$(sha256sum build_files/fastfetch-logo.txt | cut -d' ' -f1)
-apps="$(grep -v '^#' build_files/default-apps.txt | tr '\n' ' ')firefox qutebrowser nautilus ptyxis gnome-control-center gnome-software orca"
+apps="$(grep -v '^#' build_files/default-apps.txt | tr '\n' ' ')firefox qutebrowser nautilus ptyxis gnome-control-center orca bazaar"
 
 # Run inside an image; each check prints "PASS: ..." or "FAIL: ...".
 run_in() { sudo podman run --rm --pull=never --network=none --entrypoint /usr/bin/bash -e LOGO_SUM="$logo_sum" -e APPS="$apps" "$1" -c "$2"; }
@@ -35,8 +35,19 @@ ok "fastfetch logo is the approved one"           "[ \"\$(sha256sum /usr/share/e
 ok "fastfetch shows the EasySpeakOS logo"         "out=\$(fastfetch --pipe false -s OS 2>&1); printf %s \"\$out\" | grep -qF _.-## && printf %s \"\$out\" | grep -qF EasySpeakOS"
 ok "no Fedora logo package"                       "! rpm -q fedora-logos"
 for a in $APPS; do ok "default app installed: $a" "rpm -q $a"; done
-ok "Flathub apps listed: Errands, Shortwave, Podcasts, Pika Backup, Secrets" "( for i in io.github.mrvladus.List de.haeckerfelix.Shortwave org.gnome.Podcasts org.gnome.World.PikaBackup org.gnome.World.Secrets; do grep -qx \"\[Flatpak Preinstall \$i\]\" /usr/share/flatpak/preinstall.d/easyspeak-os.preinstall || exit 1; done )"
+ok "Flathub apps listed: Errands, Shortwave, Podcasts, Pika Backup (no Secrets)" "( for i in io.github.mrvladus.List de.haeckerfelix.Shortwave org.gnome.Podcasts org.gnome.World.PikaBackup; do grep -qx \$i /usr/share/easyspeak-os/flathub-apps.txt || exit 1; done; ! grep -qi secrets /usr/share/easyspeak-os/flathub-apps.txt )"
 ok "Flathub apps install at first start (service on)" "[ \"\$(systemctl is-enabled easyspeak-os-flatpak-apps.service)\" = enabled ]"
+ok "Flathub apps come from Flathub only (Fedora Flatpak store off)" "[ \"\$(systemctl is-enabled flatpak-add-fedora-repos.service 2>/dev/null)\" != enabled ]"
+ok "GNOME Software removed"                       "! rpm -q gnome-software && ! rpm -q gnome-software-rpm-ostree"
+ok "Bazaar in Super search"                       "[ -f /usr/share/gnome-shell/search-providers/io.github.kolunmi.Bazaar.search-provider.ini ] && [ -f /usr/share/dbus-1/services/io.github.kolunmi.Bazaar.SearchProvider.service ]"
+ok "voice: open software / close software opens and closes Bazaar" "grep -q \"^PRIORITY = 40\" /usr/lib/opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins/easyspeak_os_software.py"
+ok "text files open in Text Editor"               "[ \"\$(XDG_CURRENT_DESKTOP=GNOME gio mime text/plain 2>/dev/null | head -1 | sed \"s/.*: //\")\" = org.gnome.TextEditor.desktop ]"
+ok ".rpm and .deb files open in Install Package File" "[ \"\$(XDG_CURRENT_DESKTOP=GNOME gio mime application/x-rpm 2>/dev/null | head -1 | sed \"s/.*: //\")\" = easyspeak-os-install-package.desktop ]"
+ok "Flatpak files open in Bazaar"                 "[ \"\$(XDG_CURRENT_DESKTOP=GNOME gio mime application/vnd.flatpak.ref 2>/dev/null | head -1 | sed \"s/.*: //\")\" = io.github.kolunmi.Bazaar.desktop ]"
+ok "EasySpeakOS tools in the Utilities folder"    "( u=\$(dconf read /org/gnome/desktop/app-folders/folders/Utilities/apps); for a in easyspeak-os-tools easyspeak-os-update easyspeak-os-install-package easyspeak-os-remove-apps easyspeak-os-repair-boxes easyspeak-os-login-apps easyspeak-os-codecs easyspeak-os-commands; do printf %s \"\$u\" | grep -qF \"\$a.desktop\" || exit 1; done )"
+ok "login screen shows the EasySpeakOS logo"      "gs org.gnome.login-screen logo | grep -qF /usr/share/pixmaps/easyspeak-os-gdm-logo.png && [ -s /usr/share/pixmaps/easyspeak-os-gdm-logo.png ]"
+ok "installed boot-menu entry will be named EasySpeakOS (system-release)" "[ \"\$(sed \"s/ *release.*//\" /etc/system-release)\" = EasySpeakOS ]"
+ok "boot menu entry named EasySpeakOS, not Fedora" "( for f in /usr/lib/efi/shim/*/EFI/*/BOOTX64.CSV; do iconv -f UTF-16LE -t UTF-8 \$f | grep -q ,EasySpeakOS, || exit 1; iconv -f UTF-16LE -t UTF-8 \$f | grep -q Fedora && exit 1; done; true )"
 ok "voice: Install EasySpeakOS can be said as separate words" "grep -qF \"replace(\\\" \\\", \\\"\\\")\" /usr/lib/opt/easyspeak/venv/lib/python3*/site-packages/easyspeak/plugins/easyspeak_os_dialogs.py"
 '
 
@@ -55,6 +66,7 @@ ok "installer launcher: Install EasySpeakOS"       "grep -qx \"Name=Install Easy
 ok "welcome window: Install EasySpeakOS / Try it first" "grep -qF \"Install EasySpeakOS\" /usr/libexec/easyspeak-os-live-welcome && grep -qF \"Try it first\" /usr/libexec/easyspeak-os-live-welcome"
 ok "installer installs EasySpeakOS from the USB"   "grep -q \"^ostreecontainer --url=ghcr.io/ctsdownloads/easyspeak-os:latest \" /usr/share/anaconda/interactive-defaults.ks"
 ok "live session does not install Flathub apps" "[ \"\$(systemctl is-enabled easyspeak-os-flatpak-apps.service 2>/dev/null)\" != enabled ]"
+ok "USB boot menu entry named EasySpeakOS, not Fedora" "( ls /boot/efi/EFI/*/BOOTX64.CSV && for f in /boot/efi/EFI/*/BOOTX64.CSV; do iconv -f UTF-16LE -t UTF-8 \$f | grep -q ,EasySpeakOS, || exit 1; done )"
 ok "copy to install is on the USB"                 "grep -qF ghcr.io/ctsdownloads/easyspeak-os:latest /var/lib/containers/storage/overlay-images/images.json"
 '
 
@@ -62,13 +74,13 @@ out=$(run_in "$sys" "$system_checks" 2>&1)
 echo "== The system that gets installed ($sys)"
 echo "$out"
 fails=$(grep -c '^FAIL' <<<"$out")
-[ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge $((16 + $(wc -w <<<"$apps"))) ] || { echo "FAIL: not all system checks ran"; fails=$((fails+1)); }
+[ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge $((27 + $(wc -w <<<"$apps"))) ] || { echo "FAIL: not all system checks ran"; fails=$((fails+1)); }
 if [ -n "$live" ]; then
   out=$(run_in "$live" "$live_checks" 2>&1)
   echo "== The live USB system and installer ($live)"
   echo "$out"
   fails=$((fails + $(grep -c '^FAIL' <<<"$out")))
-  [ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge 12 ] || { echo "FAIL: not all USB checks ran"; fails=$((fails+1)); }
+  [ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge 13 ] || { echo "FAIL: not all USB checks ran"; fails=$((fails+1)); }
   # The copy on the USB must be exactly the system checked above.
   id=$(sudo podman image inspect "$sys" --format '{{.Id}}')
   if run_in "$live" "grep -qF $id /var/lib/containers/storage/overlay-images/images.json" >/dev/null 2>&1; then

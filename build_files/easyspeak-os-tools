@@ -630,16 +630,16 @@ def apps_step(w):
     opened = ""
     while True:
         a = ask(f"{opened}Getting apps:\n\n"
-                "- Most apps: the Software app. Find the app there and install it.\n"
+                "- Most apps: Bazaar, the app store. Find the app there and install it.\n"
                 "- An app that comes as a file (.rpm or .deb): open the file, or open Install Package File, which "
                 "lists the files in your Downloads folder.\n"
                 "- Removing those apps: Remove Apps, in Show Apps.\n\n"
                 "Say \"system tools\" for the rest: updates, disk space, undoing an update, and saving problem "
-                "details for your helper.\n\nRecommended: Open Software, to see it. Or Open Install Package File. "
-                "Or Next.", ok="Open Software", cancel="Next", extra="Open Install Package File", title=w)
+                "details for your helper.\n\nRecommended: Open Bazaar, to see it. Or Open Install Package File. "
+                "Or Next.", ok="Open Bazaar", cancel="Next", extra="Open Install Package File", title=w)
         if a == "ok":
-            subprocess.Popen(["gnome-software"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            opened = "Software is open. Close it when you're done looking.\n\n"
+            subprocess.Popen(["gtk-launch", "io.github.kolunmi.Bazaar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            opened = "Bazaar is open. Close it when you're done looking.\n\n"
         elif a == "extra":
             subprocess.Popen(["/usr/bin/easyspeak-os-packages", "install"], stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL)

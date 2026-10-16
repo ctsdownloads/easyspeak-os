@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+# Installs the EasySpeakOS default apps that come from Flathub, listed in /usr/share/easyspeak-os/flathub-apps.txt.
+# Run by easyspeak-os-flatpak-apps.service. Installs from the flathub remote by name, so no other store can supply them.
+set -euo pipefail
+mapfile -t apps < <(grep -v '^#' /usr/share/easyspeak-os/flathub-apps.txt | grep -v '^[[:space:]]*$')
+exec /usr/bin/flatpak install --system --noninteractive -y flathub "${apps[@]}"

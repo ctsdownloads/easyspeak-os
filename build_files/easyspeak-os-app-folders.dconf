@@ -1,0 +1,16 @@
+# EasySpeakOS: the EasySpeakOS tools are in the Utilities folder of Show Apps. GNOME makes its Utilities and System
+# folders at a user's first login only when no folder list exists yet (gnome-shell's appDisplay.js,
+# _ensureDefaultFolders), so this system default defines them: GNOME's own two folders with GNOME's own app lists
+# (gnome-shell's config.js), plus the EasySpeakOS tools in Utilities. A system default (dconf), for every new user.
+[org/gnome/desktop/app-folders]
+folder-children=['Utilities', 'System']
+
+[org/gnome/desktop/app-folders/folders/Utilities]
+name='X-GNOME-Shell-Utilities.directory'
+translate=true
+apps=['easyspeak-os-tools.desktop', 'easyspeak-os-update.desktop', 'easyspeak-os-install-package.desktop', 'easyspeak-os-remove-apps.desktop', 'easyspeak-os-repair-boxes.desktop', 'easyspeak-os-login-apps.desktop', 'easyspeak-os-codecs.desktop', 'easyspeak-os-commands.desktop', 'org.gnome.Decibels.desktop', 'org.gnome.Connections.desktop', 'org.gnome.Papers.desktop', 'org.gnome.FileRoller.desktop', 'org.gnome.font-viewer.desktop', 'org.gnome.Loupe.desktop', 'org.gnome.seahorse.Application.desktop', 'org.gnome.Seahorse.desktop']
+
+[org/gnome/desktop/app-folders/folders/System]
+name='X-GNOME-Shell-System.directory'
+translate=true
+apps=['nm-connection-editor.desktop', 'org.gnome.DejaDup.desktop', 'org.gnome.baobab.desktop', 'org.gnome.DiskUtility.desktop', 'org.gnome.Logs.desktop', 'org.freedesktop.MalcontentControl.desktop', 'org.freedesktop.GnomeAbrt.desktop', 'org.gnome.Sysprof.desktop', 'org.gnome.SystemMonitor.desktop', 'org.gnome.tweaks.desktop']

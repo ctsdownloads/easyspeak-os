@@ -1,5 +1,13 @@
-# EasySpeakOS: .rpm and .deb files open in Install Package File, which puts them in a box.
-# GNOME reads this before Fedora's mimeapps.list in the same folder.
+# EasySpeakOS default apps, installed as /etc/xdg/gnome-mimeapps.list. GNOME reads this before Fedora's
+# /usr/share/applications/gnome-mimeapps.list, which stays as it is, so every other default (text files in Text
+# Editor, and so on) is still Fedora's.
+# .rpm and .deb files open in Install Package File, which puts them in a box.
 [Default Applications]
 application/x-rpm=easyspeak-os-install-package.desktop
 application/vnd.debian.binary-package=easyspeak-os-install-package.desktop
+# Flatpak apps, files and links open in Bazaar, the app store.
+application/vnd.flatpak.ref=io.github.kolunmi.Bazaar.desktop
+application/vnd.flatpak=io.github.kolunmi.Bazaar.desktop
+x-scheme-handler/appstream=io.github.kolunmi.Bazaar.desktop
+x-scheme-handler/flatpak=io.github.kolunmi.Bazaar.desktop
+x-scheme-handler/flatpak+https=io.github.kolunmi.Bazaar.desktop

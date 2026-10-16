@@ -54,4 +54,9 @@ SUPPORT_URL="https://github.com/ctsdownloads/easyspeak-os/issues"
 BUG_REPORT_URL="https://github.com/ctsdownloads/easyspeak-os/issues"
 OSREL
 ln -sf ../usr/lib/os-release /etc/os-release
+# The installer's boot setup (bootupd) names the computer's boot-menu entry from the first word(s) of
+# /etc/system-release, before " release". generic-release has "Generic release 44 (Generic)" there, which would name
+# the entry "Generic". /etc/system-release links to this file.
+printf 'EasySpeakOS release 44\n' > /usr/lib/fedora-release
+[ "$(sed 's/ *release.*//' /etc/system-release)" = EasySpeakOS ] || { echo "ERROR: /etc/system-release does not name EasySpeakOS"; exit 1; }
 echo "rebranded: $(. /usr/lib/os-release; echo "$PRETTY_NAME")"
