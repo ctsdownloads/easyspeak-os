@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Matt Hartley
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 // Pure logic for the ready dot, with no GNOME imports so it can be tested alone.
 //
 // States: hidden (waiting for the wake word or asleep), ready (listening for a

@@ -20,7 +20,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 [![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
 [![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
 [![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#checking-that-updates-are-real)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 
 ## Contents
 
@@ -900,11 +900,26 @@ If you cannot find the source for something in the image, open an issue at
 
 ## License
 
-**The files in this repository** (the build scripts, the boot-image and
-rebrand steps, the Ready Dot extension and the helper commands) are under the
-[Apache License 2.0](LICENSE).
+**The files in this repository** are under the
+[GNU General Public License, version 3 or later](LICENSE) (GPL-3.0-or-later),
+with two exceptions:
 
-**The image itself is not under that license.** EasySpeak-OS is built on
+- **Files that started from Universal Blue's
+  [image template](https://github.com/ublue-os/image-template)** stay under its
+  [Apache License 2.0](LICENSES/Apache-2.0.txt): the `Justfile`, the
+  `Containerfile`, the build workflows, `disk_config/` and a few small settings
+  files. The live-ISO build in `iso/`, adapted from the Kinoite example in
+  [bootc-isos](https://github.com/ondrejbudai/bootc-isos), is also Apache 2.0.
+  Apache 2.0 files can be part of a GPL-3.0 project.
+- **The Ready Dot extension** runs inside GNOME Shell, which is
+  GPL-2.0-or-later, so it is
+  [GPL-2.0-or-later](LICENSES/GPL-2.0-or-later.txt) too.
+
+[`REUSE.toml`](REUSE.toml) lists which license covers each file, in the
+[REUSE](https://reuse.software/) format, and the license texts are in
+[`LICENSES/`](LICENSES).
+
+**The image itself is not under those licenses.** EasySpeak-OS is built on
 Fedora Silverblue. It is a collection of software from many other projects,
 each under its own license, and this repository cannot change them. The Fedora
 base alone declares hundreds of different license expressions, from the GPL

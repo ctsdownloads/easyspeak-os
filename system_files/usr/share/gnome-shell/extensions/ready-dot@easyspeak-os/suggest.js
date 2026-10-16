@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Matt Hartley
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 // Closest-command suggestions for something EasySpeak heard but did not understand.
 // Pure logic: no GNOME imports. Never invents a command: it only returns phrases
 // from the real command list, and nothing at all when nothing is close.

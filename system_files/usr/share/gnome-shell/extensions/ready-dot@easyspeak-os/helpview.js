@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Matt Hartley
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 // Pure layout for the on-screen "help" list, with no GNOME imports so it can be tested.
 // Given the sections (title + words to say) and the room on screen, it picks the largest
 // text size that fits, and spreads the sections over columns of similar height.
