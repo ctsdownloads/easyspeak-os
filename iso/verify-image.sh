@@ -52,18 +52,16 @@ ok "voice: Install EasySpeakOS can be said as separate words" "grep -qF \"replac
 
 live_checks='
 ok()  { if eval "$2" >/dev/null 2>&1; then echo "PASS: $1"; else echo "FAIL: $1"; fi; }
-w=/usr/share/cockpit/anaconda-webui/index.js.gz
-none() { "$@"; [ $? -eq 1 ]; }
-ok "installer title name is EasySpeakOS (no dash)" "grep -qx \"PRETTY_NAME=\\\"EasySpeakOS\\\"\" /usr/lib/os-release && grep -qx \"EasySpeakOS release 44\" /etc/system-release"
-ok "installer: Beta badge"                         "zgrep -qF \"gg(\\\"Beta\\\")\" \$w && zgrep -qF \"EasySpeakOS is in beta\" \$w"
-ok "installer: no Fedora text or links"            "none zgrep -q Fedora /usr/share/cockpit/anaconda-webui/*.js.gz && none zgrep -qF fedoraproject.org/ \$w"
-ok "installer: no \"EasySpeak-OS\" anywhere"       "none zgrep -q EasySpeak-OS /usr/share/cockpit/anaconda-webui/*.js.gz"
-ok "installer: no feedback QR code"                "[ ! -e /usr/share/cockpit/anaconda-webui/qr-code-feedback.svg ]"
-ok "installer: problem reports go to GitHub"       "zgrep -qF github.com/ctsdownloads/easyspeak-os/issues/new \$w"
-ok "installer: EasySpeakOS logo at the top"        "[ -s /usr/share/cockpit/branding/easyspeak-os/logo.svg ]"
-ok "installer launcher: Install EasySpeakOS"       "grep -qx \"Name=Install EasySpeakOS\" /usr/share/applications/liveinst.desktop"
-ok "welcome window: Install EasySpeakOS / Try it first" "grep -qF \"Install EasySpeakOS\" /usr/libexec/easyspeak-os-live-welcome && grep -qF \"Try it first\" /usr/libexec/easyspeak-os-live-welcome"
-ok "installer installs EasySpeakOS from the USB"   "grep -q \"^ostreecontainer --url=ghcr.io/ctsdownloads/easyspeak-os:latest \" /usr/share/anaconda/interactive-defaults.ks"
+i=/usr/lib/easyspeak-os-installer
+e=/usr/libexec/easyspeak-os-install-engine
+ok "system name is EasySpeakOS (no dash)"          "grep -qx \"PRETTY_NAME=\\\"EasySpeakOS\\\"\" /usr/lib/os-release && grep -qx \"EasySpeakOS release 44\" /etc/system-release"
+ok "no Fedora installer (Anaconda) on the USB"     "! rpm -q anaconda-core"
+ok "installer launcher: Install EasySpeakOS"       "grep -qx \"Name=Install EasySpeakOS\" /usr/share/applications/io.github.ctsdownloads.EasySpeakOS.Installer.desktop"
+ok "welcome window: Install EasySpeakOS / Try it first" "grep -qF \"Install EasySpeakOS\" /usr/libexec/easyspeak-os-live-welcome && grep -qF \"Try it first\" /usr/libexec/easyspeak-os-live-welcome && grep -qF /usr/bin/easyspeak-os-installer /usr/libexec/easyspeak-os-live-welcome"
+ok "installer: Beta badge and EasySpeakOS logo"    "grep -qF \"label=\\\"Beta\\\"\" \$i/easyspeak-os-installer && [ -s /usr/share/easyspeak-os-installer/logo-wide.svg ]"
+ok "installer: problem reports go to GitHub"       "grep -qF github.com/ctsdownloads/easyspeak-os/issues/new \$i/screens.py && command -v qrencode"
+ok "installer: disk changes only through its polkit action" "[ -x \$e ] && grep -qF \"<annotate key=\\\"org.freedesktop.policykit.exec.path\\\">\$e<\" /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.install.policy"
+ok "installer installs EasySpeakOS from the USB, with signed updates" "grep -qF \"IMAGE = \\\"ghcr.io/ctsdownloads/easyspeak-os:latest\\\"\" \$e && grep -qF containers-storage: \$e && grep -qF ostree-image-signed:docker:// \$e"
 ok "live session does not install Flathub apps" "[ \"\$(systemctl is-enabled easyspeak-os-flatpak-apps.service 2>/dev/null)\" != enabled ]"
 ok "USB boots the EasySpeakOS grub without shim, from EFI/BOOT and EFI/EasySpeakOS only, no Fedora" "! grep -rqi fedora /boot/efi && [ \"\$(ls /boot/efi/EFI | tr \"\\n\" \" \")\" = \"BOOT EasySpeakOS \" ] && [ \"\$(ls /boot/efi/EFI/BOOT)\" = BOOTX64.EFI ] && [ \"\$(ls /boot/efi/EFI/EasySpeakOS)\" = grubx64.efi ]"
 ok "copy to install is on the USB"                 "grep -qF ghcr.io/ctsdownloads/easyspeak-os:latest /var/lib/containers/storage/overlay-images/images.json"
@@ -79,7 +77,7 @@ if [ -n "$live" ]; then
   echo "== The live USB system and installer ($live)"
   echo "$out"
   fails=$((fails + $(grep -c '^FAIL' <<<"$out")))
-  [ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge 13 ] || { echo "FAIL: not all USB checks ran"; fails=$((fails+1)); }
+  [ "$(grep -c '^\(PASS\|FAIL\): ' <<<"$out")" -ge 11 ] || { echo "FAIL: not all USB checks ran"; fails=$((fails+1)); }
   # The copy on the USB must be exactly the system checked above.
   id=$(sudo podman image inspect "$sys" --format '{{.Id}}')
   if run_in "$live" "grep -qF $id /var/lib/containers/storage/overlay-images/images.json" >/dev/null 2>&1; then

@@ -1,0 +1,329 @@
+#!/usr/bin/python3 -I
+"""The part of the EasySpeakOS installer that changes the disk. Runs as root through pkexec (its polkit action is
+in io.github.ctsdownloads.easyspeak-os.install.policy, on the live USB only).
+
+Reads the choices as one JSON object on standard input, passwords included (they are never written anywhere but
+to the commands that need them, on their standard input). Writes one JSON object per line on standard output:
+{"progress": 0.4, "step": "..."}, {"pulse": true, "step": "..."} while bootc copies the system, {"done": true}, or
+{"error": "...", "log": LOG}. Everything it runs, and what that printed, goes to LOG, without the names typed (the
+log can be sent with a problem report).
+
+The install, as bootc's documentation sets out for an installer that does its own disk setup ("Using bootc install
+to-filesystem", bootc 1.16): an EFI system partition, a separate /boot (needed with LUKS), and the root
+filesystem, LUKS2-encrypted with the typed password when chosen; then `bootc install to-filesystem` from the copy of
+EasySpeakOS on the USB stick, pointed at the published image for updates, as Anaconda's bootc install does it.
+bootc is told not to finish the install, so the choices can be written into the new system's /etc and /var
+("Postprocessing after to-filesystem"); `bootc install finalize` then finishes it.
+"""
+import datetime
+import glob
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import zoneinfo
+
+sys.path.insert(0, "/usr/lib/easyspeak-os-installer")
+import data  # noqa: E402  (the installer's own helpers: which disk is which, the console keymaps, the log)
+
+IMAGE = "ghcr.io/ctsdownloads/easyspeak-os:latest"
+SIGNED = f"ostree-image-signed:docker://{IMAGE}"
+TARGET = "/run/easyspeak-os-install/target"
+OPENED = []                  # the encrypted volume this install opened, to close again at the end
+PRIVATE = []                 # what was typed (names), kept out of the log
+
+
+class Stop(Exception):
+    """A step failed; the message is what the person is shown."""
+
+
+def say(**what):
+    print(json.dumps(what), flush=True)
+
+
+def log(text):
+    for value in PRIVATE:
+        text = re.sub(rf"\b{re.escape(value)}\b", "(typed)", text)
+    with open(data.LOG, "a") as f:
+        f.write(text.rstrip("\n") + "\n")
+
+
+def run(*args, feed=None, secret=None, check=True, problem=None):
+    """Run a command, logging it and its output. feed goes on its standard input and is logged; secret goes on its
+    standard input and is never logged."""
+    log(f"$ {shlex.join(args)}" + ("   (with a password on standard input)" if secret is not None else "")
+        + (f"   <<<\n{feed}" if feed is not None else ""))
+    r = subprocess.run(args, input=secret if secret is not None else feed, capture_output=True, text=True)
+    if r.stdout.strip() or r.stderr.strip():
+        log((r.stdout + r.stderr).rstrip())
+    if check and r.returncode != 0:
+        said = (r.stderr or r.stdout).strip().splitlines()
+        raise Stop(problem or f"{args[0]} did not finish" + (f": {said[-1]}" if said else "."))
+    return r
+
+
+def chosen_disk(c):
+    """The disk chosen, checked again: still one the installer offers (not the USB stick, not read-only), and still
+    the same disk (a stick pulled out and another put in can take its name)."""
+    disk = next((d for d in data.other_disks() if d["path"] == c["disk"]), None)
+    if disk is None:
+        raise Stop(f"The disk {c['disk']} was not found, or can't be written to.")
+    if data.identity(disk) != c["disk_identity"]:
+        raise Stop(f"{c['disk']} is not the disk that was chosen any more. Go back and choose the disk again.")
+    return disk["path"]
+
+
+def partitions(disk):
+    """The disk's partitions, in order."""
+    return [c["path"] for c in data.lsblk(disk)[0].get("children") or [] if c["type"] == "part"]
+
+
+def free_disk(disk):
+    """Nothing on the disk may be in use: unmount it, stop swap on it, and close what was opened from it
+    (encrypted volumes, LVM volumes, RAID arrays)."""
+    def walk(dev):
+        for child in dev.get("children") or []:
+            yield from walk(child)
+        yield dev
+
+    done = set()
+    for dev in walk(data.lsblk(disk)[0]):
+        if dev["path"] in done:          # a RAID array shows under each of its disks' partitions
+            continue
+        done.add(dev["path"])
+        for mp in filter(None, dev.get("mountpoints") or []):
+            if mp == "[SWAP]":
+                run("swapoff", dev["path"], problem=f"{dev['path']} is in use as swap and could not be freed.")
+            else:
+                run("umount", mp, problem=f"{mp} on this disk is in use and could not be freed.")
+        if dev["type"] == "crypt":
+            run("cryptsetup", "close", dev["path"], problem=f"{dev['path']} is open and could not be closed.")
+        elif dev["type"] == "lvm":
+            run("dmsetup", "remove", dev["path"], problem=f"{dev['path']} is in use and could not be closed.")
+        elif dev["type"].startswith("raid"):
+            run("mdadm", "--stop", dev["path"], problem=f"{dev['path']} is in use and could not be stopped.")
+
+
+def console_keymap(layout):
+    name = data.keymap_name(layout)
+    if not os.path.exists(f"{data.KEYMAPS}/{name}.map.gz"):
+        raise Stop(f"There is no start-up keyboard layout for {layout}.")
+    return name
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write(text)
+    log(f"wrote {path}")
+
+
+def install(c):
+    disk = chosen_disk(c)
+    keymap = console_keymap(c["boot_layout"])
+    if not c["time_automatic"]:
+        set_clock(c)                     # first, so the new system's files are dated by the clock as set
+
+    say(progress=0.02, step="Freeing the disk")
+    free_disk(disk)
+    say(progress=0.05, step="Erasing the disk")
+    for part in partitions(disk):
+        run("wipefs", "--all", "--force", part)
+    run("wipefs", "--all", "--force", disk)
+    say(progress=0.08, step="Making the partitions")
+    run("sfdisk", "--wipe", "always", "--wipe-partitions", "always", disk,
+        feed="label: gpt\nsize=600MiB, type=U, name=\"EFI System\"\nsize=1GiB, type=L, name=boot\n"
+             "type=L, name=root\n")
+    run("udevadm", "settle")
+    parts = partitions(disk)
+    if len(parts) != 3:
+        raise Stop("The new partitions did not show up.")
+    esp, boot, root = parts
+
+    say(progress=0.12, step="Formatting")
+    run("mkfs.fat", "-F", "32", "-n", "EFI", esp)
+    run("mkfs.ext4", "-q", "-F", "-L", "boot", boot)
+    # As Anaconda: "rhgb quiet" for the start-up splash, and "nomodeset" kept when the USB was started with it
+    # (EasySpeakOS Live, basic graphics), as those computers need it installed too.
+    kargs = ["rhgb", "quiet", f"vconsole.keymap={keymap}"]
+    with open("/proc/cmdline") as f:
+        if "nomodeset" in f.read().split():
+            kargs.append("nomodeset")
+    root_fs = root
+    if c["encrypt"]:
+        say(progress=0.15, step="Encrypting the disk")
+        run("cryptsetup", "luksFormat", "--type", "luks2", "--batch-mode", "--key-file=-", root,
+            secret=c["disk_password"])
+        uuid = run("cryptsetup", "luksUUID", root).stdout.strip()
+        run("cryptsetup", "open", "--key-file=-", root, f"luks-{uuid}", secret=c["disk_password"])
+        OPENED.append(f"luks-{uuid}")
+        root_fs = f"/dev/mapper/luks-{uuid}"
+        kargs.append(f"rd.luks.uuid=luks-{uuid}")      # the form System Tools' automatic unlock looks for
+    run("mkfs.xfs", "-q", "-f", "-L", "root", root_fs)
+
+    os.makedirs(TARGET, exist_ok=True)
+    run("mount", root_fs, TARGET)
+    os.makedirs(f"{TARGET}/boot")
+    run("mount", boot, f"{TARGET}/boot")
+    os.makedirs(f"{TARGET}/boot/efi")
+    run("mount", esp, f"{TARGET}/boot/efi")
+    boot_uuid = run("blkid", "-s", "UUID", "-o", "value", boot).stdout.strip()
+
+    # As Anaconda's bootc install: bootc expects this file on the system it runs from (bootc issues 1400, 1410).
+    if not os.path.exists("/etc/ostree/prepare-root.conf"):
+        write("/etc/ostree/prepare-root.conf", "[ostree]\nsysroot=/sysroot\n")
+
+    say(pulse=True, step="Copying EasySpeakOS to the disk")
+    # --bootloader=grub as Anaconda passes it (bootc issue 1778); --skip-finalize leaves the new system writable
+    # for the settings below.
+    run("bootc", "install", "to-filesystem", "--bootloader=grub", "--skip-finalize",
+        *[f"--karg={k}" for k in kargs], f"--boot-mount-spec=UUID={boot_uuid}",
+        f"--source-imgref=containers-storage:{IMAGE}", f"--target-imgref={IMAGE}", TARGET,
+        problem="Copying EasySpeakOS to the disk failed.")
+
+    say(progress=0.85, step="Setting up the new system")
+    configure(c, keymap)
+    say(progress=0.95, step="Finishing")
+    run("bootc", "install", "finalize", TARGET, problem="The install could not be finished.")
+
+
+def configure(c, keymap):
+    """Write the choices into the new system: the deployment's /etc, its /var, and its users."""
+    deploy = run("ostree", "admin", f"--sysroot={TARGET}", "--print-current-dir").stdout.strip()
+    if not deploy.startswith(TARGET):
+        deploy = TARGET + deploy
+    stateroot = deploy.split("/ostree/deploy/")[1].split("/")[0]
+    etc = f"{deploy}/etc"
+
+    # Updates come signed from GitHub: bootc wrote the unsigned image name, as given to it.
+    for origin in glob.glob(f"{TARGET}/ostree/deploy/*/deploy/*.origin"):
+        with open(origin) as f:
+            text = f.read()
+        text, found = re.subn(r"(?m)^container-image-reference=.*$", f"container-image-reference={SIGNED}", text)
+        if found != 1:
+            raise Stop("The new system could not be set to take signed updates.")
+        write(origin, text)
+
+    write(f"{etc}/locale.conf", f"LANG={c['locale']}\n")
+    write(f"{etc}/vconsole.conf", f"KEYMAP={keymap}\n")
+    layouts = [(k.split("(")[0], k.split("(")[1].rstrip(")") if "(" in k else "") for k in c["layouts"]]
+    write(f"{etc}/X11/xorg.conf.d/00-keyboard.conf",
+          'Section "InputClass"\n        Identifier "system-keyboard"\n        MatchIsKeyboard "on"\n'
+          f'        Option "XkbLayout" "{",".join(lay for lay, _v in layouts)}"\n'
+          + (f'        Option "XkbVariant" "{",".join(v for _l, v in layouts)}"\n' if any(v for _l, v in layouts)
+             else "") + "EndSection\n")
+    write(f"{etc}/hostname", c["hostname"] + "\n")
+
+    if c["timezone"]:
+        if c["timezone"] not in zoneinfo.available_timezones():
+            raise Stop(f"Unknown time zone {c['timezone']}.")
+        if os.path.lexists(f"{etc}/localtime"):
+            os.remove(f"{etc}/localtime")
+        os.symlink(f"../usr/share/zoneinfo/{c['timezone']}", f"{etc}/localtime")
+    if c["time_servers"]:
+        with open(f"{etc}/chrony.conf") as f:
+            conf = f.read()
+        conf = re.sub(r"(?m)^(pool|server) .*\n", "", conf)
+        write(f"{etc}/chrony.conf", "".join(f"server {s} iburst\n" for s in c["time_servers"]) + conf)
+    if not c["time_automatic"]:
+        # A preset in /etc, so the first start's preset run doesn't switch time sync back on.
+        write(f"{etc}/systemd/system-preset/10-easyspeak-os-install.preset", "disable chronyd.service\n")
+        for link in glob.glob(f"{etc}/systemd/system/*.wants/chronyd.service"):
+            os.remove(link)
+
+    gnome = f"[org/gnome/desktop/interface]\nclock-format='{'24h' if c['clock_24'] else '12h'}'\n"
+    if not c["timezone"]:
+        gnome += "\n[org/gnome/desktop/datetime]\nautomatic-timezone=true\n"
+    with open(f"{etc}/dconf/profile/user") as f:
+        if "system-db:local" not in f.read().split():
+            raise Stop("The new system's settings database could not be found.")
+    write(f"{etc}/dconf/db/local.d/00-easyspeak-os-install", gnome)
+
+    if c["admin"]:
+        add_group(deploy, "wheel")
+
+    say(progress=0.9, step="Creating your account")
+    var = f"{TARGET}/ostree/deploy/{stateroot}/var"
+    os.makedirs(f"{var}/home", exist_ok=True)
+    mounts = [("--bind", var, "var"), ("--bind", "/proc", "proc"), ("--rbind", "/sys", "sys"),
+              ("--rbind", "/dev", "dev")]
+    try:
+        for how, src, dst in mounts:
+            run("mount", how, src, f"{deploy}/{dst}")
+        chroot = ("chroot", deploy)
+        run(*chroot, "useradd", "--create-home", "--comment", c["full_name"],
+            *(["--groups", "wheel"] if c["admin"] else []), c["username"], problem="Your account could not be made.")
+        run(*chroot, "chpasswd", secret=f"{c['username']}:{c['user_password']}\n",
+            problem="Your account's password could not be set.")
+        if c["root_password"]:
+            run(*chroot, "chpasswd", secret=f"root:{c['root_password']}\n",
+                problem="The root password could not be set.")
+        run(*chroot, "dconf", "update", problem="The clock and time zone settings could not be saved.")
+        # Files written from here have no SELinux labels yet; label them as the new system's policy says.
+        run(*chroot, "restorecon", "-RF", "/etc", "/var/home", problem="The new files could not be labelled.")
+    finally:
+        for _how, _src, dst in reversed(mounts):
+            run("umount", "--recursive", "--lazy", f"{deploy}/{dst}", check=False)
+
+
+def add_group(deploy, name):
+    """useradd only reads /etc/group; on an image-based system a group can be only in /usr/lib/group. Copy its line
+    across, as the system would on its first start."""
+    with open(f"{deploy}/etc/group") as f:
+        if any(line.split(":")[0] == name for line in f):
+            return
+    with open(f"{deploy}/usr/lib/group") as f:
+        line = next((line for line in f if line.split(":")[0] == name), None)
+    if line is None:
+        raise Stop(f"The new system has no {name} group.")
+    with open(f"{deploy}/etc/group", "a") as f:
+        f.write(line if line.endswith("\n") else line + "\n")
+    log(f"copied the {name} group into /etc/group")
+
+
+def set_clock(c):
+    """The date and time set by hand, in the chosen time zone (UTC with an automatic one), into the hardware clock."""
+    when = datetime.datetime.fromisoformat(c["manual_time"]).replace(
+        tzinfo=zoneinfo.ZoneInfo(c["timezone"] or "UTC"))
+    run("date", "--set", f"@{int(when.timestamp())}")
+    run("hwclock", "--systohc", "--utc")
+
+
+def unmount():
+    run("umount", "--recursive", TARGET, check=False)
+    for name in OPENED:
+        run("cryptsetup", "close", name, check=False)
+
+
+def main():
+    c = json.loads(sys.stdin.read())
+    PRIVATE.extend(v for v in (c["full_name"], c["username"], c["hostname"]) if v)
+    with open(data.LOG, "w") as f:
+        f.write(f"EasySpeakOS install, {datetime.datetime.now():%Y-%m-%d %H:%M}\n")
+    os.chmod(data.LOG, 0o644)
+    log("choices: " + json.dumps({k: v for k, v in c.items()
+                                  if "password" not in k and k not in ("full_name", "username", "hostname",
+                                                                       "disk_identity")}))
+    try:
+        install(c)
+    except Stop as e:
+        log(f"STOPPED: {e}")
+        unmount()
+        say(error=str(e), log=data.LOG)
+        return 1
+    except Exception as e:                 # anything unforeseen still ends on the error screen, with the details
+        log(f"STOPPED: {type(e).__name__}: {e}")
+        unmount()
+        say(error=f"Something unexpected went wrong: {e}", log=data.LOG)
+        return 1
+    unmount()
+    log("done")
+    say(progress=1.0, step="Done")
+    say(done=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

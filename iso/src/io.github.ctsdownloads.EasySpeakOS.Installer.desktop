@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Install EasySpeakOS
+Comment=Put EasySpeakOS on this computer
+Exec=/usr/bin/easyspeak-os-installer
+Icon=easyspeak-os-installer
+Terminal=false
+Categories=System;
+StartupNotify=true

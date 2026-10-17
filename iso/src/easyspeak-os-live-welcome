@@ -10,5 +10,5 @@ done
 $DIALOG --question --title="Welcome to EasySpeakOS" --width=560 \
   --ok-label="Install EasySpeakOS" --cancel-label="Try it first" \
   --text="Welcome to EasySpeakOS. Answer this window by saying a button's name.\n\nThis is a live session: it runs from the USB stick, nothing here is saved, and the computer's disk isn't touched.\n\nRecommended: Install EasySpeakOS, to put it on this computer. Or Try it first: Install EasySpeakOS is also in the dock." \
-  && exec liveinst
+  && exec /usr/bin/easyspeak-os-installer
 exit 0

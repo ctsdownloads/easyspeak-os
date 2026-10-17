@@ -5,20 +5,25 @@ Repair App Boxes, System Update, Install Media Codecs) are opened through easysp
 open window in $XDG_RUNTIME_DIR/easyspeak-os/dialogs/. While one is open:
   - say a button's name ("set up and install", "open it", "cancel") to press it;
   - say "number two" (or the name on a line) to pick a line in a list;
+  - say "letter g" to scroll a long list to its first line starting with G (windows that say they can: "letters");
   - say "read it" to hear the window and the buttons you can say.
   - say "next" or "continue" to go on, in a window whose main button only moves forward (Start, Next, Test, OK).
 Apostrophes don't matter, and "do not" counts as "don't", since speech recognition writes them either way.
 When EasySpeak has loaded its plugins, setup() leaves a note (easyspeak-ready, holding EasySpeak's process
 number) next to the windows' descriptions, so the setup checklist can wait to open until voice works.
 When no such window is open this plugin takes no commands at all, so it never gets in the way of anything else.
-It never speaks on its own: a window read aloud by itself would be heard by the open microphone, and could press
-one of its own buttons. English phrases only.
+It reads a window only when asked: a window read aloud by itself would be heard by the open microphone, and could
+press one of its own buttons. Two exceptions, for the EasySpeakOS installer: a screen reached by voice can carry
+"announce", said as the reply in place of the button's name (so it is drained like any reply before EasySpeak
+listens again); and PID.announce, said whenever it appears, which by design names no button. English phrases only.
 """
 
 import glob
 import json
 import os
 import re
+import threading
+import time
 
 NAME = "easyspeak-os dialogs"
 DESCRIPTION = "Answer EasySpeakOS windows by voice (EasySpeakOS)"
@@ -28,6 +33,7 @@ COMMANDS = [
     "open it, cancel",
     "read it - hear what an open EasySpeakOS window says, and the buttons you can say",
     "number one / number two - pick that line in an EasySpeakOS list window",
+    "letter a / letter b - scroll a long list in the EasySpeakOS installer to the lines starting with that letter",
     "next / continue - go on, when the window's main button is Start, Next, Test or OK",
 ]
 
@@ -63,7 +69,10 @@ HELP_SOFTWARE = [
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")
 NUMBERS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
-           "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
+           "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80,
+        "ninety": 90}
+LETTER = re.compile(r"^letter ([a-z])$")
 READ = re.compile(r"^(read (it|this|that|the window|the question|it out|it again)|what does it say)$")
 LEAD = re.compile(r"^(please |click |press |choose |select |pick |say |the )+")
 TRAIL = re.compile(r"( button| please)+$")
@@ -90,6 +99,41 @@ def setup(core):
             f.write(str(os.getpid()))
     except OSError:
         pass
+    threading.Thread(target=say_announcements, args=(core,), daemon=True).start()
+
+
+def say_announcements(core):
+    """Say each PID.announce a window leaves (the installer: finished, or stopped), once."""
+    while True:
+        for path in glob.glob(os.path.join(DIALOGS, "*.announce")):
+            try:
+                with open(path) as f:
+                    text = f.read().strip()
+                os.remove(path)
+            except OSError:
+                continue
+            if text:
+                core.speak(text)
+        time.sleep(1)
+
+
+def announcement(info, wait=1.0):
+    """After a press: what the window's next screen announces (the installer's Review), or "". Only the installer
+    announces; a window that closes or doesn't change in time announces nothing."""
+    if info.get("mode") != "installer":
+        return ""
+    path = os.path.join(DIALOGS, f"{info['pid']}.json")
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        try:
+            with open(path) as f:
+                now = json.load(f)
+        except (OSError, ValueError):
+            return ""
+        if now.get("time", 0) > info.get("time", 0):
+            return now.get("announce", "")
+        time.sleep(0.05)
+    return ""
 
 
 def open_window():
@@ -115,11 +159,25 @@ def answer(info, what):
 
 
 def number(words):
-    """'number two', 'two', '2', 'line 2' -> 2; or None."""
+    """'number two', 'two', '2', 'line 2' -> 2; up to 999 in words, as long lists need: 'one hundred and five'
+    -> 105, 'twenty one' -> 21. None when the words are not a number."""
     words = re.sub(r"^(number|line|item|row) ", "", words)
     if words.isdigit():
         return int(words)
-    return NUMBERS.index(words) if words in NUMBERS else None
+    left = [w for w in words.replace("-", " ").split() if w != "and"]
+    value = 0
+    if len(left) >= 2 and left[1] == "hundred" and (left[0] == "a" or left[0] in NUMBERS[1:10]):
+        value = 100 * (1 if left[0] == "a" else NUMBERS.index(left[0]))
+        left = left[2:]
+    if left and left[0] in TENS:
+        value += TENS[left.pop(0)]
+        if left and left[0] in NUMBERS[1:10]:
+            value += NUMBERS.index(left.pop(0))
+    elif left and left[0] in NUMBERS:
+        value += NUMBERS.index(left.pop(0))
+    elif not value:
+        return None
+    return None if left else value
 
 
 def spoken_buttons(info):
@@ -145,8 +203,10 @@ def handle(cmd, core):
             text = text[:700].rsplit(" ", 1)[0] + "..."
         parts = [text] if text else []
         if info.get("rows"):
-            names = [r["say"] for r in info["rows"][:9]]
-            parts.append(f"The list has: " + ", ".join(f"number {i}, {n}" for i, n in enumerate(names, 1)) + ".")
+            first = info.get("first_shown", 0)      # a scrolled list: read the lines on screen
+            names = [r["say"] for r in info["rows"][first:first + 9]]
+            parts.append("The list has: " + ", ".join(f"number {i}, {n}" for i, n in enumerate(names, first + 1))
+                         + ".")
         if info["buttons"]:
             parts.append(f"You can say: {spoken_buttons(info)}.")
         core.speak(" ".join(parts) or "This window has nothing to read.")
@@ -167,10 +227,15 @@ def handle(cmd, core):
         button = next((b for b in info["buttons"] if b["does"] == "ok" and norm(b["say"]) in FORWARD), None)
     if button is not None:
         answer(info, button["does"])
-        core.speak(button["say"] + ".")
+        core.speak(announcement(info) or button["say"] + ".")
         return True
 
     rows = info.get("rows") or []
+    letter = LETTER.match(said)
+    if rows and letter and info.get("letters"):
+        answer(info, f"letter:{letter.group(1)}")
+        core.speak(f"Letter {letter.group(1).upper()}.")
+        return True
     if rows:
         n = number(said)
         pick = n - 1 if n and 1 <= n <= len(rows) else next(

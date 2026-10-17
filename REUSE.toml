@@ -37,6 +37,18 @@ precedence = "override"
 SPDX-FileCopyrightText = ["Universal Blue contributors", "2026 Matt Hartley"]
 SPDX-License-Identifier = "Apache-2.0"
 
+# The EasySpeakOS installer on the live USB is this project's own work, not from titanoboa: GPL-3.0-or-later.
+[[annotations]]
+path = [
+    "iso/src/easyspeak-os-installer/**",
+    "iso/src/easyspeak-os-install-engine",
+    "iso/src/io.github.ctsdownloads.EasySpeakOS.Installer.desktop",
+    "iso/src/io.github.ctsdownloads.easyspeak-os.install.policy",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Matt Hartley"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
 # The Ready Dot GNOME Shell extension runs inside GNOME Shell (GPL-2.0-or-later), so it uses that license.
 [[annotations]]
 path = "system_files/usr/share/gnome-shell/extensions/ready-dot@easyspeak-os/**"

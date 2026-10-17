@@ -1,0 +1,238 @@
+#!/usr/bin/python3
+"""The EasySpeakOS installer on the live USB. Every choice can be said; only passwords are typed.
+
+One window, one screen at a time (screens.py). At the top: the EasySpeakOS name and logo, the Beta badge and
+which step this is. At the bottom: the buttons, which are also what can be said. EasySpeak answers the window
+through voice.py, the same way it answers every EasySpeakOS window.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, GdkPixbuf, Gio, GLib, Gtk  # noqa: E402
+
+import screens  # noqa: E402
+from voice import Voice  # noqa: E402
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+LOGO = "/usr/share/easyspeak-os-installer/logo-wide.svg"     # build_files/branding/logo-EasySpeak-wide.svg
+HINT = "Say a number, a name or a button. Say Read it to hear this screen."
+
+
+class InstallerWindow(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Install EasySpeakOS", default_width=980, default_height=760)
+        self.choices = screens.Choices()
+        self.returning = False                 # changing one thing from Review: Next goes back there
+
+        header = Adw.HeaderBar(css_classes=["brand"], show_title=True)
+        brand = Gtk.Box(spacing=12)
+        # Drawn at the bar's height: a picture of the SVG at its own size (1195x270) would make the bar that tall.
+        scale = self.get_scale_factor()
+        logo = GdkPixbuf.Pixbuf.new_from_file_at_scale(LOGO, -1, 34 * scale, True)
+        picture = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(logo))
+        picture.set_size_request(logo.get_width() // scale, 34)
+        brand.append(picture)
+        brand.append(Gtk.Label(label="Beta", css_classes=["beta"], valign=Gtk.Align.CENTER))
+        header.pack_start(brand)
+        header.set_title_widget(Gtk.Label())
+        self.step = Gtk.Label(css_classes=["step"])
+        header.pack_end(self.step)
+
+        self.heading = Gtk.Label(xalign=0, wrap=True, css_classes=["title-1"])
+        self.intro = Gtk.Label(xalign=0, wrap=True, css_classes=["intro"])
+        self.status = Gtk.Label(xalign=0, wrap=True, css_classes=["status"])
+        self.stack = Gtk.Stack(vexpand=True)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin_top=24, margin_bottom=12,
+                       margin_start=24, margin_end=24, vexpand=True)
+        for w in (self.heading, self.intro, self.status, self.stack):
+            page.append(w)
+        clamp = Adw.Clamp(maximum_size=760, child=page, vexpand=True, valign=Gtk.Align.FILL)
+
+        self.buttons = Gtk.Box(spacing=10, halign=Gtk.Align.END, hexpand=True)
+        bottom = Gtk.Box(spacing=12, margin_top=12, margin_bottom=12, margin_start=24, margin_end=24)
+        bottom.append(Gtk.Label(label=HINT, xalign=0, wrap=True, css_classes=["hint"], hexpand=True))
+        bottom.append(self.buttons)
+
+        view = Adw.ToolbarView(content=clamp)
+        view.add_top_bar(header)
+        view.add_bottom_bar(bottom)
+        self.set_content(view)
+
+        self.screens = {}
+        self.voice = Voice(self.answer)
+        self.installing = False
+        self.connect("close-request", self.closing)
+        self.show_screen(screens.STEPS[0])
+
+    # ------------------------------------------------------------------ navigation
+
+    def screen(self, cls):
+        if cls not in self.screens:
+            self.screens[cls] = cls(self)
+            self.stack.add_child(self.screens[cls].body)
+        return self.screens[cls]
+
+    def show_screen(self, cls):
+        self.current = self.screen(cls)
+        self.current.enter()
+        self.stack.set_visible_child(self.current.body)
+        self.update()
+
+    def go_next(self):
+        cls = type(self.current)
+        if self.returning and cls not in (screens.DiskScreen, screens.EraseScreen):
+            self.show_screen(screens.ReviewScreen)
+            return
+        self.show_screen(screens.STEPS[screens.STEPS.index(cls) + 1])
+        if type(self.current) is screens.ReviewScreen:
+            self.returning = False
+
+    def go_back(self):
+        if self.current.go_back():
+            return
+        cls = type(self.current)
+        if self.returning:
+            self.returning = False
+            self.show_screen(screens.ReviewScreen)
+        elif cls in screens.STEPS and screens.STEPS.index(cls) > 0:
+            self.show_screen(screens.STEPS[screens.STEPS.index(cls) - 1])
+
+    def change(self, cls):
+        """From Review: show one screen; Next comes back to Review."""
+        self.returning = True
+        self.show_screen(cls)
+
+    def install(self):
+        self.installing = True
+        self.show_screen(screens.InstallingScreen)
+        self.current.start()
+
+    def install_done(self):
+        self.installing = False
+        self.show_screen(screens.DoneScreen)
+        self.voice.announce("The install is finished. Take out the USB stick, then say read it.")
+
+    def install_failed(self, problem, log):
+        self.installing = False
+        self.screen(screens.ErrorScreen).failed(problem, log)
+        self.show_screen(screens.ErrorScreen)
+        self.voice.announce("The install stopped. Nothing more was changed. Say read it to hear what you can do.")
+
+    def closing(self, *_):
+        """The window can't be closed while the disk is being written."""
+        if self.installing:
+            return True
+        self.voice.close()
+        return False
+
+    # ------------------------------------------------------------------ what is shown, and what can be said
+
+    def update(self):
+        s = self.current
+        cls = type(s)
+        if cls in screens.STEPS:
+            self.step.set_text(f"Step {screens.STEPS.index(cls) + 1} of {len(screens.STEPS)}: {s.step}")
+        else:
+            self.step.set_text("")
+        self.heading.set_text(s.title)
+        self.intro.set_text(s.intro)
+        status = s.status()
+        self.status.set_text(status)
+        self.status.set_visible(bool(status) and not isinstance(s, (screens.EraseScreen, screens.ReviewScreen)))
+
+        child = self.buttons.get_first_child()
+        while child:
+            self.buttons.remove(child)
+            child = self.buttons.get_first_child()
+        self.pressable = {}
+        said = []
+        if s.back or self.returning:
+            self._button("Back", self.go_back, said, "extra:Back")
+        if isinstance(s, screens.ListScreen) and s.long():
+            self._button("Page up", lambda: s.list.page(-1), said, "extra:Page up")
+            self._button("Page down", lambda: s.list.page(1), said, "extra:Page down")
+        for name, do in s.actions():
+            self._button(name, do, said, f"extra:{name}",
+                         css="destructive-action" if name == s.danger else "suggested-action" if name == s.main else None)
+        if s.next_label:
+            b = self._button(s.next_label, self.go_next, said, "ok", css="suggested-action")
+            b.set_sensitive(s.ready())
+
+        self.said = said
+        self.describe()
+
+    def describe(self):
+        """Tell EasySpeak what the screen shows and what can be said; again when a list scrolls."""
+        s = getattr(self, "current", None)
+        if s is None or not hasattr(self, "said"):
+            return
+        text = f"{s.title}{'' if s.title.endswith('?') else '.'} {s.intro} {s.status()}"
+        is_list = isinstance(s, screens.ListScreen)
+        self.voice.describe(s.title, text, self.said, s.lines(), first_shown=s.list.first_shown() if is_list else 0,
+                            letters=is_list and s.long(), announce=s.announce())
+
+    def _button(self, name, do, said, does, css=None):
+        b = Gtk.Button(label=name, css_classes=["pill"] + ([css] if css else []))
+        b.connect("clicked", lambda *_: do())
+        self.buttons.append(b)
+        self.pressable[does] = b
+        said.append((name, does))
+        return b
+
+    def answer(self, said):
+        """What EasySpeak pressed or picked: the same as clicking it."""
+        if said.startswith("letter:") and isinstance(self.current, screens.ListScreen):
+            self.current.list.jump(said[7:], self.current.alphabetical_from())
+            return
+        if said.startswith("row:") and said[4:].isdigit():
+            i = int(said[4:])
+            if i < len(self.current.lines()):
+                if isinstance(self.current, screens.ListScreen):
+                    self.current.list.select(i)
+                else:
+                    self.current.pick(i)
+            return
+        button = self.pressable.get(said)
+        if button is not None and button.get_sensitive():
+            button.emit("clicked")
+
+
+class Installer(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="io.github.ctsdownloads.EasySpeakOS.Installer",
+                         flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+
+    def do_startup(self):
+        Adw.Application.do_startup(self)
+        self.styles = {}
+        for name in ("style.css", "style-dark.css"):
+            p = Gtk.CssProvider()
+            p.load_from_path(os.path.join(HERE, name))
+            self.styles[name] = p
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), self.styles["style.css"],
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        manager = Adw.StyleManager.get_default()
+        manager.connect("notify::dark", self._dark)
+        self._dark(manager)
+
+    def _dark(self, manager, *_):
+        display = Gdk.Display.get_default()
+        if manager.get_dark():
+            Gtk.StyleContext.add_provider_for_display(display, self.styles["style-dark.css"],
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        else:
+            Gtk.StyleContext.remove_provider_for_display(display, self.styles["style-dark.css"])
+
+    def do_activate(self):
+        (self.get_active_window() or InstallerWindow(self)).present()
+
+
+if __name__ == "__main__":
+    GLib.set_prgname("easyspeak-os-installer")
+    sys.exit(Installer().run(sys.argv))

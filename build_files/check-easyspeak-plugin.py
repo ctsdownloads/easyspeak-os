@@ -102,4 +102,17 @@ if dialog:
     (folder / f"{os.getpid()}.answer").unlink()
     assert dialogs.handle("discord", Core()) is True and \
         (folder / f"{os.getpid()}.answer").read_text() == "row:1", "a line's name does not pick it"
+# Long lists (the installer's): numbers in words up to 999, and "letter g" only in windows that ask for it.
+assert dialogs.number("one hundred and five") == 105 and dialogs.number("twenty one") == 21 and \
+    dialogs.number("number two") == 2 and dialogs.number("one two") is None, "numbers in words read wrong"
+(folder / f"{os.getpid()}.answer").unlink(missing_ok=True)
+rows = [{"say": f"Line {n}", "value": str(n), "text": f"Line {n}"} for n in range(30)]
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 3, "text": "A long list.", "rows": rows, "buttons": [], "letters": True}))
+assert dialogs.handle("letter g", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "letter:g", "'letter g' does not scroll a long list"
+(folder / f"{os.getpid()}.answer").unlink()
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 4, "text": "A list.", "rows": rows, "buttons": []}))
+assert dialogs.handle("letter g", Core()) is None, "'letter g' taken by a window that doesn't scroll by letter"
 print("easyspeak_os_dialogs loads and works")

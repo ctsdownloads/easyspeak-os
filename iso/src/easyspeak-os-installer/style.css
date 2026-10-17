@@ -1,0 +1,41 @@
+/* EasySpeakOS's colors, as on the current installer's pages: #4facfe light, #1f6fd1 default, #144a8c dark. */
+@define-color accent_bg_color #1f6fd1;
+@define-color accent_color #144a8c;
+@define-color accent_fg_color #ffffff;
+
+headerbar.brand {
+  background: linear-gradient(90deg, #144a8c, #1f6fd1);
+  color: #ffffff;
+  min-height: 56px;
+}
+headerbar.brand .step { font-weight: 600; opacity: 0.9; }
+headerbar.brand windowcontrols button { color: #ffffff; }
+
+.beta {
+  background: #e66100;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+.intro { font-size: 1.1em; }
+.status { font-weight: 700; color: @accent_color; }
+.hint { opacity: 0.7; }
+
+.line-number {
+  min-width: 2.2em;
+  min-height: 2.2em;
+  border-radius: 999px;
+  background: alpha(@accent_bg_color, 0.12);
+  color: @accent_color;
+  font-weight: 700;
+}
+row.chosen { background: alpha(@accent_bg_color, 0.12); }
+row.chosen .line-number { background: @accent_bg_color; color: @accent_fg_color; }
+.chosen-mark { color: @accent_color; }
+
+.erase-warning { color: @destructive_color; }
+
+button.pill { padding: 8px 22px; font-size: 1.05em; }
