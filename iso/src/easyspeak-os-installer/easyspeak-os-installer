@@ -116,7 +116,7 @@ class InstallerWindow(Adw.ApplicationWindow):
     def install_done(self):
         self.installing = False
         self.show_screen(screens.DoneScreen)
-        self.voice.announce("The install is finished. Take out the USB stick, then say read it.")
+        self.voice.announce("The install is finished. Say read it to hear what to do next.")
 
     def install_failed(self, problem, log):
         self.installing = False

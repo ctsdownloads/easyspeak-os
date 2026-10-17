@@ -16,6 +16,9 @@ REPOS="rpmfusion-free.repo rpmfusion-free-updates.repo"
 FREE="ffmpeg-free libavcodec-free libavdevice-free libavfilter-free libavformat-free libavutil-free libswresample-free libswscale-free"
 FULL="ffmpeg ffmpeg-libs libavdevice x264-libs x265-libs"
 WEB="openh264 mozilla-openh264 gstreamer1-plugin-openh264"
+# Fedora's empty stand-in for OpenH264, in the base image. A package added on top can't replace a base one, so
+# "web" removes it in the same step, and "remove" puts it back.
+STAND_IN="noopenh264"
 
 # Earlier EasySpeakOS builds used negativo17. These are only used to remove that setup cleanly.
 OLD_REPO=/etc/yum.repos.d/negativo17-multimedia.repo
@@ -58,7 +61,12 @@ run_logged() {
 }
 
 do_web() {
-  run_logged rpm-ostree install --idempotent $WEB
+  if [ -n "$(requested requested-base-removals $STAND_IN)" ]; then   # already chosen, booted or pending
+    echo "Web video is already installed. Restart if you have not yet."; return 0
+  fi
+  local cmd=(override remove $STAND_IN) p
+  for p in $WEB; do cmd+=(--install "$p"); done
+  run_logged rpm-ostree "${cmd[@]}"
 }
 
 do_full() {
@@ -84,7 +92,7 @@ do_full() {
 do_remove() {
   local uninstall resets old_replaced="" p cmd
   uninstall=$(requested requested-packages $FULL $OLD_FULL $WEB)
-  resets=$(requested requested-base-removals $FREE)
+  resets=$(requested requested-base-removals $FREE $STAND_IN)
   [ "$(rpm -q --qf '%{EPOCH}' xevd-libs 2>/dev/null)" = 1 ] && old_replaced="$OLD_REPLACE"
   if [ -n "$resets$old_replaced" ]; then
     cmd=(override reset $resets $old_replaced)

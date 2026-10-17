@@ -5,8 +5,8 @@ in io.github.ctsdownloads.easyspeak-os.install.policy, on the live USB only).
 Reads the choices as one JSON object on standard input, passwords included (they are never written anywhere but
 to the commands that need them, on their standard input). Writes one JSON object per line on standard output:
 {"progress": 0.4, "step": "..."}, {"pulse": true, "step": "..."} while bootc copies the system, {"done": true}, or
-{"error": "...", "log": LOG}. Everything it runs, and what that printed, goes to LOG, without the names typed (the
-log can be sent with a problem report).
+{"error": "...", "log": LOG}. Everything it runs, and what that printed, goes to LOG with the time, without the names
+typed (the log can be sent with a problem report).
 
 The install, as bootc's documentation sets out for an installer that does its own disk setup ("Using bootc install
 to-filesystem", bootc 1.16): an EFI system partition, a separate /boot (needed with LUKS), and the root
@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import zoneinfo
@@ -31,6 +32,7 @@ import data  # noqa: E402  (the installer's own helpers: which disk is which, th
 IMAGE = "ghcr.io/ctsdownloads/easyspeak-os:latest"
 SIGNED = f"ostree-image-signed:docker://{IMAGE}"
 TARGET = "/run/easyspeak-os-install/target"
+NETWORKS = "etc/NetworkManager/system-connections"   # NetworkManager's saved networks
 OPENED = []                  # the encrypted volume this install opened, to close again at the end
 PRIVATE = []                 # what was typed (names), kept out of the log
 
@@ -47,7 +49,7 @@ def log(text):
     for value in PRIVATE:
         text = re.sub(rf"\b{re.escape(value)}\b", "(typed)", text)
     with open(data.LOG, "a") as f:
-        f.write(text.rstrip("\n") + "\n")
+        f.write(f"{datetime.datetime.now():%H:%M:%S} {text.rstrip()}\n")
 
 
 def run(*args, feed=None, secret=None, check=True, problem=None):
@@ -215,6 +217,16 @@ def configure(c, keymap):
           + (f'        Option "XkbVariant" "{",".join(v for _l, v in layouts)}"\n' if any(v for _l, v in layouts)
              else "") + "EndSection\n")
     write(f"{etc}/hostname", c["hostname"] + "\n")
+
+    # The networks joined in the live session, Wi-Fi passwords included, so the new system is online from its first
+    # start. Root-only, as NetworkManager keeps them; their names stay out of the log.
+    saved = glob.glob(f"/{NETWORKS}/*.nmconnection")
+    os.makedirs(f"{deploy}/{NETWORKS}", mode=0o700, exist_ok=True)
+    for conn in saved:
+        dest = f"{deploy}/{NETWORKS}/{os.path.basename(conn)}"
+        shutil.copyfile(conn, dest)
+        os.chmod(dest, 0o600)
+    log(f"copied {len(saved)} saved network connection(s)")
 
     if c["timezone"]:
         if c["timezone"] not in zoneinfo.available_timezones():

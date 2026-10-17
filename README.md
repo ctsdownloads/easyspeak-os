@@ -176,7 +176,9 @@ computer's disk isn't touched until you install.
    is erased: the installer says so and goes on only when you say **Erase and
    install**. The **Review** at the end is read aloud; say a number to change
    that step, or **Install**. It installs EasySpeakOS from the copy on the USB
-   stick, with no download, and says when it's finished. The orange **Beta**
+   stick, with no download, and says when it's finished; then say
+   **Restart**. A Wi-Fi network joined during the install is saved on the new
+   system, so it is online from its first start. The orange **Beta**
    badge at the top says EasySpeakOS is in beta.
 
    On every screen: say a line's number (up to "nine hundred ninety nine") or
@@ -874,9 +876,10 @@ name; `easyspeak-os-codecs` and `install-codecs` also work):
     codecs full     # the full ffmpeg set
     codecs remove   # takes them out again
 
-- **Web video only** adds Cisco's OpenH264 from the Cisco repository that Fedora
-  provides, so Firefox can play most H.264 web video. Cisco provides it under its own H.264
-  patent license.
+- **Web video only** replaces Fedora's empty OpenH264 stand-in (`noopenh264`)
+  with Cisco's OpenH264 from the Cisco repository that Fedora provides, so Firefox
+  can play most H.264 web video. Cisco provides it under its own H.264 patent
+  license. `codecs remove` puts the stand-in back.
 - **Everything** replaces the free ffmpeg libraries from Fedora with the full ffmpeg,
   x264 and x265 from [RPM Fusion](https://rpmfusion.org/), the source standard
   Fedora uses. The repository definitions ship inside the image, and the signing
