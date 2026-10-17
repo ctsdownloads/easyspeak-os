@@ -4,3 +4,8 @@
 [org.gnome.desktop.interface]
 enable-hot-corners=false
 show-battery-percentage=true
+
+# The dock: GNOME's own list, with Bazaar (the app store) in place of GNOME Software, which isn't installed, and
+# without the Calculator, which stays in Show Apps.
+[org.gnome.shell]
+favorite-apps=['org.mozilla.firefox.desktop', 'org.gnome.Calendar.desktop', 'org.gnome.Nautilus.desktop', 'io.github.kolunmi.Bazaar.desktop', 'org.gnome.TextEditor.desktop']

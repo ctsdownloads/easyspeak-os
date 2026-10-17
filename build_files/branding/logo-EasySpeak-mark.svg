@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="160 110 290 290" width="100%" height="100%">
+  <!-- The speech bubble and sound waves of branding/logo-EasySpeak.svg, without the name: the Logo Menu icon in the
+       top bar, where the name would be too small to read. -->
+  <defs>
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#4facfe" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <g transform="translate(300, 250)">
+    <circle cx="0" cy="0" r="120" fill="none" stroke="url(#primaryGradient)" stroke-width="12" filter="url(#glow)"/>
+    <path d="M 80,80 L 140,140 L 40,110 Z" fill="url(#primaryGradient)" />
+    <rect x="-45" y="-40" width="16" height="80" rx="8" fill="#ffffff" />
+    <rect x="-10" y="-70" width="16" height="140" rx="8" fill="#ffffff" />
+    <rect x="25" y="-20" width="16" height="40" rx="8" fill="#ffffff" />
+  </g>
+</svg>

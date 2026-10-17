@@ -1,0 +1,3 @@
+# EasySpeakOS: Ghostty is the terminal for everything that opens "the default terminal" through xdg-terminal-exec,
+# EasySpeak's "open terminal" included.
+com.mitchellh.ghostty.desktop

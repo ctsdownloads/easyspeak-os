@@ -1,0 +1,14 @@
+# EasySpeakOS: the Logo Menu extension (top left) is on for every user, with the EasySpeakOS logo as its icon,
+# Bazaar as its software center and Ghostty as its terminal. The Activities button and Force Quit are hidden; a
+# middle click on the logo still opens Activities (Logo Menu's own default). Anyone can change these in its settings.
+# A system default (dconf), because the settings belong to the extension.
+[org/gnome/shell]
+enabled-extensions=['logomenu@aryan_k']
+
+[org/gnome/shell/extensions/logo-menu]
+use-custom-icon=true
+custom-icon-path='/usr/share/easyspeak-os/logo-menu-icon.svg'
+menu-button-software-center='bazaar'
+menu-button-terminal='ghostty'
+show-activities-button=false
+hide-forcequit=true

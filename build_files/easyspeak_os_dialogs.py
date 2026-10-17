@@ -223,6 +223,8 @@ def handle(cmd, core):
         button = by_name["ok"]
     if button is None and said == "cancel":
         button = next((b for b in info["buttons"] if b["does"] == "cancel"), None)
+    if button is None and said == "reboot":                 # the other word people use for Restart
+        button = by_name.get("restart")
     if button is None and said in ("next", "continue", "go on"):
         button = next((b for b in info["buttons"] if b["does"] == "ok" and norm(b["say"]) in FORWARD), None)
     if button is not None:

@@ -123,8 +123,11 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, save problem details for your helper, and the setup checklist, in plain windows. See [System Tools](#system-tools) |
 | Window buttons | Every window has minimize, maximize and close buttons (GNOME's own default shows only close) |
 | Desktop defaults | EasySpeak's on/off toggle is in the Quick Settings menu (top right) from the start. No hot corner (the pointer in the top-left corner doesn't open the Activities overview). The battery percentage shows in the top bar. Each can be changed back: the toggle in EasySpeak's Settings, the other two in Settings |
+| Dock | Firefox, Calendar, Files, Bazaar (the app store) and Text Editor. GNOME's own list, with Bazaar in place of GNOME Software and without the Calculator, which is in Show Apps. Change it by dragging apps on or off |
+| Logo Menu | The EasySpeakOS logo at the top left opens a menu: About My System, Activities, App Grid, Software Center (Bazaar), System Monitor, Terminal (Ghostty) and Extensions. A middle click on the logo opens Activities. The [Logo Menu](https://github.com/Aryan20/Logomenu) extension, on for every user; change it in Extensions |
+| Terminal | [Ghostty](https://ghostty.org/), in place of Fedora's Ptyxis, which is removed. It is the terminal everywhere: EasySpeak's "open terminal", Logo Menu, Files' **Open in Ghostty**, and anything that opens the default terminal |
 | Firefox | Opens Firefox's own home page, not Fedora's start page, with no Fedora tile |
-| Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ptyxis, Settings, Bazaar (the app store), Pika Backup. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts and Pika Backup aren't packaged by Fedora, so they come from Flathub on the first start with internet ([`build_files/flathub-apps.txt`](build_files/flathub-apps.txt)). No email app: use your own |
+| Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ghostty, Settings, Bazaar (the app store), Pika Backup. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts and Pika Backup aren't packaged by Fedora, so they come from Flathub on the first start with internet ([`build_files/flathub-apps.txt`](build_files/flathub-apps.txt)). No email app: use your own |
 | App store | [Bazaar](https://github.com/kolunmi/bazaar), for Flathub apps, instead of GNOME Software (which is removed). Its apps show up in the Super-key search, and Flatpak files and links open in it. It comes from Universal Blue's package repository |
 | Utilities folder | All EasySpeakOS tools (System Tools, System Update, Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login, Install Media Codecs, EasySpeak Commands) are in the **Utilities** folder of Show Apps, with GNOME's own utilities |
 | Default file apps | Text files open in Text Editor, .rpm and .deb files in Install Package File, Flatpak files in Bazaar. Everything else keeps Fedora's defaults |
@@ -177,9 +180,9 @@ computer's disk isn't touched until you install.
    install**. The **Review** at the end is read aloud; say a number to change
    that step, or **Install**. It installs EasySpeakOS from the copy on the USB
    stick, with no download, and says when it's finished; then say
-   **Restart**. A Wi-Fi network joined during the install is saved on the new
-   system, so it is online from its first start. The orange **Beta**
-   badge at the top says EasySpeakOS is in beta.
+   **Restart** (or **reboot**). A Wi-Fi network joined during the install is
+   saved on the new system, so it is online from its first start. The orange
+   **Beta** badge at the top says EasySpeakOS is in beta.
 
    On every screen: say a line's number (up to "nine hundred ninety nine") or
    its name, a button's name, or **Read it** to hear the screen. Long lists
@@ -802,7 +805,9 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/easyspeak-os-tools`, `easyspeak-os-tools.desktop`, `easyspeak_os_tools.py` | **System Tools** in Show Apps, and the "system tools" and "setup checklist" voice commands |
 | `build_files/easyspeak-os-setup-checklist.desktop` | Opens the setup checklist once, at a new user's first login |
 | `build_files/zz-easyspeak-os-windows.gschema.override` | Gives every window a minimize and a maximize button |
-| `build_files/zz-easyspeak-os-desktop.gschema.override` | No hot corner, and the battery percentage in the top bar |
+| `build_files/zz-easyspeak-os-desktop.gschema.override` | No hot corner, the battery percentage in the top bar, and the dock |
+| `build_files/easyspeak-os-logo-menu.dconf`, `branding/logo-EasySpeak-mark.svg` | Turns on the Logo Menu extension for every user, with its defaults: the EasySpeakOS logo (the speech bubble of `branding/logo-EasySpeak.svg`, without the name) as its icon, Bazaar, Ghostty, no Activities button and no Force Quit |
+| `build_files/xdg-terminals.list` | Makes Ghostty the default terminal for xdg-terminal-exec |
 | `build_files/easyspeak-os-quick-settings.dconf` | Turns on EasySpeak's toggle in the Quick Settings menu for every user (a system default; EasySpeak itself is unchanged) |
 | `build_files/default-apps.txt`, `flathub-apps.txt`, `easyspeak-os-flathub-apps`, `easyspeak-os-flatpak-apps.service` | The default apps: Fedora packages in the image, and the four from Flathub, installed straight from Flathub at the first start with internet (tried again every 15 minutes until it works). Fedora's own Flatpak store is not added |
 | `build_files/easyspeak_os_software.py` | The "open software", "open app store" and "open bazaar" voice commands, which open Bazaar (and "close software"). It goes before EasySpeak's own apps plugin, which would look for GNOME Software |
@@ -963,6 +968,11 @@ GPL), and its source is available from them:
 - **The updater and Homebrew setup** come from Universal Blue: `uupd` is at
   <https://github.com/ublue-os/uupd>, and the packages are built in
   <https://copr.fedorainfracloud.org/coprs/ublue-os/packages/>.
+- **Ghostty** comes from the community package for Fedora that Ghostty's install
+  page lists, built in <https://copr.fedorainfracloud.org/coprs/scottames/ghostty/>;
+  Ghostty's source is at <https://github.com/ghostty-org/ghostty>.
+- **Logo Menu** is at <https://github.com/Aryan20/Logomenu> (GPL-2.0), installed
+  from <https://extensions.gnome.org/extension/4451/logo-menu/>.
 - **EasySpeak** is at <https://github.com/ctsdownloads/easyspeak>.
 - **Everything else** that was added is in this repository.
 

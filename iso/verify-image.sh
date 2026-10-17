@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 sys=${1-localhost/easyspeak-os}
 live=${2-localhost/easyspeak-os-live}
 logo_sum=$(sha256sum build_files/fastfetch-logo.txt | cut -d' ' -f1)
-apps="$(grep -v '^#' build_files/default-apps.txt | tr '\n' ' ')firefox qutebrowser nautilus ptyxis gnome-control-center orca bazaar"
+apps="$(grep -v '^#' build_files/default-apps.txt | tr '\n' ' ')firefox qutebrowser nautilus ghostty gnome-control-center orca bazaar"
 
 # Run inside an image; each check prints "PASS: ..." or "FAIL: ...".
 run_in() { sudo podman run --rm --pull=never --network=none --entrypoint /usr/bin/bash -e LOGO_SUM="$logo_sum" -e APPS="$apps" "$1" -c "$2"; }

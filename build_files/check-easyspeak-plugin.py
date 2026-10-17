@@ -86,6 +86,13 @@ assert dialogs.handle("install easy speak os", Core()) is True and \
 assert dialogs.handle("try it first", Core()) is True and \
     (folder / f"{os.getpid()}.answer").read_text() == "cancel", "'try it first' not pressed"
 (folder / f"{os.getpid()}.answer").unlink()
+# "reboot" presses Restart (the installer's last screen).
+(folder / f"{os.getpid()}.json").write_text(json.dumps({
+    "pid": os.getpid(), "time": 1, "text": "EasySpeakOS is installed.", "rows": [],
+    "buttons": [{"say": "Restart", "does": "extra:Restart"}]}))
+assert dialogs.handle("reboot", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "extra:Restart", "'reboot' does not press Restart"
+(folder / f"{os.getpid()}.answer").unlink()
 # A list window from easyspeak-os-dialog: its lines are named by their name, not by the visible number column
 dialog = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 if dialog:
