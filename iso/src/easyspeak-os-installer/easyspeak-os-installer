@@ -124,6 +124,30 @@ class InstallerWindow(Adw.ApplicationWindow):
         self.show_screen(screens.ErrorScreen)
         self.voice.announce("The install stopped. Nothing more was changed. Say read it to hear what you can do.")
 
+    def restart(self):
+        """Restart the computer the way System Tools does: the window goes away first, then systemctl reboot runs
+        and its answer is waited for. If the restart doesn't start, the window comes back with a pop-up showing
+        systemctl's exact message and exit code, so the reason can be read (or photographed) without a terminal."""
+        self.set_visible(False)
+        self.voice.close()
+        proc = Gio.Subprocess.new(["systemctl", "reboot"],
+                                  Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
+        proc.communicate_utf8_async(None, None, self._restart_answered)
+
+    def _restart_answered(self, proc, result):
+        _ok, out, _err = proc.communicate_utf8_finish(result)
+        if proc.get_if_exited() and proc.get_exit_status() == 0:
+            return                          # the computer is restarting
+        code = proc.get_exit_status() if proc.get_if_exited() else f"signal {proc.get_term_sig()}"
+        self.set_visible(True)
+        self.update()                       # its screen and buttons, for voice, again
+        message = (out or "").strip() or "(systemctl printed nothing)"
+        dialog = Adw.AlertDialog(heading="The restart didn't start",
+                                 body=f"systemctl reboot said:\n\n{message}\n\nExit code: {code}")
+        dialog.add_response("ok", "OK")
+        dialog.present(self)
+        self.voice.announce("The restart didn't start. The reason is on the screen.")
+
     def closing(self, *_):
         """The window can't be closed while the disk is being written."""
         if self.installing:
