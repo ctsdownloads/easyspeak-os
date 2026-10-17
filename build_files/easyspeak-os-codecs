@@ -50,8 +50,9 @@ explain() {
   say "responsibility. EasySpeak does not need them."
   say
   say "Two choices:"
-  say "  codecs web   Web video in Firefox only. Adds Cisco's OpenH264 from Fedora's Cisco"
-  say "               repository, under Cisco's own H.264 patent license."
+  say "  codecs web   Web video in Firefox only. Replaces Fedora's empty OpenH264 stand-in with"
+  say "               Cisco's OpenH264 from Fedora's Cisco repository, under Cisco's own H.264"
+  say "               patent license."
   say "  codecs full  Everything. Replaces Fedora's free ffmpeg libraries with the full ffmpeg,"
   say "               x264 and x265 from RPM Fusion, the source standard Fedora uses."
   say

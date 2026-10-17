@@ -968,7 +968,7 @@ class InstallingScreen(Screen):
 
 class DoneScreen(Screen):
     title = "EasySpeakOS is installed"
-    intro = "Remove the USB stick and say Restart."
+    intro = "Say Restart to start EasySpeakOS."
     back = False
     next_label = None
     main = "Restart"
