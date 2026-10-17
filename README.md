@@ -165,13 +165,31 @@ computer's disk isn't touched until you install.
 3. A welcome window opens once EasySpeak has loaded: **Install EasySpeakOS**,
    or **Try it first**. Both can be said. The installer is also first in the
    dock.
-4. The installer is Fedora's (Anaconda), with EasySpeakOS's name and logo. It
-   asks for the language, the disk, whether to encrypt it (recommended, then
-   set a disk password), and your user account. It installs EasySpeakOS from
-   the copy on the USB stick, with no download. The orange **Beta** badge at
-   the top says EasySpeakOS is in beta. **Report issue** (in the installer's
-   menu, and in the window shown if it hits an error) opens a new issue on
-   this project's GitHub page, filled in with the error details.
+4. The installer is EasySpeakOS's own. Every choice can be said; only
+   passwords are typed. One screen at a time, it asks for: the language, the
+   keyboard layouts, the keyboard used for the disk password at start-up, a
+   network (only needed for automatic time), the time zone, the date and time,
+   the clock (12 or 24 hour), the disk, encryption (recommended, with a disk
+   password typed twice), the root account (locked unless you choose
+   otherwise), your account (full name by dictation, user name, administrator
+   or not, password), and the computer's name. Everything on the chosen disk
+   is erased: the installer says so and goes on only when you say **Erase and
+   install**. The **Review** at the end is read aloud; say a number to change
+   that step, or **Install**. It installs EasySpeakOS from the copy on the USB
+   stick, with no download, and says when it's finished. The orange **Beta**
+   badge at the top says EasySpeakOS is in beta.
+
+   On every screen: say a line's number (up to "nine hundred ninety nine") or
+   its name, a button's name, or **Read it** to hear the screen. Long lists
+   have **Page down** and **Page up**, and **letter G** scrolls to the entries
+   starting with G.
+
+   If the install stops, nothing more is changed, and the installer offers,
+   least typing first: **Save the log** (onto another USB stick, for your
+   helper; no account needed), **Show a QR code** (a pre-filled problem report
+   on this project's GitHub page, opened on a phone), or **Report on GitHub**
+   (the same report in Firefox, which needs a free GitHub account and its
+   password typed). The log leaves out the passwords and the names you typed.
 5. Turn Secure Boot back on in the BIOS settings: the installed system starts
    with it on. Then log in. The [setup checklist](#first-login) opens.
 
@@ -180,9 +198,6 @@ project's signature, like any other EasySpeakOS install (see
 [Checking that updates are real](#checking-that-updates-are-real)). In the
 live session nothing updates and no first-login questions are asked; the
 installed system gets those on its first start.
-
-The installer's own pages are in a web view, so they're used with the mouse,
-EasySpeak's grid mode, or the keyboard, not by saying button names.
 
 ### From Silverblue or Bluefin
 
@@ -796,7 +811,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/changes.txt` | Not in the repository: the build writes it from the last 60 changes' titles, and System Update reads it to say what's new |
 | `build_files/easyspeak-os-tools-admin`, `dev.easyspeak.os.tools.policy` | The helper that turns automatic updates off (administrator password) and checks automatic disk unlock, and the polkit policy for both helpers |
 | `build_files/easyspeak-os-tools-safe`, `50-easyspeak-os-tools.rules` | The helper for the System Tools jobs with no password (automatic updates on, automatic disk unlock, freeing up space), and the narrow rule that lets an administrator at the computer run only it without one |
-| `iso/Containerfile`, `iso/src/`, `.github/workflows/build-iso.yml` | The live USB: the live session, its welcome window, and the installer with EasySpeakOS's name and logo, set to install EasySpeakOS from the copy on the stick, with a Beta badge and problem reports going to this project's GitHub issues. The build fails if the installer still says or links to Fedora |
+| `iso/Containerfile`, `iso/src/`, `.github/workflows/build-iso.yml` | The live USB: the live session, its welcome window, and the EasySpeakOS installer, which installs EasySpeakOS from the copy on the stick. Its screens (`iso/src/easyspeak-os-installer/`) run as the live user and are answered by voice through the dialogs plugin; the part that changes the disk (`iso/src/easyspeak-os-install-engine`) runs as root through its own polkit action, on the live USB only. It partitions the disk (EFI, /boot, root), encrypts the root with LUKS2 when chosen, installs with `bootc install to-filesystem`, points updates at the signed image on GitHub, and writes the choices into the new system. The build fails if Fedora's installer is still on the USB, or if the installer's files or lists are missing |
 | `iso/build-local-iso.sh` | Builds a test live ISO on your own computer from the code in the folder, before anything goes to GitHub |
 | `iso/verify-image.sh` | Checks inside the built system and the live USB system that every EasySpeakOS change is there (name, installer, desktop defaults, Firefox, fastfetch), and prints PASS or FAIL for each; the local build stops before making the ISO if any fail |
 | `build_files/easyspeak-os-disk-unlock-check.service` | At every start, checks on the disk whether automatic disk unlock is on, for System Tools and the setup checklist |
@@ -985,7 +1000,9 @@ with two exceptions:
   `Containerfile`, the build workflows, `disk_config/` and a few small settings
   files. The live-ISO build in `iso/`, based on the Bazzite example in
   Universal Blue's [titanoboa](https://github.com/ublue-os/titanoboa), is also
-  Apache 2.0.
+  Apache 2.0, except the EasySpeakOS installer in it (`iso/src/easyspeak-os-installer/`,
+  `iso/src/easyspeak-os-install-engine` and their launcher and polkit action),
+  which is this project's own and GPL-3.0-or-later.
   Apache 2.0 files can be part of a GPL-3.0 project.
 - **The Ready Dot extension** runs inside GNOME Shell, which is
   GPL-2.0-or-later, so it is

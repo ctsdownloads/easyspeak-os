@@ -9,4 +9,5 @@ FROM ${BASE_IMAGE}
 
 RUN --mount=type=bind,source=iso/src,target=/src \
     --mount=type=bind,source=branding,target=/branding \
+    --mount=type=bind,source=build_files/branding,target=/build-branding \
     /src/build.sh
