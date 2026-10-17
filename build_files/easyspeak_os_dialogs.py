@@ -53,8 +53,8 @@ HELP_SOFTWARE = [
     "open printers / install the driver / about this driver - when the file is a printer driver",
     "try anyway / repair / repair the box - when disk space is low or an app box is broken",
     "delete the box / keep it / restart now / later - answer the questions after removing or installing",
-    "turn on / turn off / turn on anyway / free up space / keep it on / keep them on / keep them off - the System "
-    "Tools buttons (turning updates on, disk unlock and freeing up space need no administrator password)",
+    "turn on / turn off / turn on anyway / free up space / keep it on / keep it off / keep them on / keep them off - "
+    "the System Tools buttons (turning updates on, disk unlock and freeing up space need no administrator password)",
     "undo the update / use the newer version / don't use it / keep it / save details / show the file - undo the "
     "last update or go back to the newer one, or save "
     "problem details for your helper, in System Tools",
@@ -75,7 +75,7 @@ TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seve
 LETTER = re.compile(r"^letter ([a-z])$")
 READ = re.compile(r"^(read (it|this|that|the window|the question|it out|it again)|what does it say)$")
 LEAD = re.compile(r"^(please |click |press |choose |select |pick |say |the )+")
-TRAIL = re.compile(r"( button| please)+$")
+TRAIL = re.compile(r"( button| please| hey jarvis| jarvis)+$")    # "restart, jarvis": the wake word said last
 
 
 def norm(text):

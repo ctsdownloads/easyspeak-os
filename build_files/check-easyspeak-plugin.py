@@ -93,6 +93,10 @@ assert dialogs.handle("try it first", Core()) is True and \
 assert dialogs.handle("reboot", Core()) is True and \
     (folder / f"{os.getpid()}.answer").read_text() == "extra:Restart", "'reboot' does not press Restart"
 (folder / f"{os.getpid()}.answer").unlink()
+# The wake word said after the command still presses the button.
+assert dialogs.handle("restart, jarvis", Core()) is True and \
+    (folder / f"{os.getpid()}.answer").read_text() == "extra:Restart", "'restart, jarvis' does not press Restart"
+(folder / f"{os.getpid()}.answer").unlink()
 # A list window from easyspeak-os-dialog: its lines are named by their name, not by the visible number column
 dialog = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 if dialog:

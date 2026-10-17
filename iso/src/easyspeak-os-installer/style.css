@@ -11,7 +11,7 @@ headerbar.brand {
 headerbar.brand .step { font-weight: 600; opacity: 0.9; }
 headerbar.brand windowcontrols button { color: #ffffff; }
 
-.beta {
+.release-stage {
   background: #e66100;
   color: #ffffff;
   border-radius: 999px;

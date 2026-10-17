@@ -77,6 +77,10 @@ install -Dm644 /dev/null /usr/share/easyspeak-os/changes.txt
 [ -f /ctx/changes.txt ] && install -Dm644 /ctx/changes.txt /usr/share/easyspeak-os/changes.txt
 # The setup checklist's microphone test records with pw-record (PipeWire's recorder, in pipewire-utils).
 rpm -q pipewire-utils >/dev/null || dnf5 -y install pipewire-utils
+# A microphone starts at 50%, not WirePlumber's 100% (see that file). Fail the build if WirePlumber no longer has
+# the setting.
+install -Dm644 /ctx/60-easyspeak-os-mic.conf /usr/share/wireplumber/wireplumber.conf.d/60-easyspeak-os-mic.conf
+grep -q 'device.routes.default-source-volume' /usr/share/wireplumber/wireplumber.conf || { echo "ERROR: WirePlumber no longer has device.routes.default-source-volume"; exit 1; }
 for c in fwupdmgr systemd-cryptenroll cryptsetup flatpak podman pw-record gnome-control-center; do command -v "$c" >/dev/null || { echo "ERROR: System Tools needs $c"; exit 1; }; done
 install -Dm644 /ctx/easyspeak-os-install-package.desktop /usr/share/applications/easyspeak-os-install-package.desktop
 install -Dm644 /ctx/easyspeak-os-remove-apps.desktop /usr/share/applications/easyspeak-os-remove-apps.desktop
@@ -196,7 +200,10 @@ got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.login-screen logo)
 
 # The Logo Menu extension (logomenu@aryan_k, GPL-2.0, github.com/Aryan20/Logomenu): a menu on the EasySpeakOS
 # logo at the top left. Version 25.2 from extensions.gnome.org, checked by its sha256. Installed for every user,
-# its settings schema with the system's, and its defaults in easyspeak-os-logo-menu.dconf.
+# its settings schema with the system's, and its defaults in easyspeak-os-logo-menu.dconf. Its own schemas/ folder
+# is removed: GNOME Shell reads an extension's settings from that folder when it exists, and it has no compiled
+# schema in it, so the extension would fail to start ("gschemas.compiled: No such file"). Without it, GNOME reads
+# the system's schemas, as it does for every extension installed for all users.
 curl -fsSL --retry 3 -o /tmp/logomenu.zip "https://extensions.gnome.org/extension-data/logomenuaryan_k.v45.shell-extension.zip"
 echo "78e6507d9aa033a17e7e2997ac5a1190b327b97ba019a313f1a9285854753ed2  /tmp/logomenu.zip" | sha256sum -c -
 install -d /usr/share/gnome-shell/extensions/logomenu@aryan_k
@@ -205,6 +212,7 @@ rm /tmp/logomenu.zip
 chmod -R u=rwX,go=rX /usr/share/gnome-shell/extensions/logomenu@aryan_k
 install -Dm644 /usr/share/gnome-shell/extensions/logomenu@aryan_k/schemas/org.gnome.shell.extensions.logo-menu.gschema.xml \
   /usr/share/glib-2.0/schemas/org.gnome.shell.extensions.logo-menu.gschema.xml
+rm -r /usr/share/gnome-shell/extensions/logomenu@aryan_k/schemas
 glib-compile-schemas /usr/share/glib-2.0/schemas 2>&1 | grep -v 'deprecated' || true
 gnome_shell=$(rpm -q --qf '%{VERSION}' gnome-shell | cut -d. -f1)
 grep -q "\"$gnome_shell\"" /usr/share/gnome-shell/extensions/logomenu@aryan_k/metadata.json || { echo "ERROR: Logo Menu 25.2 does not support GNOME $gnome_shell"; exit 1; }
@@ -223,12 +231,19 @@ for a in easyspeak-os-tools easyspeak-os-update easyspeak-os-install-package eas
   HOME=/tmp dconf read /org/gnome/desktop/app-folders/folders/Utilities/apps | grep -q "'$a.desktop'" || { echo "ERROR: $a is not in the Utilities folder"; exit 1; }
 done
 [ "$got" = "true" ] || { echo "ERROR: EasySpeak's Quick Settings toggle is not on by default ($got)"; exit 1; }
-for k in "/org/gnome/shell/enabled-extensions ['logomenu@aryan_k']" \
-         "/org/gnome/shell/extensions/logo-menu/menu-button-software-center 'bazaar'" \
-         "/org/gnome/shell/extensions/logo-menu/menu-button-terminal 'ghostty'" \
-         "/org/gnome/shell/extensions/logo-menu/custom-icon-path '/usr/share/easyspeak-os/logo-menu-icon.svg'"; do
-  got=$(HOME=/tmp dconf read "${k%% *}")
-  [ "$got" = "${k#* }" ] || { echo "ERROR: Logo Menu default ${k%% *} is $got"; exit 1; }
+# Logo Menu's defaults, read through its own schema the way the extension reads them (its schema's path is
+# /org/gnome/shell/extensions/Logo-menu/, with a capital L).
+[ ! -e /usr/share/gnome-shell/extensions/logomenu@aryan_k/schemas ] || { echo "ERROR: Logo Menu still has its own schemas/ folder, so it would fail to start"; exit 1; }
+for k in "org.gnome.shell enabled-extensions ['logomenu@aryan_k']" \
+         "org.gnome.shell.extensions.logo-menu menu-button-software-center 'bazaar'" \
+         "org.gnome.shell.extensions.logo-menu menu-button-terminal 'ghostty'" \
+         "org.gnome.shell.extensions.logo-menu use-custom-icon true" \
+         "org.gnome.shell.extensions.logo-menu custom-icon-path '/usr/share/easyspeak-os/logo-menu-icon.svg'" \
+         "org.gnome.shell.extensions.logo-menu show-activities-button false" \
+         "org.gnome.shell.extensions.logo-menu hide-forcequit true"; do
+  read -r schema key want <<<"$k"
+  got=$(HOME=/tmp gsettings get "$schema" "$key")
+  [ "$got" = "$want" ] || { echo "ERROR: Logo Menu default $schema $key is $got, not $want"; exit 1; }
 done
 
 # Firefox: its own home page instead of Fedora's start page, no "Fedora Project - Start Page" tile, and its About
@@ -310,6 +325,9 @@ install -Dm644 /ctx/easyspeak_os_dialogs.py "$plugins/easyspeak_os_dialogs.py"
 install -Dm644 /ctx/easyspeak_os_software.py "$plugins/easyspeak_os_software.py"
 py=$(ls /opt/easyspeak/venv/bin/python3 2>/dev/null || command -v python3)
 "$py" /ctx/check-easyspeak-plugin.py "$plugins" /usr/bin/easyspeak-os-dialog || { echo 'ERROR: EasySpeak would not load the EasySpeakOS plugins'; exit 1; }
+# System Tools' "EasySpeak on or off" uses EasySpeak's own start-at-login code, and starts it with "easyspeak".
+/opt/easyspeak/venv/bin/python -I -c 'from easyspeak.core import autostart; autostart.is_enabled; autostart.set_enabled' \
+  && command -v easyspeak >/dev/null || { echo "ERROR: EasySpeak's start-at-login code or its easyspeak command moved"; exit 1; }
 
 # The EasySpeakOS voice commands, read from the plugins, go into the cheat sheet, the "help" overlay and
 # "did you mean" as their own section.

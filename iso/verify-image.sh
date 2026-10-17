@@ -58,7 +58,7 @@ ok "system name is EasySpeakOS (no dash)"          "grep -qx \"PRETTY_NAME=\\\"E
 ok "no Fedora installer (Anaconda) on the USB"     "! rpm -q anaconda-core"
 ok "installer launcher: Install EasySpeakOS"       "grep -qx \"Name=Install EasySpeakOS\" /usr/share/applications/io.github.ctsdownloads.EasySpeakOS.Installer.desktop"
 ok "welcome window: Install EasySpeakOS / Try it first" "grep -qF \"Install EasySpeakOS\" /usr/libexec/easyspeak-os-live-welcome && grep -qF \"Try it first\" /usr/libexec/easyspeak-os-live-welcome && grep -qF /usr/bin/easyspeak-os-installer /usr/libexec/easyspeak-os-live-welcome"
-ok "installer: Beta badge and EasySpeakOS logo"    "grep -qF \"label=\\\"Beta\\\"\" \$i/easyspeak-os-installer && [ -s /usr/share/easyspeak-os-installer/logo-wide.svg ]"
+ok "installer: Alpha badge and EasySpeakOS logo"   "grep -qF \"label=\\\"Alpha\\\"\" \$i/easyspeak-os-installer && [ -s /usr/share/easyspeak-os-installer/logo-wide.svg ]"
 ok "installer: problem reports go to GitHub"       "grep -qF github.com/ctsdownloads/easyspeak-os/issues/new \$i/screens.py && command -v qrencode"
 ok "installer: disk changes only through its polkit action" "[ -x \$e ] && grep -qF \"<annotate key=\\\"org.freedesktop.policykit.exec.path\\\">\$e<\" /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.install.policy"
 ok "installer installs EasySpeakOS from the USB, with signed updates" "grep -qF \"IMAGE = \\\"ghcr.io/ctsdownloads/easyspeak-os:latest\\\"\" \$e && grep -qF containers-storage: \$e && grep -qF ostree-image-signed:docker:// \$e"

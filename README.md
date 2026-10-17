@@ -16,7 +16,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 > endorsed by the Fedora Project or Red Hat.
 
 [![Build](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml/badge.svg)](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml)
-[![Status](https://img.shields.io/badge/status-pre--alpha-red.svg)](#status)
+[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 [![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
 [![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
 [![Signed](https://img.shields.io/badge/images-signed%20with%20cosign-lightgrey.svg)](#checking-that-updates-are-real)
@@ -70,7 +70,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 
 ## Status
 
-> ⚠️ **Pre-alpha.** This is a personal workstation image shared as-is.
+> ⚠️ **Alpha.** This is a personal workstation image shared as-is.
 > EasySpeak itself is alpha software, and this image installs new EasySpeak
 > releases automatically, so something can break on any given day. There is no
 > warranty and no support commitment. Roll back with `rpm-ostree rollback`.
@@ -120,12 +120,13 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | [EasySpeak](https://github.com/ctsdownloads/easyspeak) | The newest release and its Parakeet and English speech packs, installed when the image is built |
 | Ready Dot | A GNOME Shell extension: a status dot, "did you mean" suggestions, and an on-screen command list ([details](#using-it)) |
 | Command cheat sheet | An offline page of EasySpeak's commands, opened from Show Apps |
-| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, save problem details for your helper, and the setup checklist, in plain windows. See [System Tools](#system-tools) |
+| System Tools | Update firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic updates on or off, undo the last update, save problem details for your helper, turn EasySpeak off or on, and the setup checklist, in plain windows. See [System Tools](#system-tools) |
 | Window buttons | Every window has minimize, maximize and close buttons (GNOME's own default shows only close) |
 | Desktop defaults | EasySpeak's on/off toggle is in the Quick Settings menu (top right) from the start. No hot corner (the pointer in the top-left corner doesn't open the Activities overview). The battery percentage shows in the top bar. Each can be changed back: the toggle in EasySpeak's Settings, the other two in Settings |
 | Dock | Firefox, Calendar, Files, Bazaar (the app store) and Text Editor. GNOME's own list, with Bazaar in place of GNOME Software and without the Calculator, which is in Show Apps. Change it by dragging apps on or off |
 | Logo Menu | The EasySpeakOS logo at the top left opens a menu: About My System, Activities, App Grid, Software Center (Bazaar), System Monitor, Terminal (Ghostty) and Extensions. A middle click on the logo opens Activities. The [Logo Menu](https://github.com/Aryan20/Logomenu) extension, on for every user; change it in Extensions |
 | Terminal | [Ghostty](https://ghostty.org/), in place of Fedora's Ptyxis, which is removed. It is the terminal everywhere: EasySpeak's "open terminal", Logo Menu, Files' **Open in Ghostty**, and anything that opens the default terminal |
+| Microphone | A microphone starts at 50% volume, not 100%, which is often too loud for speech recognition. A volume you set is kept. Change it in Settings, Sound |
 | Firefox | Opens Firefox's own home page, not Fedora's start page, with no Fedora tile |
 | Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ghostty, Settings, Bazaar (the app store), Pika Backup. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts and Pika Backup aren't packaged by Fedora, so they come from Flathub on the first start with internet ([`build_files/flathub-apps.txt`](build_files/flathub-apps.txt)). No email app: use your own |
 | App store | [Bazaar](https://github.com/kolunmi/bazaar), for Flathub apps, instead of GNOME Software (which is removed). Its apps show up in the Super-key search, and Flatpak files and links open in it. It comes from Universal Blue's package repository |
@@ -182,7 +183,7 @@ computer's disk isn't touched until you install.
    stick, with no download, and says when it's finished; then say
    **Restart** (or **reboot**). A Wi-Fi network joined during the install is
    saved on the new system, so it is online from its first start. The orange
-   **Beta** badge at the top says EasySpeakOS is in beta.
+   **Alpha** badge at the top says EasySpeakOS is in alpha.
 
    On every screen: say a line's number (up to "nine hundred ninety nine") or
    its name, a button's name, or **Read it** to hear the screen. Long lists
@@ -359,7 +360,8 @@ break the system, and they update by themselves.
   Apostrophes don't matter ("dont show again" and "do not show again" both press
   **Don't show again**). "Next" or "continue" presses the main button when it
   only moves forward (Start, Next, Test, OK), never one that changes or removes
-  something, like Turn off. The window
+  something, like Turn off. "Reboot" presses a **Restart** button, and the wake
+  word can also come last ("restart, Jarvis"). The window
   is never read out by itself: the open microphone would hear it and could press
   one of its buttons. When no such window is open, these words do nothing, so
   they never get in the way of other commands. English only.
@@ -389,7 +391,7 @@ break the system, and they update by themselves.
 | Remove an app | Yes, if Install Package File installed it | "remove an app". Apps from Bazaar are removed there, with grid mode |
 | Repair app boxes, or choose apps that start at login | Yes | "repair app boxes", "start apps at login" |
 | Update everything (system, Flatpaks, app boxes) | Yes | Automatic, or "update system" |
-| System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates, undo the last update, problem details | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
+| System Tools: firmware, disk unlock, free space, BIOS settings, automatic updates, undo the last update, problem details, EasySpeak on or off | Yes | "system tools", "number one" and so on for the tool, then say the buttons. Some jobs ask for a password, which is typed |
 | Media codecs | Yes | Answer the window by voice. Adding them needs no password; taking them out asks for the administrator password |
 
 **Still typed:**
@@ -710,6 +712,7 @@ wide enough to read every line in full, without scrolling.
 | Automatic updates | Turns the daily automatic updates on or off. Keeping them on is recommended, because updates fix security problems |
 | Undo the last update | If something stopped working after an update, goes back to the version from before it. See below |
 | Save problem details | Saves the computer's recent error messages to one file, for you to email to your helper. See below |
+| EasySpeak on or off | Turns voice control off or on, and it stays that way after a restart. The switch in the power menu only stops listening until the next login. Turning it off stops EasySpeak right away, so turn it back on from System Tools in Show Apps, with the mouse or keyboard |
 | Setup checklist | The microphone, media codecs, disk unlock and getting apps, one at a time. It opens by itself at a new user's first login. See [First login](#first-login) |
 
 **Which jobs ask for the administrator password.** None of these do, for an
@@ -808,6 +811,7 @@ Fedora Silverblue 44 image, and publishes it to `ghcr.io/ctsdownloads/easyspeak-
 | `build_files/zz-easyspeak-os-desktop.gschema.override` | No hot corner, the battery percentage in the top bar, and the dock |
 | `build_files/easyspeak-os-logo-menu.dconf`, `branding/logo-EasySpeak-mark.svg` | Turns on the Logo Menu extension for every user, with its defaults: the EasySpeakOS logo (the speech bubble of `branding/logo-EasySpeak.svg`, without the name) as its icon, Bazaar, Ghostty, no Activities button and no Force Quit |
 | `build_files/xdg-terminals.list` | Makes Ghostty the default terminal for xdg-terminal-exec |
+| `build_files/60-easyspeak-os-mic.conf` | WirePlumber setting: a microphone with no saved volume starts at 50% |
 | `build_files/easyspeak-os-quick-settings.dconf` | Turns on EasySpeak's toggle in the Quick Settings menu for every user (a system default; EasySpeak itself is unchanged) |
 | `build_files/default-apps.txt`, `flathub-apps.txt`, `easyspeak-os-flathub-apps`, `easyspeak-os-flatpak-apps.service` | The default apps: Fedora packages in the image, and the four from Flathub, installed straight from Flathub at the first start with internet (tried again every 15 minutes until it works). Fedora's own Flatpak store is not added |
 | `build_files/easyspeak_os_software.py` | The "open software", "open app store" and "open bazaar" voice commands, which open Bazaar (and "close software"). It goes before EasySpeak's own apps plugin, which would look for GNOME Software |
