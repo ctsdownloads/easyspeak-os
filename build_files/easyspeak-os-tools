@@ -9,6 +9,7 @@
   easyspeak-os-tools updates         turn automatic updates on or off
   easyspeak-os-tools undo-update     go back to the system version from before the last update
   easyspeak-os-tools problem-details save the computer's recent error messages to a file, for your helper
+  easyspeak-os-tools voice           turn EasySpeak off or on, for good (not only until the next login)
   easyspeak-os-tools setup           the setup checklist: microphone, media codecs, disk unlock, getting apps
   easyspeak-os-tools setup --first-login   the same, once, at a new user's first login
 
@@ -21,6 +22,7 @@ import array
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -38,6 +40,10 @@ STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state
 SETUP_SHOWN = STATE / "setup-shown"      # the setup checklist has opened at login once
 CODECS_ASKED = STATE / "codecs-asked"    # set by Install Media Codecs' own first-login question (older systems)
 GUI = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")) and shutil.which("zenity")
+EASYSPEAK_PYTHON = "/opt/easyspeak/venv/bin/python"
+# EasySpeak's EasySpeakOS dialogs plugin leaves this note with EasySpeak's process number once its speech model and
+# plugins are loaded.
+EASYSPEAK_READY = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "easyspeak-os" / "easyspeak-ready"
 
 
 # ---------------------------------------------------------------- windows
@@ -648,21 +654,74 @@ def apps_step(w):
             return
 
 
+def easyspeak_pid():
+    """EasySpeak's process number once it has loaded (EASYSPEAK_READY), or None."""
+    try:
+        pid = int(EASYSPEAK_READY.read_text().strip())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
 def voice_ready(wait=180):
-    """Wait until EasySpeak has loaded, so the checklist's buttons can be said from its first window. EasySpeak's
-    EasySpeakOS dialogs plugin leaves a note with EasySpeak's process number once its speech model and plugins are
-    loaded (easyspeak-ready, in $XDG_RUNTIME_DIR/easyspeak-os). At most `wait` seconds, then open anyway: the
-    buttons can always be clicked."""
-    note = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / "easyspeak-os" / "easyspeak-ready"
+    """Wait until EasySpeak has loaded, so the checklist's buttons can be said from its first window. At most `wait`
+    seconds, then open anyway: the buttons can always be clicked."""
     end = time.time() + wait
     while time.time() < end:
-        try:
-            os.kill(int(note.read_text().strip()), 0)
+        if easyspeak_pid():
             time.sleep(3)           # it loads its plugins a moment before it starts listening
             return True
-        except (OSError, ValueError):
-            time.sleep(2)
+        time.sleep(2)
     return False
+
+
+def easyspeak_starts():
+    """Whether EasySpeak starts at login, asked through EasySpeak's own code (easyspeak.core.autostart); None if
+    EasySpeak couldn't be asked."""
+    r = output([EASYSPEAK_PYTHON, "-I", "-c", "from easyspeak.core import autostart; print(autostart.is_enabled())"])
+    return None if r is None or r.returncode != 0 else r.stdout.strip() == "True"
+
+
+def set_easyspeak_starts(on, text, title):
+    """Turn starting at login on or off through EasySpeak's own code, which writes the user's
+    ~/.config/autostart/easyspeak.desktop as EasySpeak's settings do. True when it worked."""
+    return run(text, [EASYSPEAK_PYTHON, "-I", "-c",
+                      f"from easyspeak.core import autostart; autostart.set_enabled({on})"], title=title) == 0
+
+
+def voice():
+    """Turn EasySpeak off or on for good. The power menu's switch only stops listening until the next login."""
+    w = "EasySpeak on or off"
+    on = easyspeak_starts()
+    if on is None:
+        say("EasySpeak's setting couldn't be read, so nothing was changed.", "warning", title=w)
+        return 1
+    if on:
+        if ask("EasySpeak is on: it starts every time you log in.\n\nRecommended: Keep it on.\n\nOr Turn off: "
+               "EasySpeak stops now and doesn't start at login, until you turn it on again here. Voice control is "
+               "then off, so to turn it back on, open System Tools from Show Apps with the mouse or keyboard.",
+               ok="Turn off", cancel="Keep it on", title=w) != "ok":
+            return 1
+        if not set_easyspeak_starts(False, "Turning EasySpeak off.", w):
+            say(f"It didn't work, and nothing was changed.\n\nThe details are in {LOG}", "warning", title=w)
+            return 1
+        pid = easyspeak_pid()
+        if pid:
+            os.kill(pid, signal.SIGTERM)
+        say("EasySpeak is off. It stays off after a restart, until you turn it on in System Tools.", title=w)
+        return 0
+    if ask("EasySpeak is off: it doesn't start when you log in.\n\nRecommended: Turn on. EasySpeak starts now and "
+           "at every login.", ok="Turn on", cancel="Keep it off", title=w) != "ok":
+        return 1
+    if not set_easyspeak_starts(True, "Turning EasySpeak on.", w):
+        say(f"It didn't work, and nothing was changed.\n\nThe details are in {LOG}", "warning", title=w)
+        return 1
+    if not easyspeak_pid():
+        subprocess.Popen(["easyspeak"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    say("EasySpeak is on. It is starting now: say \"Hey Jarvis\" once it has loaded.", title=w)
+    return 0
 
 
 def setup_checklist(first_login=False):
@@ -716,6 +775,8 @@ TOOLS = [("firmware", "Update firmware", "Updates for the computer's own parts, 
          ("undo-update", "Undo the last update", "Go back to the version from before the last update", undo_update),
          ("problem-details", "Save problem details", "A file of recent errors to email to your helper",
           problem_details),
+         ("voice", "EasySpeak on or off", "Turn voice control off or on, and keep it that way after a restart",
+          voice),
          ("setup", "Setup checklist", "Microphone, media codecs, disk unlock and getting apps, one at a time",
           setup_checklist)]
 

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """The EasySpeakOS installer on the live USB. Every choice can be said; only passwords are typed.
 
-One window, one screen at a time (screens.py). At the top: the EasySpeakOS name and logo, the Beta badge and
+One window, one screen at a time (screens.py). At the top: the EasySpeakOS name and logo, the Alpha badge and
 which step this is. At the bottom: the buttons, which are also what can be said. EasySpeak answers the window
 through voice.py, the same way it answers every EasySpeakOS window.
 """
@@ -38,7 +38,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         picture = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(logo))
         picture.set_size_request(logo.get_width() // scale, 34)
         brand.append(picture)
-        brand.append(Gtk.Label(label="Beta", css_classes=["beta"], valign=Gtk.Align.CENTER))
+        brand.append(Gtk.Label(label="Alpha", css_classes=["release-stage"], valign=Gtk.Align.CENTER))
         header.pack_start(brand)
         header.set_title_widget(Gtk.Label())
         self.step = Gtk.Label(css_classes=["step"])

@@ -2,7 +2,8 @@
 
 Shipped by the EasySpeakOS image, not by EasySpeak. "System tools" opens the System Tools window: update
 firmware, unlock the disk automatically, free up disk space, restart into the BIOS settings, turn automatic
-updates on or off, undo the last update, save problem details for your helper, and the setup checklist.
+updates on or off, undo the last update, save problem details for your helper, turn EasySpeak off or on,
+and the setup checklist.
 "Setup checklist" opens the checklist straight away: microphone, media codecs, disk unlock and getting apps.
 In the window, say "number two" to pick a tool and say its buttons. English phrases only.
 """
@@ -13,7 +14,7 @@ import re
 NAME = "easyspeak-os tools"
 DESCRIPTION = "Open System Tools (EasySpeakOS)"
 COMMANDS = ["system tools - update firmware, unlock the disk automatically, free up disk space, undo the last "
-            "update, save problem details for your helper and more",
+            "update, save problem details for your helper, turn EasySpeak off or on, and more",
             "setup checklist - set up the microphone, media codecs, disk unlock, and see how to get apps"]
 
 TOOL = "/usr/bin/easyspeak-os-tools"
