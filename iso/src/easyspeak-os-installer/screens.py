@@ -974,7 +974,7 @@ class DoneScreen(Screen):
     main = "Restart"
 
     def actions(self):
-        return [("Restart", lambda: subprocess.Popen(["systemctl", "reboot"]))]
+        return [("Restart", self.win.restart)]
 
 
 class ErrorScreen(ListScreen):
@@ -1047,7 +1047,7 @@ class ErrorScreen(ListScreen):
         if self.stage == "code":
             return []
         return [("Save the log", self.find_sticks), ("Show a QR code", self.show_code),
-                ("Report on GitHub", self.report), ("Restart", lambda: subprocess.Popen(["systemctl", "reboot"]))]
+                ("Report on GitHub", self.report), ("Restart", self.win.restart)]
 
     def find_sticks(self):
         self.stage, self.found = "sticks", data.sticks()

@@ -181,8 +181,9 @@ computer's disk isn't touched until you install.
    install**. The **Review** at the end is read aloud; say a number to change
    that step, or **Install**. It installs EasySpeakOS from the copy on the USB
    stick, with no download, and says when it's finished; then say
-   **Restart** (or **reboot**). A Wi-Fi network joined during the install is
-   saved on the new system, so it is online from its first start. The orange
+   **Restart** (or **reboot**). If the restart doesn't start, a pop-up shows
+   the exact error, to photograph for a report. A Wi-Fi network joined during
+   the install is saved on the new system, so it is online from its first start. The orange
    **Alpha** badge at the top says EasySpeakOS is in alpha.
 
    On every screen: say a line's number (up to "nine hundred ninety nine") or

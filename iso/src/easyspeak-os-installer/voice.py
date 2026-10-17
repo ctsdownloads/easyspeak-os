@@ -13,6 +13,7 @@ names no button, as EasySpeak may still be listening when it is said.
 import json
 import os
 import time
+import traceback
 
 from gi.repository import GLib
 
@@ -52,7 +53,10 @@ class Voice:
             os.remove(self.answer)
         except OSError:
             return True
-        self.on_answer(said)
+        try:
+            self.on_answer(said)
+        except Exception:                  # GLib stops calling a timer that raises: voice would go deaf for good
+            traceback.print_exc()
         return True
 
     def close(self):
