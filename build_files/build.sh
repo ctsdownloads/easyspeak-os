@@ -7,7 +7,19 @@ dnf5 -y install firefox qutebrowser v4l-utils wtype ydotool xdg-terminal-exec
 xargs -a /ctx/bluefin-packages.txt dnf5 -y install
 # EasySpeakOS default apps from Fedora's packages (see default-apps.txt); the build fails if any is missing.
 grep -v '^#' /ctx/default-apps.txt | xargs dnf5 -y install
-for p in $(grep -v '^#' /ctx/default-apps.txt) firefox qutebrowser nautilus ptyxis gnome-control-center orca; do
+# The terminal: Ghostty, from the community package for Fedora that Ghostty's install page lists for Fedora and
+# Silverblue (the scottames/ghostty COPR). The repository is only used while building: Ghostty updates arrive with
+# system updates. It replaces Fedora's Ptyxis, so every way of opening a terminal opens Ghostty: xdg-terminal-exec
+# (EasySpeak's "open terminal" and anything asking for the default terminal) is pointed at it, and nautilus-python
+# (already in the image) lets Files show Ghostty's own "Open in Ghostty".
+curl -fsSL --retry 3 "https://copr.fedorainfracloud.org/coprs/scottames/ghostty/repo/fedora-$(rpm -E %fedora)/scottames-ghostty-fedora-$(rpm -E %fedora).repo" -o /etc/yum.repos.d/ghostty.repo
+dnf5 -y install ghostty
+rm -f /etc/yum.repos.d/ghostty.repo
+dnf5 -y remove ptyxis
+rpm -q ptyxis >/dev/null 2>&1 && { echo "ERROR: Ptyxis is still installed"; exit 1; }
+install -Dm644 /ctx/xdg-terminals.list /etc/xdg/xdg-terminals.list
+[ -s /usr/share/applications/com.mitchellh.ghostty.desktop ] || { echo "ERROR: Ghostty's launcher is missing, so xdg-terminal-exec has no terminal"; exit 1; }
+for p in $(grep -v '^#' /ctx/default-apps.txt) firefox qutebrowser nautilus ghostty nautilus-python gnome-control-center orca; do
   rpm -q "$p" >/dev/null || { echo "ERROR: default app $p is not installed"; exit 1; }
 done
 # Updates and Homebrew the Bluefin way, from Universal Blue's package repository: the updater (uupd) on its daily
@@ -170,6 +182,9 @@ got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.wm.preferences bu
 [ "$got" = "'appmenu:minimize,maximize,close'" ] || { echo "ERROR: windows have no minimize button by default ($got)"; exit 1; }
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.shell welcome-dialog-last-shown-version)
 [ "$got" = "'4294967295'" ] || { echo "ERROR: GNOME's welcome popup would still open at first login ($got)"; exit 1; }
+for a in $(GSETTINGS_BACKEND=memory gsettings get org.gnome.shell favorite-apps | tr -d "[],'"); do
+  [ -s "/usr/share/applications/$a" ] || { echo "ERROR: the dock lists $a, which is not installed"; exit 1; }
+done
 rpm -q gnome-tour >/dev/null 2>&1 && { echo "ERROR: GNOME's tour app is still installed"; exit 1; }
 [ "$(. /usr/lib/os-release; echo "$PRETTY_NAME")" = "EasySpeakOS" ] || { echo "ERROR: the system's display name is not EasySpeakOS"; exit 1; }
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface enable-hot-corners)
@@ -178,6 +193,24 @@ got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface show-ba
 [ "$got" = "true" ] || { echo "ERROR: the battery percentage is not shown by default ($got)"; exit 1; }
 got=$(GSETTINGS_BACKEND=memory gsettings get org.gnome.login-screen logo)
 [ "$got" = "'/usr/share/pixmaps/easyspeak-os-gdm-logo.png'" ] && [ -s /usr/share/pixmaps/easyspeak-os-gdm-logo.png ] || { echo "ERROR: the login screen does not show the EasySpeakOS logo ($got)"; exit 1; }
+
+# The Logo Menu extension (logomenu@aryan_k, GPL-2.0, github.com/Aryan20/Logomenu): a menu on the EasySpeakOS
+# logo at the top left. Version 25.2 from extensions.gnome.org, checked by its sha256. Installed for every user,
+# its settings schema with the system's, and its defaults in easyspeak-os-logo-menu.dconf.
+curl -fsSL --retry 3 -o /tmp/logomenu.zip "https://extensions.gnome.org/extension-data/logomenuaryan_k.v45.shell-extension.zip"
+echo "78e6507d9aa033a17e7e2997ac5a1190b327b97ba019a313f1a9285854753ed2  /tmp/logomenu.zip" | sha256sum -c -
+install -d /usr/share/gnome-shell/extensions/logomenu@aryan_k
+python3 -I -m zipfile -e /tmp/logomenu.zip /usr/share/gnome-shell/extensions/logomenu@aryan_k
+rm /tmp/logomenu.zip
+chmod -R u=rwX,go=rX /usr/share/gnome-shell/extensions/logomenu@aryan_k
+install -Dm644 /usr/share/gnome-shell/extensions/logomenu@aryan_k/schemas/org.gnome.shell.extensions.logo-menu.gschema.xml \
+  /usr/share/glib-2.0/schemas/org.gnome.shell.extensions.logo-menu.gschema.xml
+glib-compile-schemas /usr/share/glib-2.0/schemas 2>&1 | grep -v 'deprecated' || true
+gnome_shell=$(rpm -q --qf '%{VERSION}' gnome-shell | cut -d. -f1)
+grep -q "\"$gnome_shell\"" /usr/share/gnome-shell/extensions/logomenu@aryan_k/metadata.json || { echo "ERROR: Logo Menu 25.2 does not support GNOME $gnome_shell"; exit 1; }
+install -Dm644 /ctx/branding/logo-EasySpeak-mark.svg /usr/share/easyspeak-os/logo-menu-icon.svg
+install -Dm644 /ctx/easyspeak-os-logo-menu.dconf /etc/dconf/db/distro.d/50-easyspeak-os-logo-menu
+command -v bazaar >/dev/null && command -v ghostty >/dev/null || { echo "ERROR: Logo Menu's software center (bazaar) or terminal (ghostty) is missing"; exit 1; }
 
 # The EasySpeakOS tools in Show Apps' Utilities folder (see that file).
 install -Dm644 /ctx/easyspeak-os-app-folders.dconf /etc/dconf/db/distro.d/50-easyspeak-os-app-folders
@@ -190,6 +223,13 @@ for a in easyspeak-os-tools easyspeak-os-update easyspeak-os-install-package eas
   HOME=/tmp dconf read /org/gnome/desktop/app-folders/folders/Utilities/apps | grep -q "'$a.desktop'" || { echo "ERROR: $a is not in the Utilities folder"; exit 1; }
 done
 [ "$got" = "true" ] || { echo "ERROR: EasySpeak's Quick Settings toggle is not on by default ($got)"; exit 1; }
+for k in "/org/gnome/shell/enabled-extensions ['logomenu@aryan_k']" \
+         "/org/gnome/shell/extensions/logo-menu/menu-button-software-center 'bazaar'" \
+         "/org/gnome/shell/extensions/logo-menu/menu-button-terminal 'ghostty'" \
+         "/org/gnome/shell/extensions/logo-menu/custom-icon-path '/usr/share/easyspeak-os/logo-menu-icon.svg'"; do
+  got=$(HOME=/tmp dconf read "${k%% *}")
+  [ "$got" = "${k#* }" ] || { echo "ERROR: Logo Menu default ${k%% *} is $got"; exit 1; }
+done
 
 # Firefox: its own home page instead of Fedora's start page, no "Fedora Project - Start Page" tile, and its About
 # window says "Mozilla Firefox", not "Mozilla Firefox for Fedora". Fails if Fedora's Firefox package changes these.

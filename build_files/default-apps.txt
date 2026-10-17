@@ -1,6 +1,6 @@
 # EasySpeakOS default apps from Fedora's own packages, installed into the image (no download after install).
 # Chosen for accessibility (AT-SPI), use with EasySpeak's grid, and hooks (AT-SPI, MPRIS, D-Bus, scripting) for later
-# EasySpeak integration. Firefox, qutebrowser, Files (nautilus), Ptyxis, Settings, Bazaar and Orca are installed
+# EasySpeak integration. Firefox, qutebrowser, Files (nautilus), Ghostty, Settings, Bazaar and Orca are installed
 # elsewhere or come with the base image. Apps Fedora doesn't package come from Flathub: see flathub-apps.txt.
 gnome-text-editor
 libreoffice-writer

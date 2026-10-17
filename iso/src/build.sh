@@ -66,11 +66,11 @@ dnf5 repoquery --quiet --setopt=optional_metadata_types=filelists --list anacond
   | sed -n 's|^/usr/share/locale/\([^/]*\)/LC_MESSAGES/anaconda.mo$|\1|p' | sort -u \
   > /usr/share/easyspeak-os-installer/anaconda-translations.txt
 
-# The dock: the installer first, then Firefox and Files. (The live session's own setup writes Fedora's list, with
+# The dock: the installer first, then Firefox, Files and Bazaar. (The live session's own setup writes Fedora's list, with
 # apps this system doesn't have; this file sorts after it, so it wins.)
 cat > /usr/share/glib-2.0/schemas/zz2-easyspeak-os-live.gschema.override <<'OVR'
 [org.gnome.shell]
-favorite-apps=['io.github.ctsdownloads.EasySpeakOS.Installer.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop']
+favorite-apps=['io.github.ctsdownloads.EasySpeakOS.Installer.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop', 'io.github.kolunmi.Bazaar.desktop']
 welcome-dialog-last-shown-version='4294967295'
 OVR
 glib-compile-schemas /usr/share/glib-2.0/schemas
