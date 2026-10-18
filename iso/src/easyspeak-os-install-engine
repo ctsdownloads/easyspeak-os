@@ -259,11 +259,15 @@ def configure(c, keymap):
     say(progress=0.9, step="Creating your account")
     var = f"{TARGET}/ostree/deploy/{stateroot}/var"
     os.makedirs(f"{var}/home", exist_ok=True)
+    # Each bind is made a slave of the live system's mount: the live system's mounts are shared (systemd's
+    # default), so without it, unmounting the binds afterwards also unmounts the live system's own /dev/pts,
+    # /dev/shm, /dev/mqueue and /sys mounts. The live session then can't open a terminal, and programs that
+    # need those mounts fail.
     mounts = [("--bind", var, "var"), ("--bind", "/proc", "proc"), ("--rbind", "/sys", "sys"),
               ("--rbind", "/dev", "dev")]
     try:
         for how, src, dst in mounts:
-            run("mount", how, src, f"{deploy}/{dst}")
+            run("mount", how, "--make-rslave", src, f"{deploy}/{dst}")
         chroot = ("chroot", deploy)
         run(*chroot, "useradd", "--create-home", "--comment", c["full_name"],
             *(["--groups", "wheel"] if c["admin"] else []), c["username"], problem="Your account could not be made.")
