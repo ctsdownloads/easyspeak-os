@@ -65,6 +65,8 @@ HELP_SOFTWARE = [
     "test / test again / open sound settings / set it up - the setup checklist's microphone and disk unlock steps",
     "open bazaar / open install package file - the setup checklist's getting apps step: see where apps come from",
     "install EasySpeakOS / try it first - the live USB's welcome window",
+    "read it / restart - the installer: hear how far the install has got while it runs, and restart at the end "
+    "(voice keeps working while the disk is written)",
 ]
 
 DIALOGS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "easyspeak-os", "dialogs")

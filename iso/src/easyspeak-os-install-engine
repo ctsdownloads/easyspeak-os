@@ -108,6 +108,60 @@ def free_disk(disk):
             run("mdadm", "--stop", dev["path"], problem=f"{dev['path']} is in use and could not be stopped.")
 
 
+# Keeping voice working while the system is copied. EasySpeak holds its speech models in memory (measured: about
+# 1.3 GB), and while nobody is talking to it they are the largest thing in the live system that nothing is reading.
+# Copying EasySpeakOS reads several gigabytes through the page cache, and the kernel makes room for that by dropping
+# those model pages, so the next command said after the wake word has to read them back off the USB stick before
+# anything can happen: the wake word still answers (its detector is small and always running), the command does
+# not. Two settings keep it out of that state. The live session's memory is protected, which is what keeps
+# EasySpeak's models in place: the kernel takes memory back from everything with no such protection first, and the
+# copy has none. The copy is also given a page cache of its own to be taken back from, which leaves it a generous
+# amount: a cap tight enough to slow the copy down would buy nothing the protection above doesn't already do.
+SESSION_KEEP = 2 * 2**30             # protected for the live desktop, at most this much
+SESSION_SHARE = 0.4                  # ...and at most this much of the computer's memory, for a small one
+COPY_CACHE = 2**30                   # the copy's own memory: this much, or a sixth of the computer's if that is more
+COPY_SHARE = 0.15
+
+
+def memory():
+    """How much memory the computer has, in bytes."""
+    return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+
+
+def ran_ok(*args):
+    """Whether the command ran and finished without a problem. One that isn't on the system counts as not working,
+    so a missing tool leaves the install to go on without whatever it was for."""
+    try:
+        return run(*args, check=False).returncode == 0
+    except OSError as e:
+        log(f"{args[0]} could not be run: {e}")
+        return False
+
+
+def protect_live_session():
+    """Ask the kernel to take memory back from everything else before the live desktop, so EasySpeak keeps its
+    speech models while the disk is written. pkexec names the session's user; without that name there is nothing to
+    protect and the install goes on."""
+    uid = (os.environ.get("PKEXEC_UID") or "").strip()
+    if not uid.isdigit():
+        log("the live session's memory was not protected: pkexec did not say which user asked")
+        return
+    keep = min(SESSION_KEEP, int(memory() * SESSION_SHARE))
+    if not ran_ok("systemctl", "set-property", "--runtime", f"user-{uid}.slice", f"MemoryLow={keep}"):
+        log("the live session's memory could not be protected; the install goes on")
+
+
+def gentle(*args, problem=None):
+    """Run a command with its page cache capped, so reading gigabytes doesn't push the live desktop out of memory.
+    Without a systemd scope to hold the cap, the command is run as it is."""
+    cap = max(COPY_CACHE, int(memory() * COPY_SHARE))
+    scope = ["systemd-run", "--scope", "--quiet", "--collect", f"--property=MemoryHigh={cap}", "--"]
+    if not ran_ok(*scope, "true"):
+        log("the copy's page cache was not capped: a systemd scope could not be started")
+        return run(*args, problem=problem)
+    return run(*scope, *args, problem=problem)
+
+
 def console_keymap(layout):
     name = data.keymap_name(layout)
     if not os.path.exists(f"{data.KEYMAPS}/{name}.map.gz"):
@@ -125,6 +179,7 @@ def write(path, text):
 def install(c):
     disk = chosen_disk(c)
     keymap = console_keymap(c["boot_layout"])
+    protect_live_session()               # so voice still answers while the disk is written
     if not c["time_automatic"]:
         set_clock(c)                     # first, so the new system's files are dated by the clock as set
 
@@ -180,10 +235,10 @@ def install(c):
     say(pulse=True, step="Copying EasySpeakOS to the disk")
     # --bootloader=grub as Anaconda passes it (bootc issue 1778); --skip-finalize leaves the new system writable
     # for the settings below.
-    run("bootc", "install", "to-filesystem", "--bootloader=grub", "--skip-finalize",
-        *[f"--karg={k}" for k in kargs], f"--boot-mount-spec=UUID={boot_uuid}",
-        f"--source-imgref=containers-storage:{IMAGE}", f"--target-imgref={IMAGE}", TARGET,
-        problem="Copying EasySpeakOS to the disk failed.")
+    gentle("bootc", "install", "to-filesystem", "--bootloader=grub", "--skip-finalize",
+           *[f"--karg={k}" for k in kargs], f"--boot-mount-spec=UUID={boot_uuid}",
+           f"--source-imgref=containers-storage:{IMAGE}", f"--target-imgref={IMAGE}", TARGET,
+           problem="Copying EasySpeakOS to the disk failed.")
 
     say(progress=0.85, step="Setting up the new system")
     configure(c, keymap)
