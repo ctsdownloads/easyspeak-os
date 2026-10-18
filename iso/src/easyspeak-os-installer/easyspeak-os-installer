@@ -2,7 +2,8 @@
 """The EasySpeakOS installer on the live USB. Every choice can be said; only passwords are typed.
 
 One window, one screen at a time (screens.py). At the top: the EasySpeakOS name and logo, the Alpha badge and
-which step this is. At the bottom: the buttons, which are also what can be said. EasySpeak answers the window
+which step this is. At the bottom: the buttons, which are also what can be said, and beside them a line naming
+every phrase that works on the screen being shown, so nothing has to be guessed at. EasySpeak answers the window
 through voice.py, the same way it answers every EasySpeakOS window.
 """
 import os
@@ -21,7 +22,29 @@ from voice import Voice  # noqa: E402
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 LOGO = "/usr/share/easyspeak-os-installer/logo-wide.svg"     # build_files/branding/logo-EasySpeak-wide.svg
-HINT = "Say a number, a name or a button. Say Read it to hear this screen."
+# What each button is called when it is said, where that differs from the name on the button. A button name of one
+# or two short words is what the speech model gets wrong, because there is too little of it to go on: "restart"
+# came back as "We start" on the live USB, matched nothing, and the finished screen could not be answered by voice
+# at all. A whole phrase is heard reliably, so these buttons are said, shown and read out as one. The phrase is
+# also what the window tells EasySpeak the button is called, so EasySpeak needs no list of its own; its EasySpeakOS
+# dialogs plugin keeps the short forms ("restart", "back") working alongside them.
+SAY_AS = {
+    "Restart": "restart the computer",
+    "Back": "go back a step",
+    "Next": "go to the next step",
+    "Install": "start the install",
+    "Erase and install": "erase the disk and install",
+    "Save the log": "save the log to a stick",
+    "Refresh": "look for it again",
+    "Connect": "connect to this network",
+    "Add": "add it to the list",
+    "Page up": "scroll up the list",
+    "Page down": "scroll down the list",
+    "Time servers": "open the time servers",
+    "Report on GitHub": "report it on GitHub",
+    "Show a QR code": "show a QR code",      # already a phrase; listed so the bottom line reads all of a piece
+}
+HINT_READ = 'Say "read it" to hear this screen.'
 REBOOT = "/usr/libexec/easyspeak-os-reboot"                  # restarts as root; its polkit action is live-USB only
 
 
@@ -55,9 +78,13 @@ class InstallerWindow(Adw.ApplicationWindow):
             page.append(w)
         clamp = Adw.Clamp(maximum_size=760, child=page, vexpand=True, valign=Gtk.Align.FILL)
 
+        # The hint gets a row of its own above the buttons: on the busiest screens it names a dozen phrases, and
+        # beside six buttons it would wrap three deep and leave them no room.
         self.buttons = Gtk.Box(spacing=10, halign=Gtk.Align.END, hexpand=True)
-        bottom = Gtk.Box(spacing=12, margin_top=12, margin_bottom=12, margin_start=24, margin_end=24)
-        bottom.append(Gtk.Label(label=HINT, xalign=0, wrap=True, css_classes=["hint"], hexpand=True))
+        self.hint = Gtk.Label(label=HINT_READ, xalign=0, wrap=True, css_classes=["hint"], hexpand=True)
+        bottom = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin_top=12, margin_bottom=12,
+                         margin_start=24, margin_end=24)
+        bottom.append(self.hint)
         bottom.append(self.buttons)
 
         view = Adw.ToolbarView(content=clamp)
@@ -197,7 +224,20 @@ class InstallerWindow(Adw.ApplicationWindow):
             b.set_sensitive(s.ready())
 
         self.said = said
+        self.hint.set_text(self.hint_text(s, said))
         self.describe()
+
+    def hint_text(self, s, said):
+        """The bottom line: the phrases that work on this screen, in the order the screen shows them. A line is
+        picked by its number, so the numbers are named as a range; the buttons are named one by one."""
+        parts = []
+        rows = s.lines()
+        if rows:
+            parts.append('"number 1"' if len(rows) == 1 else f'"number 1" to "number {len(rows)}"')
+        if isinstance(s, screens.ListScreen) and s.long():
+            parts.append('"letter A" to "letter Z"')
+        parts += [f'"{phrase}"' for phrase, _does in said]
+        return f"Say {', '.join(parts)}. {HINT_READ}" if parts else HINT_READ
 
     def describe(self):
         """Tell EasySpeak what the screen shows and what can be said; again when a list scrolls."""
@@ -210,11 +250,13 @@ class InstallerWindow(Adw.ApplicationWindow):
                             letters=is_list and s.long(), announce=s.announce())
 
     def _button(self, name, do, said, does, css=None):
+        """The button carries its own name; what is said for it is SAY_AS's phrase, which is what the bottom
+        line shows, what EasySpeak is told the button is called, and what "read it" reads out."""
         b = Gtk.Button(label=name, css_classes=["pill"] + ([css] if css else []))
         b.connect("clicked", lambda *_: do())
         self.buttons.append(b)
         self.pressable[does] = b
-        said.append((name, does))
+        said.append((SAY_AS.get(name, name), does))
         return b
 
     def answer(self, said):
