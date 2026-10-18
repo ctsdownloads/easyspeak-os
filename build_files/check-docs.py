@@ -1,10 +1,12 @@
 #!/usr/bin/python3 -I
-"""The build test that the README and the help keep up with the software.
+"""The build test that the README, the guides in docs/ and the help keep up with the software.
 
 1. The README's table of contents (between <!-- contents --> and <!-- /contents -->) lists every section and
-   sub-section, in order, with the same words, and each link goes to its section.
-2. Every link to a section inside the README (#...) goes to a section that exists.
-3. Every button in the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login,
+   sub-section of the README, in order, with the same words, and each link goes to its section.
+2. Every link to a section, in the README or in a guide, goes to a section that exists: "#name" in the same page,
+   "page.md#name" or "../README.md#name" in another one. A link to a page that is not there is an error too.
+3. Every guide in docs/ is linked from the README, so none of them is left where nobody will find it.
+4. Every button in the software windows (Install Package File, Remove Apps, Repair App Boxes, Start Apps at Login,
    System Tools) is named in the help's Software section, so it can be found by voice.
 
 Run from the repository root:  python3 build_files/check-docs.py
@@ -25,24 +27,31 @@ def slug(text):
     return text.replace(" ", "-")
 
 
-# ---------------------------------------------------------------- README
-readme = (ROOT / "README.md").read_text().splitlines()
-headings, anchors, seen, fence = [], set(), {}, False
-for line in readme:
-    if line.startswith("```"):
-        fence = not fence
-    if fence:
-        continue
-    m = re.match(r"^(#{2,3}) (.+?)\s*$", line)
-    if m:
-        text = m.group(2)
-        a = slug(text)
-        n = seen.get(a, 0)
-        seen[a] = n + 1
-        a = a if n == 0 else f"{a}-{n}"
-        anchors.add(a)
-        if text != "Contents":
-            headings.append((len(m.group(1)), text, a))
+def read(path):
+    """A page's lines, its heading anchors, and its headings as (level, words, anchor)."""
+    lines = (ROOT / path).read_text().splitlines()
+    headings, anchors, seen, fence = [], set(), {}, False
+    for line in lines:
+        if line.startswith("```"):
+            fence = not fence
+        if fence:
+            continue
+        m = re.match(r"^(#{1,3}) (.+?)\s*$", line)
+        if m:
+            text = m.group(2)
+            a = slug(text)
+            n = seen.get(a, 0)
+            seen[a] = n + 1
+            a = a if n == 0 else f"{a}-{n}"
+            anchors.add(a)
+            if text != "Contents" and len(m.group(1)) > 1:
+                headings.append((len(m.group(1)), text, a))
+    return lines, anchors, headings
+
+
+PAGES = ["README.md"] + sorted(str(p.relative_to(ROOT)) for p in (ROOT / "docs").glob("*.md"))
+pages = {p: read(p) for p in PAGES}
+readme, anchors, headings = pages["README.md"]
 
 try:
     first = readme.index("<!-- contents -->")
@@ -69,10 +78,35 @@ for i in range(max(len(headings), len(listed))):
         errors.append(f"README.md table of contents, line {i + 1}: should be {want}, is {got}")
         break
 
-for line in readme:
-    for a in re.findall(r"\]\(#([^)]+)\)", line):
-        if a not in anchors:
-            errors.append(f"README.md links to a section that does not exist: #{a}")
+# ---------------------------------------------------------------- every link, in every page
+for page, (lines, page_anchors, _h) in pages.items():
+    here = Path(page).parent
+    for line in lines:
+        for target in re.findall(r"\]\(([^)]+)\)", line):
+            if target.startswith(("http://", "https://", "mailto:")):
+                continue
+            path, _, a = target.partition("#")
+            if not path:                                        # "#name": a section of this same page
+                if a not in page_anchors:
+                    errors.append(f"{page} links to a section that is not in it: #{a}")
+                continue
+            other = (ROOT / here / path).resolve()
+            try:
+                name = str(other.relative_to(ROOT))
+            except ValueError:
+                errors.append(f"{page} links outside the repository: {target}")
+                continue
+            if not other.exists():
+                errors.append(f"{page} links to a file that is not there: {target}")
+            elif a and name in pages and a not in pages[name][1]:
+                errors.append(f"{page} links to a section that is not in {name}: #{a}")
+
+# ---------------------------------------------------------------- no guide left unlinked
+linked = {str((Path("README.md").parent / t.partition("#")[0]).as_posix())
+          for line in readme for t in re.findall(r"\]\(([^)]+)\)", line) if t.partition("#")[0]}
+for page in PAGES[1:]:
+    if page not in linked:
+        errors.append(f"{page} is not linked from README.md, so nobody will find it")
 
 # ---------------------------------------------------------------- help: every window button
 TOOLS = ["easyspeak-os-packages", "easyspeak-os-tools"]
@@ -121,4 +155,6 @@ if missing:
 if errors:
     print("\n".join("ERROR: " + e for e in errors))
     sys.exit(1)
-print(f"README contents: {len(headings)} sections, all listed and linked. Help: all {len(buttons)} window buttons named.")
+print(f"README: {len(headings)} sections, all listed and linked. "
+      f"Guides: {len(PAGES) - 1} in docs/, every link good. "
+      f"Help: all {len(buttons)} window buttons named.")
