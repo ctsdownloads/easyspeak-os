@@ -189,6 +189,36 @@ def save_to_stick(path, source, name):
     return ""
 
 
+VOICE_LINES = 5000                                        # of EasySpeak's own lines, the last this many
+TOGETHER = "/tmp/easyspeak-os-install-and-voice.log"       # the install log and EasySpeak's lines, to save as one
+
+
+def log_with_voice():
+    """The install log with EasySpeak's own lines after it, as one file to save. Without them a voice problem
+    leaves nothing to read, and the live USB has no terminal to read a journal with. The desktop starts EasySpeak,
+    so its lines go to the session's journal; the system journal is read too, in case they are tagged there
+    instead. Whatever can't be read is left out, and the install log alone is saved if none of it can."""
+    parts = []
+    for what, cmd in (("EasySpeak and the desktop, this session",
+                       ["journalctl", "--user", "-b", "--no-pager", "-n", str(VOICE_LINES)]),
+                      ("EasySpeak, from the system journal",
+                       ["journalctl", "-b", "--no-pager", "-n", str(VOICE_LINES), "-t", "easyspeak"])):
+        said = subprocess.run(cmd, capture_output=True, text=True)
+        if said.returncode == 0 and said.stdout.strip():
+            parts.append(f"\n\n==== {what} ====\n\n{said.stdout}")
+    if not parts:
+        return LOG
+    try:
+        with open(LOG, errors="replace") as f:
+            install = f.read()
+        with open(TOGETHER, "w") as f:
+            f.write(install)
+            f.writelines(parts)
+    except OSError:
+        return LOG
+    return TOGETHER
+
+
 def network():
     """(wired connected?, [{"ssid", "signal", "secured"}]) from NetworkManager, strongest Wi-Fi first."""
     def nmcli(*args):
