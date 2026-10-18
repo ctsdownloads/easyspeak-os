@@ -73,11 +73,32 @@ dnf5 repoquery --quiet --setopt=optional_metadata_types=filelists --list anacond
 
 # The dock: the installer first, then Firefox, Files and Bazaar. (The live session's own setup writes Fedora's list, with
 # apps this system doesn't have; this file sorts after it, so it wins.)
+# Power: the live session never dims, blanks, locks or suspends. An install runs longer than the desktop's idle
+# times, so left on their defaults the screen would blank and the computer would suspend partway through. The
+# installed system is the base image, which does not carry this override, so it keeps GNOME's normal power defaults.
 cat > /usr/share/glib-2.0/schemas/zz2-easyspeak-os-live.gschema.override <<'OVR'
 [org.gnome.shell]
 favorite-apps=['io.github.ctsdownloads.EasySpeakOS.Installer.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop', 'io.github.kolunmi.Bazaar.desktop']
 welcome-dialog-last-shown-version='4294967295'
+
+[org.gnome.desktop.session]
+idle-delay=uint32 0
+
+[org.gnome.settings-daemon.plugins.power]
+ambient-enabled=false
+idle-dim=false
+power-saver-profile-on-low-battery=false
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
 OVR
+
+# The live USB has no Flatpaks, so its Logo Menu system monitor points at gnome-system-monitor (which the image
+# keeps installed) instead of Resources, which is only on the installed system after its first start.
+sed -i "s|^menu-button-system-monitor=.*|menu-button-system-monitor='gnome-system-monitor'|" \
+  /etc/dconf/db/distro.d/50-easyspeak-os-logo-menu
+grep -qx "menu-button-system-monitor='gnome-system-monitor'" /etc/dconf/db/distro.d/50-easyspeak-os-logo-menu \
+  || { echo "ERROR: the live USB's Logo Menu system monitor was not set to gnome-system-monitor"; exit 1; }
+dconf update
 glib-compile-schemas /usr/share/glib-2.0/schemas
 
 # What the installer puts on the disk: EasySpeakOS itself, from a copy carried on the USB stick (no download).
@@ -145,6 +166,22 @@ command -v qrencode >/dev/null || fail "qrencode is missing (the problem report'
 for tool in mdadm dmsetup cryptsetup mkfs.fat mkfs.ext4 mkfs.xfs sfdisk wipefs hwclock; do
   command -v "$tool" >/dev/null || fail "$tool is missing (the install engine uses it)"
 done
+# The live session must not dim, blank, lock or suspend while an install runs. Read through the schemas, as the
+# session reads them.
+for setting in "org.gnome.desktop.session idle-delay uint32 0" \
+               "org.gnome.settings-daemon.plugins.power ambient-enabled false" \
+               "org.gnome.settings-daemon.plugins.power idle-dim false" \
+               "org.gnome.settings-daemon.plugins.power power-saver-profile-on-low-battery false" \
+               "org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'" \
+               "org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'"; do
+  set -- $setting
+  schema=$1 key=$2
+  shift 2
+  [ "$(gsettings get "$schema" "$key")" = "$*" ] || fail "the live session's $key is not $*, so an install nobody touches could be interrupted"
+done
+# The live USB's Logo Menu opens gnome-system-monitor (Resources is only on the installed system).
+[ "$(HOME=/tmp gsettings get org.gnome.shell.extensions.logo-menu menu-button-system-monitor)" = "'gnome-system-monitor'" ] \
+  || fail "the live USB's Logo Menu system monitor is not gnome-system-monitor"
 # The install engine's bootc steps: copy without finishing, write the settings, then finish.
 bootc install to-filesystem --help | grep -q -- '--skip-finalize' || fail "bootc has no install to-filesystem --skip-finalize"
 bootc install to-filesystem --help | grep -q -- '--bootloader' || fail "bootc has no install to-filesystem --bootloader"

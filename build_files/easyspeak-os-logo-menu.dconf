@@ -1,8 +1,10 @@
 # EasySpeakOS: the Logo Menu extension (top left) is on for every user, with the EasySpeakOS logo as its icon,
-# Bazaar as its software center and Ghostty as its terminal. The Activities button and Force Quit are hidden; a
-# middle click on the logo still opens Activities (Logo Menu's own default). Anyone can change these in its settings.
-# A system default (dconf), because the settings belong to the extension. The path is the one its schema names,
-# with a capital L.
+# Bazaar as its software center, Ghostty as its terminal and Resources as its system monitor. The Activities button
+# and Force Quit are hidden; a middle click on the logo still opens Activities (Logo Menu's own default). Anyone can
+# change these in its settings. A system default (dconf), because the settings belong to the extension. The path is
+# the one its schema names, with a capital L.
+# Resources comes from Flathub on the first start, so this is the installed system's default; the live USB, which
+# has no Flatpaks, points the system monitor at gnome-system-monitor instead (iso/src/build.sh).
 [org/gnome/shell]
 enabled-extensions=['logomenu@aryan_k']
 
@@ -11,5 +13,6 @@ use-custom-icon=true
 custom-icon-path='/usr/share/easyspeak-os/logo-menu-icon.svg'
 menu-button-software-center='bazaar'
 menu-button-terminal='ghostty'
+menu-button-system-monitor='flatpak run net.nokyan.Resources'
 show-activities-button=false
 hide-forcequit=true
