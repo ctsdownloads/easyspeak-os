@@ -180,33 +180,47 @@ computer's disk isn't touched until you install.
    otherwise), your account (full name by dictation, user name, administrator
    or not, password), and the computer's name. Everything on the chosen disk
    is erased: the installer says so and goes on only when you say **Erase and
-   install**. The **Review** at the end is read aloud; say a number to change
-   that step, or **Install**. It installs EasySpeakOS from the copy on the USB
+   the disk and install**. The **Review** at the end is read aloud; say a number
+   to change that step, or **start the install**. It installs EasySpeakOS from the
+   copy on the USB
    stick, with no download, and says when it's finished; then say
-   **Restart** (or **reboot**), which restarts the computer whether you say it
+   **restart the computer**, which restarts the computer whether you say it
    or press the button, with nothing else open and the screen untouched. If the
    restart doesn't start, a pop-up shows the exact error, to photograph for a
    report. The finished screen also offers
-   **Save the log**: it puts the details of the install, and what EasySpeak
+   **save the log to a stick**: it puts the details of the install, and what EasySpeak
    itself did, on a second USB stick. Use it if anything went wrong, including
    voice not answering, since the live USB has no terminal to read a log with.
    A Wi-Fi network joined during
    the install is saved on the new system, so it is online from its first start. The orange
    **Alpha** badge at the top says EasySpeakOS is in alpha.
 
-   On every screen: say a line's number (up to "nine hundred ninety nine") or
-   its name, a button's name, or **Read it** to hear the screen. Long lists
-   have **Page down** and **Page up**, and **letter G** scrolls to the entries
-   starting with G. The live USB never dims, blanks, locks or suspends, so an
+   On every screen, a line above the buttons names every phrase that screen
+   takes, so nothing has to be guessed at: the numbers it has (`"number 1" to
+   "number 9"`), the letters when the list is long, each button, and
+   `"read it"`. Each button is said as a whole phrase rather than its one or two
+   word name, because a short word is what speech recognition gets wrong and a
+   phrase is heard reliably: **restart the computer**, **go back a step**, **go
+   to the next step**, **start the install**, **erase the disk and install**,
+   **save the log to a stick**, **look for it again**, **connect to this
+   network**, **add it to the list**, **scroll up the list**, **scroll down the
+   list**, **open the time servers**, **report it on GitHub**. The short name
+   still works if you say it ("restart", "back", "next"), it just isn't what the
+   screen shows. Say a line's number (up to "nine hundred ninety nine") or its
+   name, a button's phrase, or **read it** to hear the screen. Starting with the
+   word "number" is the surest way to pick a line, and after it a misheard small
+   number still counts, so "number to" picks line 2. Long lists have **scroll
+   down the list** and **scroll up the list**, and **letter G** scrolls to the entries starting
+   with G. The live USB never dims, blanks, locks or suspends, so an
    install can run untouched to the end; the installed system keeps GNOME's
    normal power settings.
 
    If the install stops, nothing more is changed, and the installer offers,
-   least typing first: **Save the log** (onto another USB stick, for your
-   helper; no account needed), **Show a QR code** (a pre-filled problem report
-   on this project's GitHub page, opened on a phone), or **Report on GitHub**
-   (the same report in Firefox, which needs a free GitHub account and its
-   password typed). The saved log carries EasySpeak's own lines as well as the
+   least typing first: **save the log to a stick** (onto another USB stick, for
+   your helper; no account needed), **show a QR code** (a pre-filled problem
+   report on this project's GitHub page, opened on a phone), or **report it on
+   GitHub** (the same report in Firefox, which needs a free GitHub account and
+   its password typed). The saved log carries EasySpeak's own lines as well as the
    install's, and leaves out the passwords and the names you typed.
 5. Turn Secure Boot back on in the BIOS settings: the installed system starts
    with it on. Then log in. The [setup checklist](#first-login) opens.
@@ -372,7 +386,16 @@ break the system, and they update by themselves.
   Apostrophes don't matter ("dont show again" and "do not show again" both press
   **Don't show again**). "Next" or "continue" presses the main button when it
   only moves forward (Start, Next, Test, OK), never one that changes or removes
-  something, like Turn off. "Reboot" presses a **Restart** button, and the wake
+  something, like Turn off. A short button name can also be pressed by a longer
+  phrase, which short names need because speech recognition mishears them:
+  "restart the computer", "reboot now" and "restart now" all press **Restart**,
+  along with the words it comes back as instead ("we start"). The installer goes
+  further and names its buttons with the phrase itself, so that is what its
+  screens show. Starting with the
+  word "number" is the surest way to pick a line, and after it a misheard small
+  number still counts ("number to" picks line 2); said on its own, "to" is left
+  alone as an ordinary word. A longer phrase is only taken when
+  the open window has that button, so it can never press anything else. The wake
   word can also come last ("restart, Jarvis"). The window
   is never read out by itself: the open microphone would hear it and could press
   one of its buttons. When no such window is open, these words do nothing, so

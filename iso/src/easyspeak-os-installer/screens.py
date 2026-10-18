@@ -149,7 +149,7 @@ class LanguageScreen(ListScreen):
     def intro(self):
         if self.stage == "language":
             return "Which language should EasySpeakOS use? Say its number or its name."
-        return "Which one? Say its number or its name. Say Back for the list of languages."
+        return "Which one? Say its number or its name. Say Go back a step for the list of languages."
 
     def items(self):
         if self.stage == "language":
@@ -296,9 +296,10 @@ class NetworkScreen(ListScreen):
     @property
     def intro(self):
         if self.chosen and self.chosen["secured"]:
-            return f"Type the password for {self.chosen['ssid']}, then say Connect. Say Back for the list."
+            return (f"Type the password for {self.chosen['ssid']}, then say Connect to this network. "
+                    "Say Go back a step for the list.")
         return ("A network is only needed for automatic time and time zone. To use Wi-Fi, say its number. "
-                "Say Next to go on without it.")
+                "Say Go to the next step to go on without it.")
 
     def enter(self):
         self.wired, self.wifi = data.network()
@@ -378,7 +379,7 @@ class TimeZoneScreen(ListScreen):
     @property
     def intro(self):
         if self.region:
-            return f"Which city in {self.region} has your time? Say Back for the regions."
+            return f"Which city in {self.region} has your time? Say Go back a step for the regions."
         return "Set the time zone automatically, or say a region, then a city."
 
     def items(self):
@@ -432,10 +433,10 @@ class DateTimeScreen(ListScreen):
     @property
     def intro(self):
         if self.stage == "servers":
-            return ("Time servers to use instead of Fedora's. Add one with its name and say Add. "
-                    "Say a server's number to take it off. Say Back when done.")
+            return ("Time servers to use instead of Fedora's. Add one with its name and say Add it to the list. "
+                    "Say a server's number to take it off. Say Go back a step when done.")
         if self.stage in self.FIELDS:
-            return f"Say the {self.stage.lower()}. Say Back to keep it as it is."
+            return f"Say the {self.stage.lower()}. Say Go back a step to keep it as it is."
         return "Keep the clock right automatically, or set the date and time yourself."
 
     def values(self):
@@ -579,7 +580,7 @@ class DiskScreen(ListScreen):
 
     def status(self):
         if not self.disks:
-            return "No disk was found. Connect one and say Refresh."
+            return "No disk was found. Connect one and say Look for it again."
         return f"Chosen: {self.c.disk['model']}, {self.c.disk['size']}." if self.c.disk else "No disk chosen yet."
 
 
@@ -590,7 +591,7 @@ class EraseScreen(Screen):
     step = "Erase"
     next_label = None
     danger = "Erase and install"
-    intro = "To go on, say Erase and install. To pick another disk, say Back."
+    intro = "To go on, say Erase the disk and install. To pick another disk, say Go back a step."
 
     def build(self):
         self.warning = Gtk.Label(wrap=True, xalign=0, css_classes=["title-2", "erase-warning"])
@@ -842,7 +843,7 @@ class ReviewScreen(ListScreen):
     step = "Review"
     next_label = None
     main = "Install"
-    intro = "Check everything. Say a number to change it, or say Install to put EasySpeakOS on the disk."
+    intro = "Check everything. Say a number to change it, or say Start the install to put EasySpeakOS on the disk."
 
     def summary(self):
         c, kb = self.c, data.keyboards()
@@ -876,7 +877,7 @@ class ReviewScreen(ListScreen):
         return " ".join(f"{name}: {value}." for name, value, _s in self.summary())
 
     def announce(self):
-        return f"Review. {self.status()} Say a number to change it, or say Install."
+        return f"Review. {self.status()} Say a number to change it, or say Start the install."
 
 
 # ---------------------------------------------------------------------------------------------------- 15-17
@@ -995,7 +996,7 @@ class LogScreen(ListScreen):
 
     def find_sticks(self):
         self.stage, self.found = "sticks", data.sticks()
-        self.saved = "" if self.found else "No USB stick found. Plug one in and say Refresh."
+        self.saved = "" if self.found else "No USB stick found. Plug one in and say Look for it again."
         self.choose(to_chosen=True)
 
     def pick(self, i):
@@ -1026,10 +1027,10 @@ class DoneScreen(LogScreen):
     @property
     def intro(self):
         if self.stage == "sticks":
-            return ("Plug in a second USB stick, then say its number to save the log on it. Say Refresh if it isn't "
-                    "listed, or Back.")
-        return ("Say Restart to start EasySpeakOS. Say Save the log to put the details of this install, and what "
-                "EasySpeak did, on a second USB stick.")
+            return ("Plug in a second USB stick, then say its number to save the log on it. Say Look for it "
+                    "again if it isn't listed, or Go back a step.")
+        return ("Say Restart the computer to start EasySpeakOS. Say Save the log to a stick to put the details of this "
+                "install, and what EasySpeak did, on a second USB stick.")
 
     def actions(self):
         return [("Restart", self.win.restart), ("Save the log", self.find_sticks)]
@@ -1062,15 +1063,17 @@ class ErrorScreen(LogScreen):
     @property
     def intro(self):
         if self.stage == "sticks":
-            return ("Plug in a USB stick, then say its number to save the log on it. Say Refresh if it isn't listed, "
-                    "or Back.")
+            return ("Plug in a USB stick, then say its number to save the log on it. Say Look for it again if it isn't "
+                    "listed, or Go back a step.")
         if self.stage == "code":
             return ("Point your phone's camera at the code. It opens the report on GitHub with the details filled in, "
-                    "ready to send. It carries the end of the log; the whole log can go on a USB stick. Say Back.")
-        return ("Nothing more was changed on the disk. Say Save the log to put the details on a USB stick for your "
-                "helper; no account is needed. Say Show a QR code to send a report from your phone. Or say Report on "
-                "GitHub to send it from Firefox: that needs a free GitHub account, and signing in needs your "
-                "password typed. Or say Restart.")
+                    "ready to send. It carries the end of the log; the whole log can go on a USB stick. Say Go "
+                    "back a step.")
+        return ("Nothing more was changed on the disk. Say Save the log to a stick to put the details on a USB "
+                "stick for your helper; no account is needed. Say Show a QR code to send a report from your "
+                "phone. Or say Report it on GitHub to send it from Firefox: that needs a free GitHub account, "
+                "and signing in needs your "
+                "password typed. Or say Restart the computer.")
 
     def refresh(self, to_chosen=True):
         super().refresh(to_chosen)
@@ -1088,7 +1091,7 @@ class ErrorScreen(LogScreen):
         made = subprocess.run(["qrencode", "-t", "PNG", "-l", "L", "-s", "8", "-m", "4", "-o", "-",
                                self.issue_url(self.QR_URL_MAX)], capture_output=True)
         if made.returncode != 0:
-            self.saved = "The QR code could not be made. Say Save the log instead."
+            self.saved = "The QR code could not be made. Say Save the log to a stick instead."
         else:
             self.code.set_paintable(Gdk.Texture.new_from_bytes(GLib.Bytes.new(made.stdout)))
             self.stage, self.saved = "code", ""

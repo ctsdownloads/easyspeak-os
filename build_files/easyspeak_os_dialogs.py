@@ -3,7 +3,9 @@
 Shipped by the EasySpeakOS image, not by EasySpeak. The EasySpeakOS windows (Install Package File, Remove Apps,
 Repair App Boxes, System Update, Install Media Codecs) are opened through easyspeak-os-dialog, which describes the
 open window in $XDG_RUNTIME_DIR/easyspeak-os/dialogs/. While one is open:
-  - say a button's name ("set up and install", "open it", "cancel") to press it;
+  - say a button's name ("set up and install", "open it", "cancel") to press it. The installer names its buttons
+    with a whole phrase ("restart the computer", "go back a step"), which is what its screens show and what is
+    heard most reliably; the shorter forms in ALSO_SAID ("restart", "back") press the same button;
   - say "number two" (or the name on a line) to pick a line in a list;
   - say "letter g" to scroll a long list to its first line starting with G (windows that say they can: "letters");
   - say "read it" to hear the window and the buttons you can say.
@@ -32,7 +34,11 @@ COMMANDS = [
     "[a button's name] - press that button in an EasySpeakOS window, for example: set up and install, "
     "open it, cancel",
     "read it - hear what an open EasySpeakOS window says, and the buttons you can say",
-    "number one / number two - pick that line in an EasySpeakOS list window",
+    "restart the computer / go back a step / start the install - the installer names its buttons with a whole "
+    "phrase, which is what each screen shows and what is heard most reliably; the short form (restart, back, "
+    "install) presses the same button",
+    "number one / number two - pick that line in an EasySpeakOS list window; starting with the word number is the "
+    "surest way to be heard",
     "letter a / letter b - scroll a long list in the EasySpeakOS installer to the lines starting with that letter",
     "next / continue - go on, when the window's main button is Start, Next, Test or OK",
 ]
@@ -74,6 +80,38 @@ NUMBERS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight
            "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
 TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80,
         "ninety": 90}
+# The shorter, and mis-heard, ways of saying a button: the button names each one may mean, then the phrases. A
+# phrase is only taken when the open window really has one of those buttons, so none of these words can press
+# anything else. A short name is what the speech model gets wrong, because there is too little of it to go on: on
+# the live USB "restart" came back as "We start", matched nothing, and the finished screen could not be answered by
+# voice at all. So the installer names its buttons with the long phrases below ("restart the computer"), which need
+# nothing here to work, and these keep the short forms going alongside them. The software windows keep their short
+# button names, so both are listed for each.
+ALSO_SAID = {
+    ("restart the computer", "restart"): ("restart", "reboot", "reboot now", "restart now", "restart it",
+                                          "restarts", "restarted", "start the computer again", "we start",
+                                          "re start"),
+    ("go back a step", "back"): ("back", "go back", "back up"),
+    ("go to the next step", "next"): ("next step", "go next", "the next step"),
+    ("start the install", "install"): ("install", "install it", "install now", "install it now"),
+    ("erase the disk and install", "erase and install"): ("erase and install", "erase it and install", "erase it"),
+    ("save the log to a stick", "save the log"): ("save the log", "save a log", "save the logs", "save log"),
+    ("look for it again", "refresh"): ("refresh", "refresh it", "refresh the list", "look again"),
+    ("connect to this network", "connect"): ("connect", "connect to it", "join it"),
+    ("add it to the list", "add"): ("add", "add it"),
+    ("scroll up the list", "page up"): ("page up", "go up", "scroll up"),
+    ("scroll down the list", "page down"): ("page down", "go down", "scroll down"),
+    ("open the time servers", "time servers"): ("time servers", "the time servers"),
+    ("report it on github", "report on github"): ("report on github", "report it", "open the report"),
+    ("cancel",): ("cancel it", "cancel that", "never mind"),
+}
+SAID_AS = {phrase: names for names, phrases in ALSO_SAID.items() for phrase in phrases}
+
+# What the speech model writes in place of a small number. Only taken after the word "number" (or line, item, row):
+# said on its own, "to" and "for" are ordinary words and must never pick a line.
+SOUNDALIKE = {"won": 1, "wan": 1, "to": 2, "too": 2, "tu": 2, "tree": 3, "free": 3, "thee": 3, "for": 4, "fore": 4,
+              "ate": 8, "eat": 8, "nein": 9, "tin": 10}
+COUNTED = re.compile(r"^(number|line|item|row) ")
 LETTER = re.compile(r"^letter ([a-z])$")
 READ = re.compile(r"^(read (it|this|that|the window|the question|it out|it again)|what does it say)$")
 LEAD = re.compile(r"^(please |click |press |choose |select |pick |say |the )+")
@@ -89,7 +127,7 @@ def norm(text):
 
 # The main buttons that only move forward: "next" or "continue" presses them. Never a button that changes or removes
 # something (Turn off, Remove, Restart now), so a "next" said out of habit can't do that.
-FORWARD = {"start", "next", "test", "test again", "ok", "continue"}
+FORWARD = {"start", "next", "test", "test again", "ok", "continue", "go to the next step"}
 READY = os.path.join(os.path.dirname(DIALOGS), "easyspeak-ready")
 
 
@@ -162,10 +200,18 @@ def answer(info, what):
 
 def number(words):
     """'number two', 'two', '2', 'line 2' -> 2; up to 999 in words, as long lists need: 'one hundred and five'
-    -> 105, 'twenty one' -> 21. None when the words are not a number."""
-    words = re.sub(r"^(number|line|item|row) ", "", words)
+    -> 105, 'twenty one' -> 21. None when the words are not a number.
+
+    After the word "number" (or line, item, row) a mis-heard small number counts too, since "number two" comes
+    back as "number to" often enough to matter. Without that word it does not, so an ordinary "to" or "for" in a
+    line's name is left alone."""
+    counted = COUNTED.match(words)
+    if counted:
+        words = words[counted.end():]
     if words.isdigit():
         return int(words)
+    if counted and words in SOUNDALIKE:
+        return SOUNDALIKE[words]
     left = [w for w in words.replace("-", " ").split() if w != "and"]
     value = 0
     if len(left) >= 2 and left[1] == "hundred" and (left[0] == "a" or left[0] in NUMBERS[1:10]):
@@ -225,8 +271,8 @@ def handle(cmd, core):
         button = by_name["ok"]
     if button is None and said == "cancel":
         button = next((b for b in info["buttons"] if b["does"] == "cancel"), None)
-    if button is None and said == "reboot":                 # the other word people use for Restart
-        button = by_name.get("restart")
+    if button is None and said in SAID_AS:                  # a shorter, or mis-heard, way of saying one of them
+        button = next((by_name[n] for n in SAID_AS[said] if n in by_name), None)
     if button is None and said in ("next", "continue", "go on"):
         button = next((b for b in info["buttons"] if b["does"] == "ok" and norm(b["say"]) in FORWARD), None)
     if button is not None:
