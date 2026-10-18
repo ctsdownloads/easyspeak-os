@@ -42,8 +42,10 @@ SPDX-License-Identifier = "Apache-2.0"
 path = [
     "iso/src/easyspeak-os-installer/**",
     "iso/src/easyspeak-os-install-engine",
+    "iso/src/easyspeak-os-reboot",
     "iso/src/io.github.ctsdownloads.EasySpeakOS.Installer.desktop",
     "iso/src/io.github.ctsdownloads.easyspeak-os.install.policy",
+    "iso/src/io.github.ctsdownloads.easyspeak-os.reboot.policy",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Matt Hartley"

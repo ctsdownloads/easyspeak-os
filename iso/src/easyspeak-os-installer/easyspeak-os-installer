@@ -22,6 +22,7 @@ from voice import Voice  # noqa: E402
 HERE = os.path.dirname(os.path.realpath(__file__))
 LOGO = "/usr/share/easyspeak-os-installer/logo-wide.svg"     # build_files/branding/logo-EasySpeak-wide.svg
 HINT = "Say a number, a name or a button. Say Read it to hear this screen."
+REBOOT = "/usr/libexec/easyspeak-os-reboot"                  # restarts as root; its polkit action is live-USB only
 
 
 class InstallerWindow(Adw.ApplicationWindow):
@@ -125,12 +126,19 @@ class InstallerWindow(Adw.ApplicationWindow):
         self.voice.announce("The install stopped. Nothing more was changed. Say read it to hear what you can do.")
 
     def restart(self):
-        """Restart the computer the way System Tools does: the window goes away first, then systemctl reboot runs
-        and its answer is waited for. If the restart doesn't start, the window comes back with a pop-up showing
-        systemctl's exact message and exit code, so the reason can be read (or photographed) without a terminal."""
+        """Restart the computer as root, through the installer's own reboot helper (pkexec, a live-USB-only polkit
+        action that needs no password). The window goes away first, then the helper runs and its answer is waited
+        for. If the restart doesn't start, the window comes back with a pop-up showing the exact message and exit
+        code, so the reason can be read (or photographed) without a terminal.
+
+        As root the restart is not subject to the per-session check that a plain "systemctl reboot" as the live
+        user is: that check reads whether the session is active at the moment it is asked, which a pressed button
+        satisfies (pressing it is input) but a command said by voice, with no input behind it, may not. Said aloud
+        on a screen nobody had touched, the user-level reboot was being refused and nothing happened; as root it
+        does not depend on that at all."""
         self.set_visible(False)
         self.voice.close()
-        proc = Gio.Subprocess.new(["systemctl", "reboot"],
+        proc = Gio.Subprocess.new(["pkexec", REBOOT],
                                   Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
         proc.communicate_utf8_async(None, None, self._restart_answered)
 
@@ -141,9 +149,9 @@ class InstallerWindow(Adw.ApplicationWindow):
         code = proc.get_exit_status() if proc.get_if_exited() else f"signal {proc.get_term_sig()}"
         self.set_visible(True)
         self.update()                       # its screen and buttons, for voice, again
-        message = (out or "").strip() or "(systemctl printed nothing)"
+        message = (out or "").strip() or "(nothing was printed)"
         dialog = Adw.AlertDialog(heading="The restart didn't start",
-                                 body=f"systemctl reboot said:\n\n{message}\n\nExit code: {code}")
+                                 body=f"The restart said:\n\n{message}\n\nExit code: {code}")
         dialog.add_response("ok", "OK")
         dialog.present(self)
         self.voice.announce("The restart didn't start. The reason is on the screen.")

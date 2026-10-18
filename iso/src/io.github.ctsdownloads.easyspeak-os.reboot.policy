@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- The live USB only: lets the EasySpeakOS installer restart the computer when the install has finished or
+     stopped, without a password. allow_any=yes on purpose, unlike the install action: the restart must work even
+     when it is asked for by voice on a screen nobody has touched, where the session is not counted as active and
+     a per-session check (allow_active) would refuse it. The person is already at this computer, the install is
+     done, and the machine is only being restarted. Only this one program, which does nothing but reboot. The
+     installed system does not have this file. -->
+<policyconfig>
+  <action id="io.github.ctsdownloads.easyspeak-os.reboot">
+    <description>Restart after installing EasySpeakOS</description>
+    <message>Authentication is required to restart</message>
+    <icon_name>easyspeak-os-installer</icon_name>
+    <defaults>
+      <allow_any>yes</allow_any>
+      <allow_inactive>yes</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/easyspeak-os-reboot</annotate>
+  </action>
+</policyconfig>

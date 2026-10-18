@@ -1,0 +1,7 @@
+#!/bin/sh
+# Restarts the computer, run as root through pkexec from the EasySpeakOS installer (its polkit action is in
+# io.github.ctsdownloads.easyspeak-os.reboot.policy, on the live USB only). As root the restart does not depend on
+# the session being active, so it works when the installer is answered by voice on a screen nobody has touched,
+# which a "systemctl reboot" run as the live user did not. -i so a stray inhibitor can't hold it back: the install
+# has finished and there is nothing left to protect.
+exec systemctl reboot -i

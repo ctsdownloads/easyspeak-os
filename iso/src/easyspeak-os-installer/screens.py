@@ -966,18 +966,76 @@ class InstallingScreen(Screen):
         return self.done
 
 
-class DoneScreen(Screen):
-    title = "EasySpeakOS is installed"
-    intro = "Say Restart to start EasySpeakOS."
-    back = False
+class LogScreen(ListScreen):
+    """A screen the install ends on, which can put the log on a USB stick: the list is the sticks found, and saying
+    one's number saves the log on it. The saved log carries EasySpeak's own lines too, so a voice problem can be
+    read afterwards; the live USB has no terminal to read them with."""
     next_label = None
+
+    def build(self):
+        super().build()
+        self.stage, self.saved, self.found = "main", "", []
+
+    @property
+    def back(self):
+        return self.stage != "main"
+
+    def enter(self):
+        self.stage, self.saved = "main", ""
+        super().enter()
+
+    def refresh(self, to_chosen=True):
+        super().refresh(to_chosen)
+        self.list.set_visible(self.stage == "sticks")
+
+    def items(self):
+        if self.stage != "sticks":
+            return []
+        return [(s["name"], f"{s['name']}, {s['size']}", s["path"], False) for s in self.found]
+
+    def find_sticks(self):
+        self.stage, self.found = "sticks", data.sticks()
+        self.saved = "" if self.found else "No USB stick found. Plug one in and say Refresh."
+        self.choose(to_chosen=True)
+
+    def pick(self, i):
+        stick = self.found[i]
+        name = f"easyspeak-os-install-log-{datetime.datetime.now():%Y%m%d-%H%M}.txt"
+        problem = data.save_to_stick(stick["path"], data.log_with_voice(), name)
+        self.saved = (f"Saved on {stick['name']} as {name}. You can take the stick out now." if not problem else
+                      f"Not saved: {problem}")
+        self.stage = "main" if not problem else "sticks"
+        self.choose(to_chosen=True)
+
+    def go_back(self):
+        if self.stage != "main":
+            self.stage = "main"
+            self.choose(to_chosen=True)
+            return True
+        return False
+
+    def status(self):
+        return self.saved
+
+
+class DoneScreen(LogScreen):
+    title = "EasySpeakOS is installed"
+    back = False
     main = "Restart"
 
+    @property
+    def intro(self):
+        if self.stage == "sticks":
+            return ("Plug in a second USB stick, then say its number to save the log on it. Say Refresh if it isn't "
+                    "listed, or Back.")
+        return ("Say Restart to start EasySpeakOS. Say Save the log to put the details of this install, and what "
+                "EasySpeak did, on a second USB stick.")
+
     def actions(self):
-        return [("Restart", self.win.restart)]
+        return [("Restart", self.win.restart), ("Save the log", self.find_sticks)]
 
 
-class ErrorScreen(ListScreen):
+class ErrorScreen(LogScreen):
     """The install stopped. Three ways to get help, the least typing first: save the log to a USB stick for a
     helper (no account), a QR code that opens the report on a phone, or the report in Firefox (signing in to GitHub
     there means typing a password). A link can carry an issue's text but not a file, so the reports carry the end
@@ -995,15 +1053,11 @@ class ErrorScreen(ListScreen):
         self.code.set_size_request(360, 360)
         self.body.append(self.code)
         super().build()
-        self.problem, self.log, self.stage, self.saved, self.found = "", "", "main", "", []
+        self.problem, self.log = "", ""
 
     def failed(self, problem, log):
         self.problem, self.log = problem, log
         self.what.set_text(problem)
-
-    @property
-    def back(self):
-        return self.stage != "main"
 
     @property
     def intro(self):
@@ -1018,28 +1072,9 @@ class ErrorScreen(ListScreen):
                 "GitHub to send it from Firefox: that needs a free GitHub account, and signing in needs your "
                 "password typed. Or say Restart.")
 
-    def enter(self):
-        self.stage, self.saved = "main", ""
-        super().enter()
-
     def refresh(self, to_chosen=True):
         super().refresh(to_chosen)
-        self.list.set_visible(self.stage == "sticks")
         self.code.set_visible(self.stage == "code")
-
-    def items(self):
-        if self.stage != "sticks":
-            return []
-        return [(s["name"], f"{s['name']}, {s['size']}", s["path"], False) for s in self.found]
-
-    def pick(self, i):
-        stick = self.found[i]
-        name = f"easyspeak-os-install-log-{datetime.datetime.now():%Y%m%d-%H%M}.txt"
-        problem = data.save_to_stick(stick["path"], self.log, name)
-        self.saved = (f"Saved on {stick['name']} as {name}. You can take the stick out now." if not problem else
-                      f"Not saved: {problem}")
-        self.stage = "main" if not problem else "sticks"
-        self.choose(to_chosen=True)
 
     def actions(self):
         if self.stage == "sticks":
@@ -1048,11 +1083,6 @@ class ErrorScreen(ListScreen):
             return []
         return [("Save the log", self.find_sticks), ("Show a QR code", self.show_code),
                 ("Report on GitHub", self.report), ("Restart", self.win.restart)]
-
-    def find_sticks(self):
-        self.stage, self.found = "sticks", data.sticks()
-        self.saved = "" if self.found else "No USB stick found. Plug one in and say Refresh."
-        self.choose(to_chosen=True)
 
     def show_code(self):
         made = subprocess.run(["qrencode", "-t", "PNG", "-l", "L", "-s", "8", "-m", "4", "-o", "-",
@@ -1063,13 +1093,6 @@ class ErrorScreen(ListScreen):
             self.code.set_paintable(Gdk.Texture.new_from_bytes(GLib.Bytes.new(made.stdout)))
             self.stage, self.saved = "code", ""
         self.choose(to_chosen=True)
-
-    def go_back(self):
-        if self.stage != "main":
-            self.stage = "main"
-            self.choose(to_chosen=True)
-            return True
-        return False
 
     def issue_url(self, url_max=None):
         """The new-issue link with the title and text filled in: the error, then as much of the end of the log, in
@@ -1102,10 +1125,7 @@ class ErrorScreen(ListScreen):
     def report(self):
         Gtk.UriLauncher.new(self.issue_url()).launch(self.win, None, None, None)
 
-    def status(self):
-        return self.saved
 
-
-STEPS = [LanguageScreen, KeyboardScreen, BootKeyboardScreen, NetworkScreen, TimeZoneScreen, DateTimeScreen,
+STEPS =[LanguageScreen, KeyboardScreen, BootKeyboardScreen, NetworkScreen, TimeZoneScreen, DateTimeScreen,
          ClockScreen, DiskScreen, EraseScreen, EncryptionScreen, RootScreen, UserScreen, ComputerNameScreen,
          ReviewScreen]
