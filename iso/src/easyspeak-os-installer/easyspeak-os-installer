@@ -68,6 +68,12 @@ class InstallerWindow(Adw.ApplicationWindow):
         self.voice = Voice(self.answer)
         self.installing = False
         self.connect("close-request", self.closing)
+        # Nothing blanks, locks or suspends the computer while the installer is open. An install takes longer than
+        # the desktop's idle times, and answering by voice is not input as far as GNOME is concerned, so without
+        # this the screen locks partway through and the computer suspends with the disk half written. The live
+        # USB's settings say the same; this holds even where they don't, such as a session started another way.
+        self.awake = app.inhibit(self, Gtk.ApplicationInhibitFlags.IDLE | Gtk.ApplicationInhibitFlags.SUSPEND
+                                 | Gtk.ApplicationInhibitFlags.LOGOUT, "Installing EasySpeakOS")
         self.show_screen(screens.STEPS[0])
 
     # ------------------------------------------------------------------ navigation

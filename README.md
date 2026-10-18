@@ -193,7 +193,9 @@ computer's disk isn't touched until you install.
    On every screen: say a line's number (up to "nine hundred ninety nine") or
    its name, a button's name, or **Read it** to hear the screen. Long lists
    have **Page down** and **Page up**, and **letter G** scrolls to the entries
-   starting with G.
+   starting with G. The live USB never blanks the screen, locks or suspends,
+   and the installer keeps the computer awake for as long as it is open, so an
+   install you walk away from finishes and still answers you afterwards.
 
    If the install stops, nothing more is changed, and the installer offers,
    least typing first: **Save the log** (onto another USB stick, for your

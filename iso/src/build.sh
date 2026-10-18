@@ -68,10 +68,25 @@ dnf5 repoquery --quiet --setopt=optional_metadata_types=filelists --list anacond
 
 # The dock: the installer first, then Firefox, Files and Bazaar. (The live session's own setup writes Fedora's list, with
 # apps this system doesn't have; this file sorts after it, so it wins.)
+# Nothing blanks, locks or suspends the live session. The installed system keeps Fedora's settings; the USB does
+# not, because an install takes longer than the desktop's idle times and speaking to it is not input as far as
+# GNOME is concerned. Left as they are, the screen locks five minutes into an install and the computer suspends
+# after fifteen, so an install nobody touches stops partway and the installer can no longer be answered by voice.
 cat > /usr/share/glib-2.0/schemas/zz2-easyspeak-os-live.gschema.override <<'OVR'
 [org.gnome.shell]
 favorite-apps=['io.github.ctsdownloads.EasySpeakOS.Installer.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop', 'io.github.kolunmi.Bazaar.desktop']
 welcome-dialog-last-shown-version='4294967295'
+
+[org.gnome.desktop.session]
+idle-delay=0
+
+[org.gnome.desktop.screensaver]
+idle-activation-enabled=false
+lock-enabled=false
+
+[org.gnome.settings-daemon.plugins.power]
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
 OVR
 glib-compile-schemas /usr/share/glib-2.0/schemas
 
@@ -133,6 +148,18 @@ done
 [ -s /usr/share/easyspeak-os-installer/logo-wide.svg ] || fail "the installer's EasySpeakOS logo is missing"
 [ "$(wc -l < /usr/share/easyspeak-os-installer/anaconda-translations.txt)" -ge 50 ] || fail "the installer's language list is missing"
 command -v qrencode >/dev/null || fail "qrencode is missing (the problem report's QR code)"
+# Nothing may blank, lock or suspend the live session: an install runs longer than the desktop's idle times, and
+# answering by voice is not input as far as GNOME is concerned. Read through the schemas, as the session reads them.
+for setting in "org.gnome.desktop.session idle-delay uint32 0" \
+               "org.gnome.desktop.screensaver idle-activation-enabled false" \
+               "org.gnome.desktop.screensaver lock-enabled false" \
+               "org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'" \
+               "org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'"; do
+  set -- $setting
+  schema=$1 key=$2
+  shift 2
+  [ "$(gsettings get "$schema" "$key")" = "$*" ] || fail "the live session's $key is not $*, so an install nobody touches would be interrupted"
+done
 for tool in mdadm dmsetup cryptsetup mkfs.fat mkfs.ext4 mkfs.xfs sfdisk wipefs hwclock; do
   command -v "$tool" >/dev/null || fail "$tool is missing (the install engine uses it)"
 done
