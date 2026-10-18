@@ -4,3 +4,4 @@ io.github.mrvladus.List
 de.haeckerfelix.Shortwave
 org.gnome.Podcasts
 org.gnome.World.PikaBackup
+net.nokyan.Resources

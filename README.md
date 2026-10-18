@@ -124,8 +124,10 @@ piece called an image, and apps can't change it. That keeps it from breaking.
 | Window buttons | Every window has minimize, maximize and close buttons (GNOME's own default shows only close) |
 | Desktop defaults | EasySpeak's on/off toggle is in the Quick Settings menu (top right) from the start. No hot corner (the pointer in the top-left corner doesn't open the Activities overview). The battery percentage shows in the top bar. Each can be changed back: the toggle in EasySpeak's Settings, the other two in Settings |
 | Dock | Firefox, Calendar, Files, Bazaar (the app store) and Text Editor. GNOME's own list, with Bazaar in place of GNOME Software and without the Calculator, which is in Show Apps. Change it by dragging apps on or off |
-| Logo Menu | The EasySpeakOS logo at the top left opens a menu: About My System, Activities, App Grid, Software Center (Bazaar), System Monitor, Terminal (Ghostty) and Extensions. A middle click on the logo opens Activities. The [Logo Menu](https://github.com/Aryan20/Logomenu) extension, on for every user; change it in Extensions |
+| Logo Menu | The EasySpeakOS logo at the top left opens a menu: About My System, Activities, App Grid, Software Center (Bazaar), System Monitor (Resources), Terminal (Ghostty) and Extensions. A middle click on the logo opens Activities. The [Logo Menu](https://github.com/Aryan20/Logomenu) extension, on for every user; change it in Extensions |
 | Terminal | [Ghostty](https://ghostty.org/), in place of Fedora's Ptyxis, which is removed. It is the terminal everywhere: EasySpeak's "open terminal", Logo Menu, Files' **Open in Ghostty**, and anything that opens the default terminal |
+| System monitor | [Resources](https://apps.gnome.org/Resources/), installed from Flathub on the first start, is what the Logo Menu's System Monitor opens. gnome-system-monitor is kept too, in the app grid. The live USB, which has no Flatpaks yet, points the Logo Menu at gnome-system-monitor |
+| Fingerprint | Turned on where the laptop has a supported reader: Fedora's atomic base ships the fingerprint software but leaves it off, so EasySpeakOS enables it (authselect with-fingerprint and the fprintd service). Enrol in Settings, Users; it then logs you in and authorises prompts without typing. A password is still set at install as the fallback |
 | Microphone | A microphone starts at 50% volume, not 100%, which is often too loud for speech recognition. A volume you set is kept. Change it in Settings, Sound |
 | Firefox | Opens Firefox's own home page, not Fedora's start page, with no Fedora tile |
 | Default apps | Web: qutebrowser, Firefox. Writing: Text Editor, LibreOffice (Writer, Calc, Impress), Errands. Media: Lollypop, Shortwave, Podcasts, Celluloid. Viewing: Papers, Loupe. Files and system: Files, Ghostty, Settings, Bazaar (the app store), Pika Backup. Accessibility: Orca, plus GNOME's Hover Click, Zoom and on-screen keyboard. Utilities: Calculator, Clocks, Calendar, Contacts, Weather, Characters. Fedora's own packages, in the image ([`build_files/default-apps.txt`](build_files/default-apps.txt)); Errands, Shortwave, Podcasts and Pika Backup aren't packaged by Fedora, so they come from Flathub on the first start with internet ([`build_files/flathub-apps.txt`](build_files/flathub-apps.txt)). No email app: use your own |
@@ -195,7 +197,9 @@ computer's disk isn't touched until you install.
    On every screen: say a line's number (up to "nine hundred ninety nine") or
    its name, a button's name, or **Read it** to hear the screen. Long lists
    have **Page down** and **Page up**, and **letter G** scrolls to the entries
-   starting with G.
+   starting with G. The live USB never dims, blanks, locks or suspends, so an
+   install can run untouched to the end; the installed system keeps GNOME's
+   normal power settings.
 
    If the install stops, nothing more is changed, and the installer offers,
    least typing first: **Save the log** (onto another USB stick, for your

@@ -123,12 +123,24 @@ printf 'add_dracutmodules+=" tpm2-tss "\n' > /usr/lib/dracut/dracut.conf.d/90-ea
 bash /ctx/initramfs.sh
 install -Dm755 /ctx/easyspeak-os-boot-label /usr/bin/easyspeak-os-boot-label
 install -Dm644 /ctx/NOTICE /usr/share/doc/easyspeak-os/NOTICE
+
+# Fingerprint login. The Silverblue base ships the fingerprint stack (fprintd, libfprint, pam_fprintd) but leaves it
+# off: its authselect profile has no with-fingerprint feature, so GNOME hides the enrolment option, and fprintd is a
+# static (dbus-activated) unit that nothing starts at boot. For a desktop aimed at RSI and arthritis, where not
+# typing a password matters, both are turned on: the authselect feature so GNOME offers fingerprint and PAM uses it,
+# and fprintd given an [Install] section and enabled so it is already running at login.
+authselect enable-feature with-fingerprint
+mkdir -p /usr/lib/systemd/system/fprintd.service.d
+printf '[Install]\nWantedBy=graphical.target\n' > /usr/lib/systemd/system/fprintd.service.d/10-easyspeak-os-enable.conf
+systemctl enable fprintd.service
 dnf5 -y remove fedora-flathub-remote || echo "note: fedora-flathub-remote was not removed"
 install -Dm644 /ctx/flathub.flatpakrepo /usr/share/easyspeak-os/flathub.flatpakrepo
 install -Dm644 /ctx/easyspeak-os-flathub.service /usr/lib/systemd/system/easyspeak-os-flathub.service
 # The default apps Fedora doesn't package, from Flathub on the first start with internet (see those files). Fedora's
 # own Flatpak store is not added (flatpak-add-fedora-repos.service): apps come from Flathub only.
 install -Dm644 /ctx/flathub-apps.txt /usr/share/easyspeak-os/flathub-apps.txt
+# Resources (the system monitor the Logo Menu opens) is one of those Flathub apps, so it comes on the first start.
+grep -qx net.nokyan.Resources /usr/share/easyspeak-os/flathub-apps.txt || { echo "ERROR: Resources (net.nokyan.Resources) is not in the Flathub apps list, so the Logo Menu's system monitor would be missing"; exit 1; }
 install -Dm755 /ctx/easyspeak-os-flathub-apps /usr/libexec/easyspeak-os-flathub-apps
 systemctl disable flatpak-add-fedora-repos.service
 install -Dm644 /ctx/easyspeak-os-flatpak-apps.service /usr/lib/systemd/system/easyspeak-os-flatpak-apps.service
@@ -237,6 +249,7 @@ done
 for k in "org.gnome.shell enabled-extensions ['logomenu@aryan_k']" \
          "org.gnome.shell.extensions.logo-menu menu-button-software-center 'bazaar'" \
          "org.gnome.shell.extensions.logo-menu menu-button-terminal 'ghostty'" \
+         "org.gnome.shell.extensions.logo-menu menu-button-system-monitor 'flatpak run net.nokyan.Resources'" \
          "org.gnome.shell.extensions.logo-menu use-custom-icon true" \
          "org.gnome.shell.extensions.logo-menu custom-icon-path '/usr/share/easyspeak-os/logo-menu-icon.svg'" \
          "org.gnome.shell.extensions.logo-menu show-activities-button false" \
@@ -245,6 +258,11 @@ for k in "org.gnome.shell enabled-extensions ['logomenu@aryan_k']" \
   got=$(HOME=/tmp gsettings get "$schema" "$key")
   [ "$got" = "$want" ] || { echo "ERROR: Logo Menu default $schema $key is $got, not $want"; exit 1; }
 done
+
+# Fingerprint: the authselect feature is on (so GNOME offers it and PAM uses it) and fprintd will start at boot.
+authselect current | grep -qw with-fingerprint || { echo "ERROR: authselect does not have with-fingerprint, so GNOME would not offer fingerprint login"; exit 1; }
+grep -qw pam_fprintd.so /etc/pam.d/system-auth || { echo "ERROR: pam_fprintd is not in the PAM stack, so fingerprint would not be used"; exit 1; }
+[ "$(systemctl is-enabled fprintd.service)" = enabled ] || { echo "ERROR: fprintd is not enabled, so it would not be running at login"; exit 1; }
 
 # Firefox: its own home page instead of Fedora's start page, no "Fedora Project - Start Page" tile, and its About
 # window says "Mozilla Firefox", not "Mozilla Firefox for Fedora". Fails if Fedora's Firefox package changes these.
