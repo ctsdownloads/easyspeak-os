@@ -181,8 +181,10 @@ computer's disk isn't touched until you install.
    install**. The **Review** at the end is read aloud; say a number to change
    that step, or **Install**. It installs EasySpeakOS from the copy on the USB
    stick, with no download, and says when it's finished; then say
-   **Restart** (or **reboot**). If the restart doesn't start, a pop-up shows
-   the exact error, to photograph for a report. The finished screen also offers
+   **Restart** (or **reboot**), which restarts the computer whether you say it
+   or press the button, with nothing else open and the screen untouched. If the
+   restart doesn't start, a pop-up shows the exact error, to photograph for a
+   report. The finished screen also offers
    **Save the log**: it puts the details of the install, and what EasySpeak
    itself did, on a second USB stick. Use it if anything went wrong, including
    voice not answering, since the live USB has no terminal to read a log with.

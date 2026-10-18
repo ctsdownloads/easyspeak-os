@@ -55,6 +55,11 @@ ln -sf ../lib/easyspeak-os-installer/easyspeak-os-installer /usr/bin/easyspeak-o
 install -Dm755 /src/easyspeak-os-install-engine /usr/libexec/easyspeak-os-install-engine
 install -Dm644 /src/io.github.ctsdownloads.easyspeak-os.install.policy \
     /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.install.policy
+# The restart at the end: run as root (this helper) through pkexec, so it works even when said by voice on a screen
+# nobody has touched. Its polkit action allows it without a password, on the live USB only.
+install -Dm755 /src/easyspeak-os-reboot /usr/libexec/easyspeak-os-reboot
+install -Dm644 /src/io.github.ctsdownloads.easyspeak-os.reboot.policy \
+    /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.reboot.policy
 install -Dm644 /src/io.github.ctsdownloads.EasySpeakOS.Installer.desktop \
     /usr/share/applications/io.github.ctsdownloads.EasySpeakOS.Installer.desktop
 install -Dm644 /branding/logo-EasySpeak.svg /usr/share/icons/hicolor/scalable/apps/easyspeak-os-installer.svg
@@ -130,6 +135,10 @@ for f in /usr/bin/easyspeak-os-installer /usr/libexec/easyspeak-os-install-engin
 done
 [ -s /usr/share/applications/io.github.ctsdownloads.EasySpeakOS.Installer.desktop ] || fail "the installer's launcher is missing"
 [ -s /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.install.policy ] || fail "the installer's polkit action is missing"
+[ -x /usr/libexec/easyspeak-os-reboot ] || fail "the reboot helper is missing (the restart at the end of the install)"
+[ -s /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.reboot.policy ] || fail "the reboot helper's polkit action is missing"
+grep -q '<allow_any>yes</allow_any>' /usr/share/polkit-1/actions/io.github.ctsdownloads.easyspeak-os.reboot.policy \
+  || fail "the reboot action must allow any session, so restart by voice works on a screen nobody has touched"
 [ -s /usr/share/easyspeak-os-installer/logo-wide.svg ] || fail "the installer's EasySpeakOS logo is missing"
 [ "$(wc -l < /usr/share/easyspeak-os-installer/anaconda-translations.txt)" -ge 50 ] || fail "the installer's language list is missing"
 command -v qrencode >/dev/null || fail "qrencode is missing (the problem report's QR code)"
