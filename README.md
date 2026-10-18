@@ -189,7 +189,11 @@ computer's disk isn't touched until you install.
    On every screen: say a line's number (up to "nine hundred ninety nine") or
    its name, a button's name, or **Read it** to hear the screen. Long lists
    have **Page down** and **Page up**, and **letter G** scrolls to the entries
-   starting with G.
+   starting with G. Voice keeps working while the disk is written: EasySpeak's
+   memory is protected for as long as the install runs, and the copying step is
+   held to a small share of memory, so a command said after the wake word is
+   acted on instead of waiting for the speech models to be read back off the
+   USB stick. Say **Read it** during the install to hear how far it has got.
 
    If the install stops, nothing more is changed, and the installer offers,
    least typing first: **Save the log** (onto another USB stick, for your
