@@ -16,6 +16,7 @@ EasySpeak, and a small GNOME extension that shows what EasySpeak is doing.
 > endorsed by the Fedora Project or Red Hat.
 
 [![Build](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml/badge.svg)](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/build.yml)
+[![Docs](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/docs.yml/badge.svg)](https://github.com/ctsdownloads/easyspeak-os/actions/workflows/docs.yml)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 [![Base](https://img.shields.io/badge/base-Fedora%20Silverblue%2044-1f6feb.svg)](https://fedoraproject.org/atomic-desktops/silverblue/)
 [![Desktop](https://img.shields.io/badge/desktop-GNOME%20%7C%20Wayland-green.svg)](https://www.gnome.org/)
