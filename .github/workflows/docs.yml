@@ -1,0 +1,28 @@
+# The README, the guides in docs/ and the help. This runs on every change, writing or code, because a link can be
+# broken by either: moving a page breaks the links into it, and renaming a button in the software windows leaves
+# the help naming one that is gone. It builds nothing, so a change to the writing costs seconds instead of an
+# image.
+name: Check the README, the guides and the help
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  docs:
+    name: Check the README, the guides and the help
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check the README, the guides and the help
+        run: python3 build_files/check-docs.py

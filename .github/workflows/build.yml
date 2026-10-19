@@ -1,16 +1,23 @@
 ---
 name: Build container image
 on:
+  # Writing changes nothing that runs, so it builds no image: the README, the guides in docs/ and any other
+  # markdown are left out of both triggers below. The checks that do apply to them (the table of contents, the
+  # links, the help) are a job of their own, which runs on every change.
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   schedule:
     - cron: '05 10 * * *'  # 10:05am UTC everyday
   push:
     branches:
       - main
     paths-ignore:
-      - '**/README.md'
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
 
 env:
@@ -47,9 +54,6 @@ jobs:
         shell: bash
         run: |
           just check
-
-      - name: Check README and help
-        run: python3 build_files/check-docs.py
 
       # The titles of the last 60 changes, with their dates, go into the image, so System Update can say what a
       # new version changes.
